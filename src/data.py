@@ -2,6 +2,7 @@ from datasets import load_dataset, Dataset, DatasetDict
 from datasets import DatasetDict, Dataset
 import logging
 import pickle
+from pathlib import Path
 
 
 def transform_dataset_wiki40b(subsets=['train', 'validation', 'test']):
@@ -26,7 +27,8 @@ def transform_dataset_wiki40b(subsets=['train', 'validation', 'test']):
         # Return the transformed data
         return {
             'anchor_text': 'query : ' + anchor_text,
-            'positive_text': 'document: ' + positive_text
+            'positive_text': 'document: ' + positive_text,
+            'negative_text': None
         }
 
     # Apply the transformation to the train, validation, and test subsets
@@ -86,11 +88,12 @@ def parse_wiki_article(text):
     return article_dict
 
 
-def transform_dataset_synthesized(file_path, test_size=0.2):
+def transform_dataset_synthesized(data_folder_path, test_size=0.2):
     logger = logging.getLogger('default')
     logger.info("Transforming synthesized dataset")
-    with open(file_path, 'rb') as f:
-        data = pickle.load(f)
+
+    logger.info("Load all pickled data from {data_folder_path}")
+    data = _load_and_concatenate_pickles(data_folder_path=data_folder_path)
 
     def transform_entry(entry):
         # Return the transformed data
@@ -124,3 +127,26 @@ def transform_dataset(dataset_name, **kwargs):
         return transform_dataset_synthesized(**kwargs)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
+    
+
+def _load_and_concatenate_pickles(data_folder_path):
+    concatenated_data = []
+
+    # Method to use pathlib to find all .pkl files
+    data_folder = Path(data_folder_path)
+    files = [file_path for file_path in data_folder.glob('*.pkl')]
+
+    # Sort the files by name (optional, if you want a specific order)
+    files.sort(key=lambda x: x.name)
+
+    # Load and concatenate data from each file
+    for file_path in files:
+        with file_path.open('rb') as f:
+            data = pickle.load(f)
+            if isinstance(data, list):
+                concatenated_data.extend(data)
+            else:
+                print(f"Warning: {file_path.name} does not contain a list.")
+    
+    return concatenated_data
+
