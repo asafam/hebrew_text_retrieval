@@ -93,7 +93,7 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
     logger.info("Transforming synthesized dataset")
 
     logger.info("Load all pickled data from {data_folder_path}")
-    data = _load_and_concatenate_pickles(data_folder_path=data_folder_path)
+    data = _load_synthesized_data_files(data_folder_path=data_folder_path)
 
     def transform_entry(entry):
         # Return the transformed data
@@ -129,8 +129,8 @@ def transform_dataset(dataset_name, **kwargs):
         raise ValueError(f"Unknown dataset name: {dataset_name}")
     
 
-def _load_and_concatenate_pickles(data_folder_path):
-    concatenated_data = []
+def _load_synthesized_data_files(data_folder_path):
+    data = []
 
     # Method to use pathlib to find all .pkl files
     data_folder = Path(data_folder_path)
@@ -142,11 +142,13 @@ def _load_and_concatenate_pickles(data_folder_path):
     # Load and concatenate data from each file
     for file_path in files:
         with file_path.open('rb') as f:
-            data = pickle.load(f)
+            file_data = pickle.load(f)
             if isinstance(data, list):
-                concatenated_data.extend(data)
+                data.extend(file_data)
             else:
                 print(f"Warning: {file_path.name} does not contain a list.")
+
+    data = [item for item in data if item['success']]
     
-    return concatenated_data
+    return data
 

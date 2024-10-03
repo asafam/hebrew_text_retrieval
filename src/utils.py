@@ -62,7 +62,7 @@ def load_checkpoint(model, optimizer, checkpoint_dir, device):
 
 
 # Save model and optimizer state
-def save_checkpoint(model, optimizer, epoch, checkpoint_dir):
+def save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss):
     logger = logging.getLogger('default')
     
     if not os.path.exists(checkpoint_dir):
@@ -70,6 +70,7 @@ def save_checkpoint(model, optimizer, epoch, checkpoint_dir):
     checkpoint_path = os.path.join(checkpoint_dir, f"checkpoint_epoch_{epoch}.pth")
     torch.save({
         'epoch': epoch,
+        'loss': loss,
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
     }, checkpoint_path)
