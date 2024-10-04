@@ -75,3 +75,35 @@ def save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss):
         'optimizer_state_dict': optimizer.state_dict(),
     }, checkpoint_path)
     logger.info(f"Checkpoint saved at {checkpoint_path}")
+
+
+def tokenize_inputs_and_create_dataloader(tokenizer, dataset, shuffle, batch_size, PAD_MASK = 0, replace_negative_text = False):
+    logger = logging.getLogger('default')
+    # Tokenize the dataset
+    logger.info(f"Tokenizing dataset")
+    anchor_inputs = tokenizer(dataset['anchor_text'], return_tensors='pt', padding=True, truncation=True)
+    positive_inputs = tokenizer(dataset['positive_text'], return_tensors='pt', padding=True, truncation=True)
+
+    if 'negative_text' in dataset:
+        if not replace_negative_text:
+            negative_inputs = tokenizer(dataset['negative_text'], return_tensors='pt', padding=True, truncation=True)
+        else:
+            # Handling cases where some elements are None
+            negative_texts = [text or dataset['positive_text'][i] for i, text in enumerate(dataset['negative_text'])]
+            negative_inputs = tokenizer(negative_texts, return_tensors='pt', padding=True, truncation=True)
+            for i, text in enumerate(dataset['negative_text']):
+                if text is None:
+                    # Set attention_mask to 0 for the corresponding index
+                    negative_inputs['attention_mask'][i] = PAD_MASK
+
+    # Create DataLoader
+    logger.info(f"Creating dataloader")
+    if 'negative_text' in dataset:
+        tensor_dataset = TensorDataset(anchor_inputs['input_ids'], anchor_inputs['attention_mask'],
+                                        positive_inputs['input_ids'], positive_inputs['attention_mask'],
+                                        negative_inputs['input_ids'], negative_inputs['attention_mask'])
+    else:
+        tensor_dataset = TensorDataset(anchor_inputs['input_ids'], anchor_inputs['attention_mask'],
+                                        positive_inputs['input_ids'], positive_inputs['attention_mask'])
+    dataloader = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=shuffle)
+    return dataloader

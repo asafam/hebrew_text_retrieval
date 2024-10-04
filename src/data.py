@@ -1,14 +1,16 @@
-from datasets import load_dataset, Dataset, DatasetDict
-from datasets import DatasetDict, Dataset
+from datasets import load_dataset, Dataset, DatasetDict, concatenate_datasets
 import logging
 import pickle
 from pathlib import Path
+from tqdm import tqdm
+import random
 
-
-def transform_dataset_wiki40b(subsets=['train', 'validation', 'test']):
+def transform_dataset_wiki40b(splits=['train', 'validation', 'test']):
     logger = logging.getLogger('default')
     logger.info("Transforming Wiki40B dataset")
 
+    # Load the Wiki40B dataset
+    logger.info("Loading Wiki40B dataset")
     dataset = load_dataset("wiki40b", "he")
     decoded_dataset = dataset.map(lambda x: {'text': decode_text(x['text'])})
 
@@ -28,16 +30,15 @@ def transform_dataset_wiki40b(subsets=['train', 'validation', 'test']):
         return {
             'anchor_text': 'query : ' + anchor_text,
             'positive_text': 'document: ' + positive_text,
-            'negative_text': None
         }
 
-    # Apply the transformation to the train, validation, and test subsets
+    # Apply the transformation to the train, validation, and test splits
     transformed_dataset = {}
-    for subset in subsets:
+    for split in splits:
         # Transform each subset of the dataset using map (this processes each 'text' entry)
-        logger.info(f"Transforming {subset} subset")
-        transformed_subset = decoded_dataset[subset].map(transform_entry)
-        transformed_dataset[subset] = transformed_subset
+        logger.info(f"Transforming {split} split")
+        transformed_split = decoded_dataset[split].map(transform_entry)
+        transformed_dataset[split] = transformed_split
 
     # Return the transformed dataset as a DatasetDict
     logger.info("Done transforming Wiki40B dataset")
@@ -92,7 +93,7 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
     logger = logging.getLogger('default')
     logger.info("Transforming synthesized dataset")
 
-    logger.info("Load all pickled data from {data_folder_path}")
+    logger.info("Loading synthesize query document dataset from {data_folder_path}")
     data = _load_synthesized_data_files(data_folder_path=data_folder_path)
 
     def transform_entry(entry):
@@ -111,9 +112,12 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
 
     # Split the dataset into train and test sets
     train_test_dataset = dataset.train_test_split(test_size=test_size)
+    # Further split the test set into validation and test
+    test_validation_dataset = train_test_dataset['test'].train_test_split(test_size=0.5)  # 50% of 'test' for 'validation'
     train_validation_dataset = DatasetDict({
         'train': train_test_dataset['train'],  # Keep the 'train' split
-        'validation': train_test_dataset['test']  # Rename 'test' to 'validation'
+        'test': test_validation_dataset['test'],  # The remaining 'test' set
+        'validation': test_validation_dataset['train'],  # The remaining 'test' set
     })
 
     logger.info("Done transforming synthesized dataset")
@@ -123,13 +127,30 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
 def transform_dataset(dataset_name, **kwargs):
     if dataset_name == 'wiki40b':
         return transform_dataset_wiki40b(**kwargs)
-    elif dataset_name == 'synthesized_dataset':
+    elif dataset_name == 'synthesized_query_document':
         return transform_dataset_synthesized(**kwargs)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")
     
 
+def unify_datasets(datasets, columns = ['anchor_text', 'positive_text', 'negative_text']):
+    # Create an empty DatasetDict to store the concatenated splits
+    unified_dataset = DatasetDict()
+
+    # Iterate over datasets and train
+    for dataset in datasets:   
+        for split in dataset.keys():
+            dataset_split = dataset[split].select_columns(columns)
+            if split not in dataset:
+                unified_dataset[split] = dataset_split
+            else:
+                unified_dataset[split] = concatenate_datasets([dataset[split], dataset_split])
+    
+    return unified_dataset
+    
+
 def _load_synthesized_data_files(data_folder_path):
+    logger = logging.getLogger('default')
     data = []
 
     # Method to use pathlib to find all .pkl files
@@ -140,13 +161,14 @@ def _load_synthesized_data_files(data_folder_path):
     files.sort(key=lambda x: x.name)
 
     # Load and concatenate data from each file
-    for file_path in files:
+    for file_path in tqdm(files, desc="Loading data files"):
+        logger.debug(f"Loading data from {file_path.name}")
         with file_path.open('rb') as f:
             file_data = pickle.load(f)
             if isinstance(data, list):
                 data.extend(file_data)
             else:
-                print(f"Warning: {file_path.name} does not contain a list.")
+                logger.debug(f"Warning: {file_path.name} does not contain a list.")
 
     data = [item for item in data if item['success']]
     

@@ -10,7 +10,6 @@ from utils import *
 
 
 def train(
-    tokenizer,
     model,
     optimizer,
     criterion,
@@ -25,7 +24,6 @@ def train(
     logger = logging.getLogger('default')
     logger.info("Start training")
 
-    model.to(device)
     model.train()
     best_val_loss = float('inf')  # Initialize best validation loss to infinity
 
@@ -34,8 +32,6 @@ def train(
 
     for epoch in range(start_epoch, epochs):
         total_train_loss = 0.0
-        model.to(device)
-        model.train()
 
         # Track progress in the training loop using tqdm
         train_progress = tqdm(enumerate(train_dataloader), desc=f"Epoch {epoch + 1}/{epochs} [Train]", leave=False, total=len(train_dataloader))
@@ -43,7 +39,7 @@ def train(
         for batch_idx, batch in train_progress:
 
             if len(batch) == 4: # in case we have only (anchor, positive)
-                anchor_ids, anchor_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
+                anchor_ids, anchor_mask, positive_ids, positive_mask, _, _ = [x.to(device) for x in batch]
 
                 # Forward pass to get the embeddings
                 anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
@@ -53,39 +49,24 @@ def train(
                 positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
                 # Set negatives as the other positives in the batch
-                # Create a matrix where the negatives are shifted versions of positives
                 batch_size = positive_embeds.size(0)
-    #             negatives_embeds = torch.stack([positive_embeds[i:] + positive_embeds[:i] for i in range(1, batch_size)], dim=0)
+
                 # Create the negatives for each index `i` by excluding the positive embedding at index `i`
                 negatives_embeds_list = []
 
                 for i in range(batch_size):
                     # Exclude the current index `i` using slicing
-                    negatives_embeds = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
+                    negatives_embeds_i = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
 
                     # Append the result to the list
-                    negatives_embeds_list.append(negatives_embeds)
+                    negatives_embeds_list.append(negatives_embeds_i)
 
                 # Stack the negatives for each sample in the batch
                 # Each entry in the batch now has (batch_size - 1) negative embeddings
                 negatives_embeds = torch.stack(negatives_embeds_list)
 
             elif len(batch) == 6: # in case we have only (anchor, positive, negative)
-                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = batch
-                anchor_ids, anchor_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
-
-                # Handling negative_ids and negative_mask where some elements are None
-                PAD_TOKEN_ID = tokenizer.pad_token_id  # Padding token ID from the tokenizer
-                negative_ids_filled = torch.stack([
-                    x.to(device) if x is not None else torch.full((negative_ids.shape[1],), PAD_TOKEN_ID, device=device) 
-                    for x in negative_ids
-                ])
-
-                PAD_MASK = 0  # Attention mask for padding tokens is usually 0
-                negative_mask_filled = torch.stack([
-                    x.to(device) if x is not None else torch.full((negative_mask.shape[1],), PAD_MASK, device=device) 
-                    for x in negative_mask
-                ])
+                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
 
                 # Forward pass to get the embeddings
                 anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
@@ -94,25 +75,18 @@ def train(
                 positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
                 positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
-                negative_outputs = model(input_ids=negative_ids_filled, attention_mask=negative_mask_filled)
+                negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
                 # Set negatives as the other positives in the batch
-                # Create a matrix where the negatives are shifted versions of positives
-                batch_size = positive_embeds.size(0)
-    #             negatives_embeds = torch.stack([positive_embeds[i:] + positive_embeds[:i] for i in range(1, batch_size)], dim=0)
-                # Create the negatives for each index `i` by excluding the positive embedding at index `i`
+                batch_size = anchor_embeds.size(0)
                 negatives_embeds_list = []
-
                 for i in range(batch_size):
-                    if negative_ids[i] is not None:
-                        # Exclude the current index `i` using slicing
-                        negatives_embeds = torch.cat([positive_embeds[:i], negative_embeds[i:i+1], positive_embeds[i+1:]], dim=0)
-                    else:
-                        negatives_embeds = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
+                    # Exclude the current index `i` from positives using slicing
+                    negatives_embeds_i = torch.cat([positive_embeds[:i], negative_embeds[i:i+1], positive_embeds[i+1:]], dim=0)
 
                     # Append the result to the list
-                    negatives_embeds_list.append(negatives_embeds)
+                    negatives_embeds_list.append(negatives_embeds_i)
 
                 # Stack the negatives for each sample in the batch
                 # Each entry in the batch now has (batch_size - 1) negative embeddings
@@ -149,7 +123,7 @@ def train(
             save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss)
 
 
-def validate(tokenizer, model, val_dataloader, criterion, device, epoch, epochs):
+def validate(model, val_dataloader, criterion, device, epoch, epochs):
     model.eval()
     total_val_loss = 0.0
 
@@ -170,7 +144,6 @@ def validate(tokenizer, model, val_dataloader, criterion, device, epoch, epochs)
                 positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
                 # Set negatives as the other positives in the batch
-                # Create a matrix where the negatives are shifted versions of positives
                 batch_size = positive_embeds.size(0)
 
                 # Create the negatives for each index `i` by excluding the positive embedding at index `i`
@@ -178,31 +151,17 @@ def validate(tokenizer, model, val_dataloader, criterion, device, epoch, epochs)
 
                 for i in range(batch_size):
                     # Exclude the current index `i` using slicing
-                    negatives_embeds = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
+                    negatives_embeds_i = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
 
                     # Append the result to the list
-                    negatives_embeds_list.append(negatives_embeds)
+                    negatives_embeds_list.append(negatives_embeds_i)
 
                 # Stack the negatives for each sample in the batch
                 # Each entry in the batch now has (batch_size - 1) negative embeddings
                 negatives_embeds = torch.stack(negatives_embeds_list)
 
             elif len(batch) == 6:
-                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = batch
-                anchor_ids, anchor_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
-
-                # Handling negative_ids and negative_mask where some elements are None
-                PAD_TOKEN_ID = tokenizer.pad_token_id  # Padding token ID from the tokenizer
-                negative_ids_filled = torch.stack([
-                    x.to(device) if x is not None else torch.full((negative_ids.shape[1],), PAD_TOKEN_ID, device=device) 
-                    for x in negative_ids
-                ])
-
-                PAD_MASK = 0  # Attention mask for padding tokens is usually 0
-                negative_mask_filled = torch.stack([
-                    x.to(device) if x is not None else torch.full((negative_mask.shape[1],), PAD_MASK, device=device) 
-                    for x in negative_mask
-                ])
+                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
 
                 # Forward pass to get the embeddings
                 anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
@@ -211,25 +170,23 @@ def validate(tokenizer, model, val_dataloader, criterion, device, epoch, epochs)
                 positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
                 positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
-                negative_outputs = model(input_ids=negative_ids_filled, attention_mask=negative_mask_filled)
+                negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
                 # Set negatives as the other positives in the batch
                 # Create a matrix where the negatives are shifted versions of positives
                 batch_size = positive_embeds.size(0)
-
-                # Create the negatives for each index `i` by excluding the positive embedding at index `i`
+                # Handling negative_ids and negative_mask where some elements are None by excluding the negative embedding at index `i`
                 negatives_embeds_list = []
-
+                
+                batch_size = anchor_embeds.size(0)
+                negatives_embeds_list = []
                 for i in range(batch_size):
-                    if negative_ids[i] is not None:
-                        # Exclude the current index `i` using slicing
-                        negatives_embeds = torch.cat([positive_embeds[:i], negative_embeds[i:i+1], positive_embeds[i+1:]], dim=0)
-                    else:
-                        negatives_embeds = torch.cat([positive_embeds[:i], positive_embeds[i+1:]], dim=0)
+                    # Exclude the current index `i` from positives using slicing
+                    negatives_embeds_i = torch.cat([positive_embeds[:i], negative_embeds[i:i+1], positive_embeds[i+1:]], dim=0)
 
                     # Append the result to the list
-                    negatives_embeds_list.append(negatives_embeds)
+                    negatives_embeds_list.append(negatives_embeds_i)
 
                 # Stack the negatives for each sample in the batch
                 # Each entry in the batch now has (batch_size - 1) negative embeddings
