@@ -40,21 +40,21 @@ def setup_logger(file_path: str):
     return logger
 
 
-def load_checkpoint(model, optimizer, checkpoint_dir, device):
+def load_checkpoint(model, optimizer, checkpoint_dir, device, epoch=None):
     logger = logging.getLogger('default')
-
-    latest_checkpoint = None
+    checkpoint_id = None
     if os.path.exists(checkpoint_dir):
         checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
         if checkpoint_files:
-            latest_checkpoint = sorted(checkpoint_files)[-1]  # Get the latest checkpoint
+            checkpoint_id = sorted(checkpoint_files)[-1] if epoch is None else f"checkpoint_epoch_{epoch}.pth" # Get the latest checkpoint
 
-    if latest_checkpoint:
-        logger.info(f"Loading checkpoint {latest_checkpoint}")
-        checkpoint_path = os.path.join(checkpoint_dir, latest_checkpoint)
+    if checkpoint_id:
+        logger.info(f"Loading checkpoint {checkpoint_id}")
+        checkpoint_path = os.path.join(checkpoint_dir, checkpoint_id)
         checkpoint = torch.load(checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        if optimizer is not None:
+            optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         return checkpoint['epoch']  # return the epoch to resume from
 
     logger.info("No checkpoint found. Starting from scratch.")
@@ -62,7 +62,7 @@ def load_checkpoint(model, optimizer, checkpoint_dir, device):
 
 
 # Save model and optimizer state
-def save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss):
+def save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss = None):
     logger = logging.getLogger('default')
     
     if not os.path.exists(checkpoint_dir):
@@ -84,7 +84,7 @@ def tokenize_inputs_and_create_dataloader(tokenizer, dataset, shuffle, batch_siz
     anchor_inputs = tokenizer(dataset['anchor_text'], return_tensors='pt', padding=True, truncation=True)
     positive_inputs = tokenizer(dataset['positive_text'], return_tensors='pt', padding=True, truncation=True)
 
-    if 'negative_text' in dataset:
+    if 'negative_text' in dataset.column_names:
         if not replace_negative_text:
             negative_inputs = tokenizer(dataset['negative_text'], return_tensors='pt', padding=True, truncation=True)
         else:
@@ -98,7 +98,7 @@ def tokenize_inputs_and_create_dataloader(tokenizer, dataset, shuffle, batch_siz
 
     # Create DataLoader
     logger.info(f"Creating dataloader")
-    if 'negative_text' in dataset:
+    if 'negative_text' in dataset.column_names:
         tensor_dataset = TensorDataset(anchor_inputs['input_ids'], anchor_inputs['attention_mask'],
                                         positive_inputs['input_ids'], positive_inputs['attention_mask'],
                                         negative_inputs['input_ids'], negative_inputs['attention_mask'])
