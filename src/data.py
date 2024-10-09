@@ -4,8 +4,9 @@ import pickle
 from pathlib import Path
 from tqdm import tqdm
 import random
+from enum import Enum
 
-
+# Define special tokens
 DOCUMENT_TOKEN = '[DOCUMENT]'
 QUERY_TOKEN = '[QUERY]'
 TASK_TOKENS = dict(
@@ -13,6 +14,11 @@ TASK_TOKENS = dict(
     TASK_TITLE_DOC='[TASK_TITLE_DOC]',
     TASK_QUESTION_DOC='[TASK_QUESTION_DOC]',
 )
+
+# define the dataset names enum
+class DatasetNames(Enum):
+    WIKI40B = "wiki40b"
+    SYNTHESIZED_QUERY_DOCUMENT = "synthesized_query_document"
 
 def transform_dataset_wiki40b(splits=['train', 'validation', 'test']):
     logger = logging.getLogger('default')
@@ -134,9 +140,9 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
 
 
 def transform_dataset(dataset_name, **kwargs):
-    if dataset_name == 'wiki40b':
+    if dataset_name == DatasetNames.WIKI40B.value:
         return transform_dataset_wiki40b(**kwargs)
-    elif dataset_name == 'synthesized_query_document':
+    elif dataset_name == DatasetNames.SYNTHESIZED_QUERY_DOCUMENT.value:
         return transform_dataset_synthesized(**kwargs)
     else:
         raise ValueError(f"Unknown dataset name: {dataset_name}")

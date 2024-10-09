@@ -19,10 +19,11 @@ def train(
     epochs,
     start_epoch=0,
     checkpoint_dir='checkpoints',
-    clip_value = None
+    clip_value = None,
+    always_save_checkpoint = True
 ):
     logger = logging.getLogger('default')
-    logger.info("Start training")
+    logger.info("Start training...")
 
     model.train()
     best_val_loss = float('inf')  # Initialize best validation loss to infinity
@@ -88,16 +89,19 @@ def train(
                 "Train Loss": total_train_loss / (batch_idx + 1)
             })
 
+            if batch_idx % 100 == 0:
+                logger.info(f"Epoch {epoch + 1} / {epochs}, Batch {batch_idx + 1} / {len(train_dataloader)}, Train Loss: {loss.item()}")
+
         avg_train_loss = total_train_loss / len(train_dataloader)
-        logger.info(f"Epoch {epoch + 1}, Train Loss: {avg_train_loss}")
+        logger.info(f"Epoch {epoch + 1} / {epochs}, Train Loss: {avg_train_loss}")
 
         # Compute validation loss after each epoch
         avg_val_loss = validate(model, val_dataloader, criterion, device, epoch, epochs)
-        logger.info(f"Epoch {epoch + 1}, Validation Loss: {avg_val_loss}")
+        logger.info(f"Epoch {epoch + 1} / {epochs}, Validation Loss: {avg_val_loss}")
 
         # Save checkpoint after each epoch
-        if loss < best_val_loss:
-            best_val_loss = loss
+        if loss < best_val_loss or always_save_checkpoint:
+            best_val_loss = loss if loss < best_val_loss else best_val_loss
             save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss)
 
 
