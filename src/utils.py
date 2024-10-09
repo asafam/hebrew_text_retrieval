@@ -46,7 +46,7 @@ def load_checkpoint(model, optimizer, checkpoint_dir, device, epoch=None):
     if os.path.exists(checkpoint_dir):
         checkpoint_files = [f for f in os.listdir(checkpoint_dir) if f.endswith(".pth")]
         if checkpoint_files:
-            checkpoint_id = sorted(checkpoint_files)[-1] if epoch is None else f"checkpoint_epoch_{epoch}.pth" # Get the latest checkpoint
+            checkpoint_id = sorted(checkpoint_files, key=lambda x: int(x.split('_epoch_')[1].split('.pth')[0]))[-1] if epoch is None else f"checkpoint_epoch_{epoch}.pth" # Get the latest checkpoint
 
     if checkpoint_id:
         logger.info(f"Loading checkpoint {checkpoint_id}")
