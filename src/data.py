@@ -5,6 +5,15 @@ from pathlib import Path
 from tqdm import tqdm
 import random
 
+
+DOCUMENT_TOKEN = '[DOCUMENT]'
+QUERY_TOKEN = '[QUERY]'
+TASK_TOKENS = dict(
+    TASK_QUERY_DOC='[TASK_QUERY_DOC]',
+    TASK_TITLE_DOC='[TASK_TITLE_DOC]',
+    TASK_QUESTION_DOC='[TASK_QUESTION_DOC]',
+)
+
 def transform_dataset_wiki40b(splits=['train', 'validation', 'test']):
     logger = logging.getLogger('default')
     logger.info("Transforming Wiki40B dataset")
@@ -28,8 +37,8 @@ def transform_dataset_wiki40b(splits=['train', 'validation', 'test']):
 
         # Return the transformed data
         return {
-            'anchor_text': 'query : ' + anchor_text,
-            'positive_text': 'document: ' + positive_text,
+            'anchor_text': f"{TASK_TOKENS['TASK_TITLE_DOC']} {QUERY_TOKEN} {anchor_text}",
+            'positive_text': f"{DOCUMENT_TOKEN} {positive_text}",
         }
 
     # Apply the transformation to the train, validation, and test splits
@@ -99,9 +108,9 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
     def transform_entry(entry):
         # Return the transformed data
         return {
-            'anchor_text': 'query: ' + entry['user_query'],
-            'positive_text': 'document: ' + entry['positive_document'],
-            'negative_text': 'document: ' + entry['hard_negative_document'],
+            'anchor_text': f"{TASK_TOKENS['TASK_QUERY_DOC']} {QUERY_TOKEN} {entry['user_query']}",
+            'positive_text': f"{DOCUMENT_TOKEN} {entry['positive_document']}",
+            'negative_text': f"{DOCUMENT_TOKEN} {entry['hard_negative_document']}",
         }
 
     # Apply the transformation to each entry
