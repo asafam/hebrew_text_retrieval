@@ -104,7 +104,11 @@ def parse_wiki_article(text):
     return article_dict
 
 
-def transform_dataset_synthesized(data_folder_path, test_size=0.2):
+def transform_dataset_synthesized(
+        data_folder_path='data/synthetic_data_202409', 
+        splits=['train', 'validation', 'test'], 
+        test_size=0.2
+    ):
     logger = logging.getLogger('default')
     logger.info("Transforming synthesized dataset")
 
@@ -123,10 +127,10 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
     transformed_data = list(map(transform_entry, data))
 
     # Convert the list of dictionaries to a Hugging Face Dataset
-    dataset = Dataset.from_list(transformed_data)
+    all_dataset = Dataset.from_list(transformed_data)
 
     # Split the dataset into train and test sets
-    train_test_dataset = dataset.train_test_split(test_size=test_size)
+    train_test_dataset = all_dataset.train_test_split(test_size=test_size)
     # Further split the test set into validation and test
     test_validation_dataset = train_test_dataset['test'].train_test_split(test_size=0.5)  # 50% of 'test' for 'validation'
     train_validation_dataset = DatasetDict({
@@ -135,8 +139,10 @@ def transform_dataset_synthesized(data_folder_path, test_size=0.2):
         'validation': test_validation_dataset['train'],  # The remaining 'test' set
     })
 
+    dataset = DatasetDict({split: train_validation_dataset[split] for split in splits})
+
     logger.info("Done transforming synthesized dataset")
-    return train_validation_dataset
+    return dataset
 
 
 def transform_dataset(dataset_name, **kwargs):

@@ -2,16 +2,6 @@ import os
 import sys
 
 project_dir = '/home/nlp/achimoa/projects/hebrew_text_encoder'
-src_dir = os.path.join(project_dir, 'src')
-
-os.chdir(project_dir)
-print(f"Current working directory set to: {os.getcwd()}")
-
-if src_dir not in sys.path:
-    sys.path.insert(0, src_dir)  # Add it to the front of PYTHONPATH
-    print(f"PYTHONPATH updated with: {src_dir}")
-else:
-    print(f"PYTHONPATH already includes: {src_dir}")
 
 from typing import Optional
 import argparse
@@ -39,7 +29,12 @@ def main(
     source_checkpoint_epoch: Optional[int] = None,
     cuda_visible_devices: str = "0",
 ):
-    logger = logging.getLogger('default')
+    # create the logger
+    model_name_slug = model_name.replace('/', '_').replace('-', '_')
+    dataset_name_slug = dataset_name.replace('/', '_').replace('-', '_')
+    log_file = f"./logs/{model_name_slug}/train_{dataset_name_slug}.log"
+    logger = setup_logger(log_file)
+    
     # Print the arguments
     logger.info(f"Arguments:")
     logger.info(f"Dataset: {dataset_name}")
@@ -56,12 +51,6 @@ def main(
 
     os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
 
-    # create the logger
-    model_name_slug = model_name.replace('/', '_').replace('-', '_')
-    dataset_name_slug = dataset_name.replace('/', '_').replace('-', '_')
-    log_file = f"./logs/{model_name_slug}/{dataset_name_slug}.log"
-    logger = setup_logger(log_file)
-
     # device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Using device: {device}")
@@ -71,9 +60,19 @@ def main(
     model = AutoModel.from_pretrained(model_name)
     model = model.to(device)
 
+    # Load the latest checkpoint if available and resume training
+    start_epoch = 0
+    if source_checkpoint_dir:
+        logger.info(f"Loading checkpoint")
+        start_epoch = load_checkpoint(
+            model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
+        )
+    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
+
     # Add special tokens to the tokenizer
     new_tokens = [QUERY_TOKEN, DOCUMENT_TOKEN, *TASK_TOKENS.values()]
     additional_special_tokens = [token for token in new_tokens if token not in tokenizer.get_vocab()]
+    logger.debug(f"Adding special tokens: {additional_special_tokens}")
     special_tokens = {
         "additional_special_tokens": additional_special_tokens
     }
@@ -81,19 +80,15 @@ def main(
     model.resize_token_embeddings(len(tokenizer))
 
     # Initialize the InfoNCE loss and the optimizer
+    logger.info("Initialize the InfoNCE loss and the optimizer")
     criterion = InfoNCELoss(temperature=infonce_temperature)
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
-
-    # Load model at checkpoint
-    if 
-    start_epoch = load_checkpoint(model=model, optimizer=optimizer, checkpoint_dir=CHECKPOINT_DIR, device=device)
-    logger.info(f"Loaded model from epoch {start_epoch}")
 
     # Iterate over datasets and train the model
     start_datetime = datetime.now()
 
     logger.info(f"Load dataset: {dataset_name}")
-    dataset = transform_dataset(dataset_name, subsets=['train', 'validation'])
+    dataset = transform_dataset(dataset_name, splits=['train', 'validation'])
     
     # Create DataLoaders
     dataloaders = {}
@@ -105,17 +100,9 @@ def main(
 
         # Create DataLoader for training
         logger.info(f"Creating {split} dataloader")
-        dataset = TensorDataset(anchor_inputs['input_ids'], anchor_inputs['attention_mask'],
+        tensor_dataset = TensorDataset(anchor_inputs['input_ids'], anchor_inputs['attention_mask'],
                                         positive_inputs['input_ids'], positive_inputs['attention_mask'])
-        dataloaders[split] = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    # Load the latest checkpoint if available and resume training
-    if source_checkpoint_dir:
-        logger.info(f"Loading checkpoint")
-        start_epoch = load_checkpoint(
-            model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
-        )
-    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
+        dataloaders[split] = DataLoader(tensor_dataset, batch_size=batch_size, shuffle=(split != 'validation'))
 
     # Train the model for this dataset
     train(
