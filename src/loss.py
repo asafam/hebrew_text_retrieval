@@ -18,42 +18,57 @@ class InfoNCELoss(torch.nn.Module):
         super(InfoNCELoss, self).__init__()
         self.temperature = temperature
 
-    def forward(self, anchor, positive, negatives):
+    def forward(self, query_embeddings, positive_embeddings, negative_embeddings = None):
         """
-        Compute the InfoNCE loss.
+        Compute InfoNCE loss with optional negative samples.
+        
+        If a negative sample is provided, it will be used. Otherwise, in-batch positives are treated as negatives.
 
-        Parameters:
-        - anchor: Tensor of shape (batch_size, embedding_dim) - anchor samples
-        - positive: Tensor of shape (batch_size, embedding_dim) - positive samples corresponding to each anchor
-        - negatives: Tensor of shape (batch_size, num_negatives, embedding_dim) - negative samples
-
+        Args:
+        query_embeddings (torch.Tensor): Embeddings of the queries, shape (batch_size, embedding_dim).
+        positive_embeddings (torch.Tensor): Embeddings of the positive documents, shape (batch_size, embedding_dim).
+        negative_embeddings (torch.Tensor, optional): Embeddings of the negative documents, shape (batch_size, embedding_dim) or None.
+        temperature (float): Temperature scaling parameter.
+        
         Returns:
-        - loss: Computed InfoNCE loss
+        torch.Tensor: Computed InfoNCE loss.
         """
-        batch_size = anchor.size(0)
-        num_negatives = negatives.size(1)
+        batch_size = query_embeddings.size(0)
 
-        # Normalize embeddings to unit vectors
-        anchor = F.normalize(anchor, dim=-1)
-        positive = F.normalize(positive, dim=-1)
-        negatives = F.normalize(negatives, dim=-1)
+        # Normalize the embeddings
+        query_embeddings = F.normalize(query_embeddings, p=2, dim=1)
+        positive_embeddings = F.normalize(positive_embeddings, p=2, dim=1)
 
-        # Calculate the positive logits (similarity between anchor and positive)
-        positive_logits = torch.sum(anchor * positive, dim=-1, keepdim=True)  # Shape: (batch_size, 1)
+        if negative_embeddings is not None:
+            # Case 1: Explicit negative samples provided
+            negative_embeddings = F.normalize(negative_embeddings, p=2, dim=1)
 
-        # Calculate the negative logits (similarity between anchor and negatives)
-        negative_logits = torch.bmm(negatives, anchor.unsqueeze(2)).squeeze(2)  # Shape: (batch_size, num_negatives)
+            # Calculate similarity between query and positive embeddings
+            positive_logits = torch.sum(query_embeddings * positive_embeddings, dim=-1, keepdim=True)
 
-        # Concatenate positive and negative logits
-        logits = torch.cat([positive_logits, negative_logits], dim=1)  # Shape: (batch_size, 1 + num_negatives)
+            # Calculate similarity between query and negative embeddings
+            negative_logits = torch.sum(query_embeddings * negative_embeddings, dim=-1, keepdim=True)
+
+            # Concatenate the positive and negative logits
+            logits = torch.cat([positive_logits, negative_logits], dim=1)
+        
+        else:
+            # Case 2: No explicit negatives provided, use in-batch negatives
+            # Compute similarities between query and all positives in the batch (including itself)
+            logits = torch.matmul(query_embeddings, positive_embeddings.T)
 
         # Apply temperature scaling
         logits = logits / self.temperature
 
-        # Create labels - 0 for the positive samples, as it is the first in the concatenated logits
-        labels = torch.zeros(batch_size, dtype=torch.long, device=logits.device)
+        # Labels: For each query, the positive sample is always at index 0 in the concatenated logits
+        if negative_embeddings is not None:
+            # If we have explicit negatives, we use binary labels (positive at index 0)
+            labels = torch.zeros(batch_size, dtype=torch.long, device=logits.device)
+        else:
+            # If we use in-batch negatives, the correct positive is the diagonal of the matrix
+            labels = torch.arange(batch_size, dtype=torch.long, device=logits.device)
 
         # Compute the InfoNCE loss using cross-entropy
         loss = F.cross_entropy(logits, labels)
-
+        
         return loss
