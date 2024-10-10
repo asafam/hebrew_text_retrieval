@@ -39,15 +39,15 @@ def train(
 
         for batch_idx, batch in train_progress:
 
-            if len(batch) == 4: # in case we have only (anchor, positive)
-                anchor_ids, anchor_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
+            if len(batch) == 4: # in case we have only (query, positive)
+                query_ids, query_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
                 negative_ids, negative_mask = None, None
-            elif len(batch) == 6: # in case we have only (anchor, positive, negative)
-                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
+            elif len(batch) == 6: # in case we have only (query, positive, negative)
+                query_ids, query_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
 
             # Forward pass to get the embeddings
-            anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
-            query_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            query_outputs = model(input_ids=query_ids, attention_mask=query_mask)
+            query_embeds = query_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
@@ -57,22 +57,8 @@ def train(
                 negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
-            # Set negatives as the other positives in the batch
-            batch_size = positive_embeds.size(0)
-            negatives_mask = torch.eye(batch_size, dtype=torch.bool).to(device)  # Identity matrix to mask out positives
-            positive_embeds_reshaped = positive_embeds.unsqueeze(0)  # Shape: (1, batch_size, embed_dim)
-
-            # Use the mask to select negatives (all non-diagonal elements are negatives)
-            negatives_embeds = positive_embeds_reshaped.masked_select(~negatives_mask.unsqueeze(-1)).view(batch_size, batch_size - 1, -1)
-            if negative_embeds:
-                # Pre-allocate a tensor for negatives and anchor embeddings (shape: batch_size, batch_size, embed_dim)
-                negatives_embeds_with_negative = torch.zeros(batch_size, batch_size, positive_embeds.size(1))
-                negatives_embeds_with_negative[:, :-1] = negatives_embeds  # Place all negatives (batch_size, batch_size - 1, embed_dim)
-                negatives_embeds_with_negative[:, -1] = negative_embeds  # In-place assignment of negative embeddings at the last index
-                negatives_embeds = negatives_embeds_with_negative
-
             # Compute the InfoNCE loss
-            loss = criterion(query_embeds, positive_embeds, negatives_embeds)
+            loss = criterion(query_embeds, positive_embeds, negative_embeds)
 
             # Backward pass and optimization
             optimizer.zero_grad()
@@ -115,15 +101,15 @@ def validate(model, val_dataloader, criterion, device, epoch, epochs):
     with torch.no_grad():
         for batch_idx, batch in val_progress:
 
-            if len(batch) == 4: # in case we have only (anchor, positive)
-                anchor_ids, anchor_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
+            if len(batch) == 4: # in case we have only (query, positive)
+                query_ids, query_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
                 negative_ids, negative_mask = None, None
-            elif len(batch) == 6: # in case we have only (anchor, positive, negative)
-                anchor_ids, anchor_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
+            elif len(batch) == 6: # in case we have only (query, positive, negative)
+                query_ids, query_mask, positive_ids, positive_mask, negative_ids, negative_mask = [x.to(device) for x in batch]
 
             # Forward pass to get the embeddings
-            anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
-            query_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            query_outputs = model(input_ids=query_ids, attention_mask=query_mask)
+            query_embeds = query_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
