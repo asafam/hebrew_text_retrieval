@@ -77,19 +77,19 @@ def main(
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     # Load the latest checkpoint if available and resume training
-    start_epoch = 0
-    if source_checkpoint_dir:
-        logger.info(f"Loading checkpoint")
-        start_epoch = load_checkpoint(
-            model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
-        )
     checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
+    source_checkpoint_epoch = source_checkpoint_epoch or checkpoint_dir
+    logger.info(f"Loading checkpoint")
+    start_epoch = load_checkpoint(
+        model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
+    )
+    
 
     # Iterate over datasets and train the model
     start_datetime = datetime.now()
 
     logger.info(f"Load dataset: {dataset_name}")
-    dataset = transform_dataset(dataset_name, splits=['train', 'validation'])
+    dataset = build_dataset(dataset_name, splits=['train', 'validation'])
     
     # Create DataLoaders
     dataloaders = {}
