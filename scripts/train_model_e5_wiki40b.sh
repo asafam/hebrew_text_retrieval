@@ -14,4 +14,5 @@ python src/train_model.py \
     --dataset_name wiki40b \
     --epochs 10 \
     --batch_size 32 \
+    --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_wiki40b \
     --cuda_visible_devices 4

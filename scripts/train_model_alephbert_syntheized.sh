@@ -14,4 +14,5 @@ python src/train_model.py \
     --dataset_name synthesized_query_document \
     --epochs 10 \
     --batch_size 32 \
+    --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_synthesized_query_document \
     --cuda_visible_devices 0

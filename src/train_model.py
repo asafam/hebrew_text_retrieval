@@ -60,15 +60,6 @@ def main(
     model = AutoModel.from_pretrained(model_name)
     model = model.to(device)
 
-    # Load the latest checkpoint if available and resume training
-    start_epoch = 0
-    if source_checkpoint_dir:
-        logger.info(f"Loading checkpoint")
-        start_epoch = load_checkpoint(
-            model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
-        )
-    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
-
     # Add special tokens to the tokenizer
     new_tokens = [QUERY_TOKEN, DOCUMENT_TOKEN, *TASK_TOKENS.values()]
     additional_special_tokens = [token for token in new_tokens if token not in tokenizer.get_vocab()]
@@ -83,6 +74,15 @@ def main(
     logger.info("Initialize the InfoNCE loss and the optimizer")
     criterion = InfoNCELoss(temperature=infonce_temperature)
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+    # Load the latest checkpoint if available and resume training
+    start_epoch = 0
+    if source_checkpoint_dir:
+        logger.info(f"Loading checkpoint")
+        start_epoch = load_checkpoint(
+            model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch
+        )
+    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
 
     # Iterate over datasets and train the model
     start_datetime = datetime.now()

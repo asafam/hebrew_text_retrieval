@@ -145,6 +145,9 @@ def transform_dataset_synthesized(
     return dataset
 
 
+def transform_dataset_heq(splits=['train', 'validation', 'test']):
+    pass
+
 def transform_dataset(dataset_name, **kwargs):
     if dataset_name == DatasetNames.WIKI40B.value:
         return transform_dataset_wiki40b(**kwargs)
