@@ -47,7 +47,7 @@ def train(
 
             # Forward pass to get the embeddings
             anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
-            anchor_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            query_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
@@ -72,7 +72,7 @@ def train(
                 negatives_embeds = negatives_embeds_with_negative
 
             # Compute the InfoNCE loss
-            loss = criterion(anchor_embeds, positive_embeds, negatives_embeds)
+            loss = criterion(query_embeds, positive_embeds, negatives_embeds)
 
             # Backward pass and optimization
             optimizer.zero_grad()
@@ -123,7 +123,7 @@ def validate(model, val_dataloader, criterion, device, epoch, epochs):
 
             # Forward pass to get the embeddings
             anchor_outputs = model(input_ids=anchor_ids, attention_mask=anchor_mask)
-            anchor_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            query_embeds = anchor_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
@@ -133,22 +133,8 @@ def validate(model, val_dataloader, criterion, device, epoch, epochs):
                 negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
 
-            # Set negatives as the other positives in the batch
-            batch_size = positive_embeds.size(0)
-            negatives_mask = torch.eye(batch_size, dtype=torch.bool).to(device)  # Identity matrix to mask out positives
-            positive_embeds_reshaped = positive_embeds.unsqueeze(0)  # Shape: (1, batch_size, embed_dim)
-
-            # Use the mask to select negatives (all non-diagonal elements are negatives)
-            negatives_embeds = positive_embeds_reshaped.masked_select(~negatives_mask.unsqueeze(-1)).view(batch_size, batch_size - 1, -1)
-            if negative_embeds:
-                # Pre-allocate a tensor for negatives and anchor embeddings (shape: batch_size, batch_size, embed_dim)
-                negatives_embeds_with_negative = torch.zeros(batch_size, batch_size, positive_embeds.size(1))
-                negatives_embeds_with_negative[:, :-1] = negatives_embeds  # Place all negatives (batch_size, batch_size - 1, embed_dim)
-                negatives_embeds_with_negative[:, -1] = negative_embeds  # In-place assignment of negative embeddings at the last index
-                negatives_embeds = negatives_embeds_with_negative
-
             # Compute the validation loss
-            val_loss = criterion(anchor_embeds, positive_embeds, negatives_embeds)
+            val_loss = criterion(query_embeds, positive_embeds, negative_embeds)
             total_val_loss += val_loss.item()
 
             # Update tqdm progress bar with the current batch number and average loss
