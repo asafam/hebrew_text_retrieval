@@ -47,7 +47,7 @@ class Wiki40bDatasetBuilder(BaseDatasetBuilder):
         logger.info("Building Synthesized Query Document evaluation dataset")
 
         tasks_datasets = {
-            TASK_TOKENS['TASK_TITLE_DOC']: self.build_dataset(splits=[split], include_task_token=False)
+            'TASK_TITLE_DOC': self.build_dataset(splits=[split], include_task_token=False)[split]
         }
         return tasks_datasets
     

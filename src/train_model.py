@@ -50,7 +50,7 @@ def main(
     logger.info(f"Epochs: {epochs}")
     logger.info(f"CUDA_VISIBLE_DEVICES: {cuda_visible_devices}")
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = cuda_visible_devices
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(cuda_visible_devices)
 
     # device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -78,7 +78,7 @@ def main(
 
     # Load the latest checkpoint if available and resume training
     checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
-    source_checkpoint_epoch = source_checkpoint_epoch or checkpoint_dir
+    source_checkpoint_dir = source_checkpoint_dir or checkpoint_dir
     logger.info(f"Loading checkpoint")
     start_epoch = load_checkpoint(
         model, optimizer, checkpoint_dir=source_checkpoint_dir, device=device, epoch=source_checkpoint_epoch

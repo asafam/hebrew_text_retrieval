@@ -34,6 +34,22 @@ class BaseDatasetBuilder():
 def build_dataset(dataset_name: str, **kwargs):
     logger = logging.getLogger('default')
 
+    builder = _get_builder(dataset_name)
+    dataset = builder.build_dataset(**kwargs)
+    return dataset
+
+
+def build_eval_dataset(dataset_name: str, **kwargs):
+    logger = logging.getLogger('default')
+
+    builder = _get_builder(dataset_name)
+    dataset = builder.build_eval_dataset(**kwargs)
+    return dataset
+
+
+def _get_builder(dataset_name: str) -> BaseDatasetBuilder:
+    logger = logging.getLogger('default')
+    
     folder_path = os.path.dirname(os.path.abspath(__file__))
     # Get all Python files in the folder
     files = [f for f in os.listdir(folder_path) if f.endswith('.py') and f != '__init__.py']
@@ -56,7 +72,7 @@ def build_dataset(dataset_name: str, **kwargs):
             if issubclass(obj, BaseDatasetBuilder) and name != 'BaseDatasetBuilder':
                 try:
                     # Instantiate the class with the given prompt_type
-                    builder = obj(**kwargs)
+                    builder = obj()
                     builders.append(builder)
                 except Exception as e:
                     logger.error(f"Failed to instantiate {name}: {e}")
@@ -68,6 +84,5 @@ def build_dataset(dataset_name: str, **kwargs):
         return None
 
     builder = matching_builders[0]
-    dataset = builder.build_dataset(**kwargs)
-    return dataset
+    return builder
 

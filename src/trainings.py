@@ -38,6 +38,8 @@ def train(
         train_progress = tqdm(enumerate(train_dataloader), desc=f"Epoch {epoch + 1}/{epochs} [Train]", leave=False, total=len(train_dataloader))
 
         for batch_idx, batch in train_progress:
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: Start of Batch")
+
 
             if len(batch) == 4: # in case we have only (query, positive)
                 query_ids, query_mask, positive_ids, positive_mask = [x.to(device) for x in batch]
@@ -48,24 +50,31 @@ def train(
             # Forward pass to get the embeddings
             query_outputs = model(input_ids=query_ids, attention_mask=query_mask)
             query_embeds = query_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Query Forward Pass")
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Positive Forward Pass")
 
             negative_embeds = None
             if negative_ids or negative_mask:
                 negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
+                print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Negative Forward Pass")
 
             # Compute the InfoNCE loss
             loss = criterion(query_embeds, positive_embeds, negative_embeds)
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Loss Calculation")
 
             # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Backward Pass")
+
             if clip_value is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
             optimizer.step()
+            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Optimizer Step")
 
             total_train_loss += loss.item()
 
@@ -88,7 +97,7 @@ def train(
         # Save checkpoint after each epoch
         if loss < best_val_loss or always_save_checkpoint:
             best_val_loss = loss if loss < best_val_loss else best_val_loss
-            save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss)
+            save_checkpoint(model, optimizer, epoch, checkpoint_dir, loss.item())
 
 
 def validate(model, val_dataloader, criterion, device, epoch, epochs):
@@ -131,3 +140,12 @@ def validate(model, val_dataloader, criterion, device, epoch, epochs):
 
     avg_val_loss = total_val_loss / len(val_dataloader)
     return avg_val_loss
+
+
+def print_memory_usage(stage=""):
+    if torch.cuda.is_available():
+        print(f"{stage} - Allocated memory: {torch.cuda.memory_allocated() / (1024**3):.2f} GB")
+        print(f"{stage} - Reserved memory: {torch.cuda.memory_reserved() / (1024**3):.2f} GB")
+        print(f"{stage} - Max allocated memory: {torch.cuda.max_memory_allocated() / (1024**3):.2f} GB\n")
+    else:
+        print(f"{stage} - CUDA is not available.")

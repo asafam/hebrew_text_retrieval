@@ -10,9 +10,9 @@ conda activate biu
 export PYTHONPATH="./src:$PYTHONPATH"
 
 python src/train_model.py \
-    --model_name onlplab/alephbert-base \
-    --dataset_name wiki40b \
+    --model_name intfloat/multilingual-e5-large \
+    --dataset_name heq \
     --epochs 10 \
     --batch_size 32 \
-    --source_checkpoint_dir checkpoints/onlplab_alephbert_base/checkpoints_wiki40b \
-    --cuda_visible_devices 6
+    --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_heq \
+    --cuda_visible_devices 4

@@ -6,16 +6,21 @@ import logging
 from data import *
 
 class HeQDatasetBuilder(BaseDatasetBuilder):
-    def __init__(self, data_files_url_base_path: str = 'https://raw.githubusercontent.com/NNLP-IL/Hebrew-Question-Answering-Dataset/main/data') -> None:
+    def __init__(self, data_files_url_base_path: str = 'https://raw.githubusercontent.com/NNLP-IL/Hebrew-Question-Answering-Dataset/main/data', **kwargs) -> None:
         self.data_files_url_base_path = data_files_url_base_path
 
-    def build_dataset(self, splits=['train', 'val'], random_seed: int = 42):
+    def build_dataset(self, splits=['train', 'validation'], random_seed: int = 42):
         logger = logging.getLogger('default')
         logger.info("Building HeQ dataset")
 
+        split_file_mapping = {
+            'validation': 'val',
+        }
+
         datasets = {}
         for split in splits:
-            url = f"{self.data_files_url_base_path}/{split}.json"
+            file_split = split_file_mapping.get(split, split)
+            url = f"{self.data_files_url_base_path}/{file_split}.json"
             print(f"url = {url}")
             data = self._load_json_from_github(url=url)
             datasets[split] = self._transform_data(data, random_seed=random_seed)
@@ -26,7 +31,11 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
         logger = logging.getLogger('default')
         logger.info("Building HeQ evaluation dataset")
 
-        data = self._load_json_from_github(f"self.data_files_url_base_path/{split}.json")
+        split_file_mapping = {
+            'validation': 'val',
+        }
+        file_split = split_file_mapping.get(split, split)
+        data = self._load_json_from_github(f"{self.data_files_url_base_path}/{file_split}.json")
         tasks_datasets = self._transform_eval_data(data, random_seed=random_seed)
 
         return tasks_datasets
@@ -66,27 +75,29 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
     def _transform_eval_data(self, data, random_seed: int = 42):
         random.seed(random_seed)
 
-        transformed_heq_data = list(map(self._transform_heq_entry, data))
+        transformed_heq_data = []
+        for sublist in list(map(self._transform_heq_entry, data)):
+            transformed_heq_data += sublist
 
         def transform_query_document_entry(entry):
             return {
-                'query': f"{QUERY_TOKEN} {entry['question']}",
-                'document': f"{DOCUMENT_TOKEN} {entry['context']}"
+                'anchor_text': f"{QUERY_TOKEN} {entry['question']}",
+                'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}"
             }
         
         def transform_title_document_entry(entry):
             return {
-                'query': f"{QUERY_TOKEN} {entry['title']}",
-                'document': f"{DOCUMENT_TOKEN} {entry['context']}"
+                'anchor_text': f"{QUERY_TOKEN} {entry['title']}",
+                'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}"
             }
 
         tasks_datasets = {}
 
-        transformed_dataset_query_doc_data = list(map(transform_query_document_entry), transformed_heq_data)
-        tasks_datasets[TASK_TOKENS['TASK_QUERY_DOC']] =  Dataset.from_list(transformed_dataset_query_doc_data)
+        transformed_dataset_query_doc_data = list(map(transform_query_document_entry, transformed_heq_data))
+        tasks_datasets['TASK_QUERY_DOC'] =  Dataset.from_list(transformed_dataset_query_doc_data)
 
-        transformed_dataset_query_doc_data = list(map(transform_title_document_entry), transformed_heq_data)
-        tasks_datasets[TASK_TOKENS['TASK_TITLE_DOC']] =  Dataset.from_list(transformed_dataset_query_doc_data)
+        transformed_dataset_query_doc_data = list(map(transform_title_document_entry, transformed_heq_data))
+        tasks_datasets['TASK_TITLE_DOC'] =  Dataset.from_list(transformed_dataset_query_doc_data)
 
         return tasks_datasets
 

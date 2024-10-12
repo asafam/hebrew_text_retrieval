@@ -95,6 +95,7 @@ def ndcg_at_k(relevant_index, retrieved_indices, k):
 
 
 def encode_texts(texts, tokenizer, model, device, batch_size=128):
+    model.eval()
     # Create a DataLoader to batch the inputs
     dataloader = DataLoader(texts, batch_size=batch_size, shuffle=False)
     all_embeddings = []
