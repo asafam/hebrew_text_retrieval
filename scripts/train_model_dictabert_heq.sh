@@ -11,6 +11,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 
 python src/train_model.py \
     --model_name dicta-il/dictabert \
+    --task_name question_passage \
     --dataset_name heq \
     --epochs 5 \
     --batch_size 32 \

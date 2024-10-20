@@ -11,6 +11,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 
 python src/train_model.py \
     --model_name intfloat/multilingual-e5-large \
+    --task_name query_passage \
     --dataset_name synthesized_query_document \
     --epochs 5 \
     --batch_size 32 \

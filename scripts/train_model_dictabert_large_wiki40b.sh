@@ -11,6 +11,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 
 python src/train_model.py \
     --model_name dicta-il/dictabert-large \
+    --task_name title_passage \
     --dataset_name wiki40b \
     --epochs 5 \
     --batch_size 32 \

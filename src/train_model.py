@@ -18,6 +18,7 @@ from utils import *
 
 def main(
     model_name: str,
+    task_name: str,
     dataset_name: str,
     batch_size: int,
     learning_rate: float = 5e-5,
@@ -32,13 +33,14 @@ def main(
 ):
     # create the logger
     model_name_slug = model_name.replace('/', '_').replace('-', '_')
-    dataset_name_slug = dataset_name.replace('/', '_').replace('-', '_')
-    log_file = f"./logs/{model_name_slug}/train_{dataset_name_slug}.log"
+    task_name_slug = task_name.replace('/', '_').replace('-', '_')
+    log_file = f"./logs/{model_name_slug}/train_{task_name_slug}.log"
     logger = setup_logger(log_file)
     
     # Print the arguments
     logger.info(f"Arguments:")
     logger.info(f"Dataset: {dataset_name}")
+    logger.info(f"Task: {task_name}")
     logger.info(f"Model: {model_name}")
     logger.info(f"Target checkpoint path: {checkpoint_dir}")
     logger.info(f"Source checkpoint path: {source_checkpoint_dir}")
@@ -77,7 +79,7 @@ def main(
     optimizer = AdamW(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
 
     # Load the latest checkpoint if available and resume training
-    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{dataset_name_slug}"
+    checkpoint_dir = checkpoint_dir or f"checkpoints/{model_name_slug}/checkpoints_{task_name_slug}"
     source_checkpoint_dir = source_checkpoint_dir or checkpoint_dir
     logger.info(f"Loading checkpoint")
     start_epoch = load_checkpoint(
@@ -129,6 +131,7 @@ if __name__ == "__main__":
     
     # Adding arguments
     parser.add_argument('--model_name', type=str, required=True, help="The name of the model to use. For example: 'intfloat/multilingual-e5-large'.")
+    parser.add_argument('--task_name', type=str, required=True, help="The name of the task to use: 'query_passage', 'title_passage', 'question_passage', etc.")
     parser.add_argument('--dataset_name', type=str, required=True, help="The name of the dataset to use: 'wiki40b' or 'synthesized_query_document'.")
     parser.add_argument('--epochs', type=int, default=10, help="The number of training epochs.")
     parser.add_argument('--batch_size', type=int, default=64, help="The batch size for training.")
