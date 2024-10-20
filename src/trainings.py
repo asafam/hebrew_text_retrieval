@@ -38,7 +38,7 @@ def train(
         train_progress = tqdm(enumerate(train_dataloader), desc=f"Epoch {epoch + 1}/{epochs} [Train]", leave=False, total=len(train_dataloader))
 
         for batch_idx, batch in train_progress:
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: Start of Batch")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: Start of Batch")
 
 
             if len(batch) == 4: # in case we have only (query, positive)
@@ -50,31 +50,31 @@ def train(
             # Forward pass to get the embeddings
             query_outputs = model(input_ids=query_ids, attention_mask=query_mask)
             query_embeds = query_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Query Forward Pass")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Query Forward Pass")
 
             positive_outputs = model(input_ids=positive_ids, attention_mask=positive_mask)
             positive_embeds = positive_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Positive Forward Pass")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Positive Forward Pass")
 
             negative_embeds = None
             if negative_ids or negative_mask:
                 negative_outputs = model(input_ids=negative_ids, attention_mask=negative_mask)
                 negative_embeds = negative_outputs.last_hidden_state[:, 0, :]  # CLS token embeddings
-                print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Negative Forward Pass")
+                # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Negative Forward Pass")
 
             # Compute the InfoNCE loss
             loss = criterion(query_embeds, positive_embeds, negative_embeds)
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Loss Calculation")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Loss Calculation")
 
             # Backward pass and optimization
             optimizer.zero_grad()
             loss.backward()
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Backward Pass")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Backward Pass")
 
             if clip_value is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), clip_value)
             optimizer.step()
-            print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Optimizer Step")
+            # print_memory_usage(f"Epoch {epoch+1}, Batch {batch_idx+1}: After Optimizer Step")
 
             total_train_loss += loss.item()
 

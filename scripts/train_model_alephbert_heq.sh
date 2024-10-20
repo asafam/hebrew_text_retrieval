@@ -12,7 +12,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 python src/train_model.py \
     --model_name onlplab/alephbert-base \
     --dataset_name heq \
-    --epochs 10 \
+    --epochs 5 \
     --batch_size 32 \
-    --source_checkpoint_dir checkpoints/onlplab_alephbert_base/checkpoints_heq \
+    --source_checkpoint_dir checkpoints/onlplab_alephbert_base/checkpoints_question_passage \
     --cuda_visible_devices 6

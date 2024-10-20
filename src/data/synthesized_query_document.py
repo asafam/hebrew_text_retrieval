@@ -22,7 +22,7 @@ class SynthesizedQueryDocumentDatasetBuilder(BaseDatasetBuilder):
         def transform_entry(entry):
             # Return the transformed data
             return {
-                'anchor_text': f"{TASK_TOKENS['TASK_QUERY_DOC']} {QUERY_TOKEN} {entry['user_query']}" if include_task_token else f"{QUERY_TOKEN} {entry['user_query']}",
+                'anchor_text': f"{TASK_TOKENS[TASK.QUERY_PASSAGE]} {QUERY_TOKEN} {entry['user_query']}" if include_task_token else f"{QUERY_TOKEN} {entry['user_query']}",
                 'positive_text': f"{DOCUMENT_TOKEN} {entry['positive_document']}",
                 'negative_text': f"{DOCUMENT_TOKEN} {entry['hard_negative_document']}",
             }

@@ -12,7 +12,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 python src/train_model.py \
     --model_name intfloat/multilingual-e5-large \
     --dataset_name wiki40b \
-    --epochs 10 \
+    --epochs 5 \
     --batch_size 32 \
-    --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_wiki40b \
+    --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_title_passge \
     --cuda_visible_devices 4

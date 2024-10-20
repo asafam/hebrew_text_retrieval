@@ -12,7 +12,7 @@ export PYTHONPATH="./src:$PYTHONPATH"
 python src/train_model.py \
     --model_name dicta-il/dictabert \
     --dataset_name heq \
-    --epochs 10 \
+    --epochs 5 \
     --batch_size 32 \
-    --source_checkpoint_dir checkpoints/dicta_il_dictabert/checkpoints_heq \
+    --source_checkpoint_dir checkpoints/dicta_il_dictabert/checkpoints_question_passge \
     --cuda_visible_devices 6

@@ -5,14 +5,16 @@ import inspect
 import logging
 
 # Define special tokens
-DOCUMENT_TOKEN = '[DOCUMENT]'
-QUERY_TOKEN = '[QUERY]'
-TASK_TOKENS = dict(
-    TASK_QUERY_DOC='[TASK_QUERY_DOC]',
-    TASK_TITLE_DOC='[TASK_TITLE_DOC]',
-    TASK_QUESTION_DOC='[TASK_QUESTION_DOC]',
-)
+DOCUMENT_TOKEN = 'passage:'
+QUERY_TOKEN = 'query:'
 
+class TASK(Enum):
+    FACT_PASSAGE = 'fact_passage'
+    QUERY_PASSAGE = 'query_passage'
+    QUESTION_PASSAGE = 'question_passage'
+    TITLE_PASSAGE = 'title_passage'
+
+TASK_TOKENS = {task: f"[{task.value}_task]" for task in TASK}
 
 class DatasetName(Enum):
     WIKI40B = 'wiki40b'
@@ -85,4 +87,3 @@ def _get_builder(dataset_name: str) -> BaseDatasetBuilder:
 
     builder = matching_builders[0]
     return builder
-

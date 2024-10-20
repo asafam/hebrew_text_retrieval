@@ -64,7 +64,7 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
 
         def transform_entry(entry):
             return {
-                'anchor_text': f"{TASK_TOKENS['TASK_QUESTION_DOC']} {QUERY_TOKEN} {entry['question']}",
+                'anchor_text': f"{TASK_TOKENS[TASK.QUESTION_PASSAGE]} {QUERY_TOKEN} {entry['question']}",
                 'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}"
             }
 
@@ -79,7 +79,7 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
         for sublist in list(map(self._transform_heq_entry, data)):
             transformed_heq_data += sublist
 
-        def transform_query_document_entry(entry):
+        def transform_question_document_entry(entry):
             return {
                 'anchor_text': f"{QUERY_TOKEN} {entry['question']}",
                 'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}"
@@ -93,8 +93,8 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
 
         tasks_datasets = {}
 
-        transformed_dataset_query_doc_data = list(map(transform_query_document_entry, transformed_heq_data))
-        tasks_datasets['TASK_QUERY_DOC'] =  Dataset.from_list(transformed_dataset_query_doc_data)
+        transformed_dataset_query_doc_data = list(map(transform_question_document_entry, transformed_heq_data))
+        tasks_datasets['TASK_QUESTION_DOC'] =  Dataset.from_list(transformed_dataset_query_doc_data)
 
         transformed_dataset_query_doc_data = list(map(transform_title_document_entry, transformed_heq_data))
         tasks_datasets['TASK_TITLE_DOC'] =  Dataset.from_list(transformed_dataset_query_doc_data)

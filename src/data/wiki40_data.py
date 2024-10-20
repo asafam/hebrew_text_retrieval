@@ -26,7 +26,7 @@ class Wiki40bDatasetBuilder(BaseDatasetBuilder):
 
             # Return the transformed data
             return {
-                'anchor_text': f"{TASK_TOKENS['TASK_TITLE_DOC']} {QUERY_TOKEN} {anchor_text}" if include_task_token else f"{QUERY_TOKEN} {anchor_text}",
+                'anchor_text': f"{TASK_TOKENS[TASK.TITLE_PASSAGE]} {QUERY_TOKEN} {anchor_text}" if include_task_token else f"{QUERY_TOKEN} {anchor_text}",
                 'positive_text': f"{DOCUMENT_TOKEN} {positive_text}",
             }
 
