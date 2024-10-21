@@ -16,4 +16,4 @@ python src/train_model.py \
     --epochs 5 \
     --batch_size 32 \
     --source_checkpoint_dir checkpoints/onlplab_alephbert_base/checkpoints_title_passge \
-    --cuda_visible_devices 6
+    --cuda_visible_devices 5

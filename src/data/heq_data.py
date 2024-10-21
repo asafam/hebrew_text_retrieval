@@ -65,7 +65,11 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
         def transform_entry(entry):
             return {
                 'anchor_text': f"{TASK_TOKENS[TASK.QUESTION_PASSAGE]} {QUERY_TOKEN} {entry['question']}",
-                'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}"
+                'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}",
+                'question_id': entry['question_id'],
+                'question': entry['question'],
+                'answer': entry['answer'],
+                'context': entry['context'],
             }
 
         transformed_dataset_data = list(map(transform_entry, transformed_heq_data))
@@ -104,9 +108,12 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
     def _transform_heq_entry(self, entry):
         items = []
         for paragraph in entry['paragraphs']:
+            rand_idx = random.randint(0, len(paragraph['qas']) - 1)
             item = {
                 'title': entry['title'],
-                'question': random.choice([x['question'] for x in paragraph['qas']]),
+                'question_id': paragraph['qas'][rand_idx]['id'],
+                'question': paragraph['qas'][rand_idx]['question'],
+                'answer': paragraph['qas'][rand_idx]['answers'][0]['text'],
                 'context': paragraph['context']
             }
             items.append(item)

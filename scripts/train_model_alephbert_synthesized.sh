@@ -16,4 +16,4 @@ python src/train_model.py \
     --epochs 5 \
     --batch_size 32 \
     --source_checkpoint_dir checkpoints/intfloat_multilingual_e5_large/checkpoints_query_passge \
-    --cuda_visible_devices 0
+    --cuda_visible_devices 7
