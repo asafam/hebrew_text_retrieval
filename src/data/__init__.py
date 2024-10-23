@@ -20,6 +20,7 @@ class DatasetName(Enum):
     WIKI40B = 'wiki40b'
     SYNTHESIZED_QUERY_DOCUMENT = 'synthesized_query_document'
     HEQ = 'heq'
+    HEQ_SYN_FACT_PASSAGE = 'heq_fact_passage_syn'
 
 
 class BaseDatasetBuilder():
@@ -34,16 +35,12 @@ class BaseDatasetBuilder():
     
     
 def build_dataset(dataset_name: str, **kwargs):
-    logger = logging.getLogger('default')
-
     builder = _get_builder(dataset_name)
     dataset = builder.build_dataset(**kwargs)
     return dataset
 
 
 def build_eval_dataset(dataset_name: str, **kwargs):
-    logger = logging.getLogger('default')
-
     builder = _get_builder(dataset_name)
     dataset = builder.build_eval_dataset(**kwargs)
     return dataset

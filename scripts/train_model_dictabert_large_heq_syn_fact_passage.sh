@@ -11,9 +11,9 @@ export PYTHONPATH="./src:$PYTHONPATH"
 
 python src/train_model.py \
     --model_name dicta-il/dictabert-large \
-    --task_name query_passage \
-    --dataset_name synthesized_query_document \
+    --task_name fact_passage \
+    --dataset_name heq_syn_fact_passage \
     --epochs 5 \
     --batch_size 32 \
-    --source_checkpoint_dir checkpoints/dicta_il_dictabert_large/checkpoints_query_passge \
-    --cuda_visible_devices 6
+    --source_checkpoint_dir checkpoints/dicta_il_dictabert_large/checkpoints_fact_passge \
+    --cuda_visible_devices 4

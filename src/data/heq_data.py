@@ -9,7 +9,7 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
     def __init__(self, data_files_url_base_path: str = 'https://raw.githubusercontent.com/NNLP-IL/Hebrew-Question-Answering-Dataset/main/data', **kwargs) -> None:
         self.data_files_url_base_path = data_files_url_base_path
 
-    def build_dataset(self, splits=['train', 'validation'], random_seed: int = 42):
+    def build_dataset(self, splits=['train', 'validation'], should_sample: bool = True, random_seed: int = 42):
         logger = logging.getLogger('default')
         logger.info("Building HeQ dataset")
 
@@ -23,11 +23,11 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
             url = f"{self.data_files_url_base_path}/{file_split}.json"
             print(f"url = {url}")
             data = self._load_json_from_github(url=url)
-            datasets[split] = self._transform_data(data, random_seed=random_seed)
+            datasets[split] = self._transform_data(data, should_sample=should_sample, random_seed=random_seed)
 
         return DatasetDict(datasets)
     
-    def build_eval_dataset(self, split='test', random_seed: int = 42):
+    def build_eval_dataset(self, split='test', should_sample: bool = True, random_seed: int = 42):
         logger = logging.getLogger('default')
         logger.info("Building HeQ evaluation dataset")
 
@@ -36,7 +36,7 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
         }
         file_split = split_file_mapping.get(split, split)
         data = self._load_json_from_github(f"{self.data_files_url_base_path}/{file_split}.json")
-        tasks_datasets = self._transform_eval_data(data, random_seed=random_seed)
+        tasks_datasets = self._transform_eval_data(data, should_sample=should_sample, random_seed=random_seed)
 
         return tasks_datasets
         
@@ -55,17 +55,19 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
             print(f"Failed to fetch data from {url}")
             return None
         
-    def _transform_data(self, data, random_seed: int = 42):
+    def _transform_data(self, data, should_sample: bool = True, random_seed: int = 42):
         random.seed(random_seed)
 
         transformed_heq_data = []
-        for sublist in list(map(self._transform_heq_entry, data)):
+        for sublist in [self._transform_heq_entry(entry, index, should_sample) for index, entry in enumerate(data)]:
             transformed_heq_data += sublist
 
         def transform_entry(entry):
             return {
                 'anchor_text': f"{TASK_TOKENS[TASK.QUESTION_PASSAGE]} {QUERY_TOKEN} {entry['question']}",
                 'positive_text': f"{DOCUMENT_TOKEN} {entry['context']}",
+                'index': entry['index'],
+                'paragraph_index': entry['paragraph_index'],
                 'question_id': entry['question_id'],
                 'question': entry['question'],
                 'answer': entry['answer'],
@@ -76,11 +78,11 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
         dataset =  Dataset.from_list(transformed_dataset_data)
         return dataset
     
-    def _transform_eval_data(self, data, random_seed: int = 42):
+    def _transform_eval_data(self, data, should_sample: bool = True, random_seed: int = 42):
         random.seed(random_seed)
 
         transformed_heq_data = []
-        for sublist in list(map(self._transform_heq_entry, data)):
+        for sublist in [self._transform_heq_entry(entry, index, should_sample) for index, entry in enumerate(data)]:
             transformed_heq_data += sublist
 
         def transform_question_document_entry(entry):
@@ -105,16 +107,31 @@ class HeQDatasetBuilder(BaseDatasetBuilder):
 
         return tasks_datasets
 
-    def _transform_heq_entry(self, entry):
+    def _transform_heq_entry(self, entry, index, should_sample: bool = True):
         items = []
-        for paragraph in entry['paragraphs']:
-            rand_idx = random.randint(0, len(paragraph['qas']) - 1)
-            item = {
-                'title': entry['title'],
-                'question_id': paragraph['qas'][rand_idx]['id'],
-                'question': paragraph['qas'][rand_idx]['question'],
-                'answer': paragraph['qas'][rand_idx]['answers'][0]['text'],
-                'context': paragraph['context']
-            }
-            items.append(item)
+        for j, paragraph in enumerate(entry['paragraphs']):
+            if should_sample:
+                rand_idx = random.randint(0, len(paragraph['qas']) - 1)
+                item = {
+                    'index': index,
+                    'paragraph_index': j,
+                    'title': entry['title'],
+                    'question_id': paragraph['qas'][rand_idx]['id'],
+                    'question': paragraph['qas'][rand_idx]['question'],
+                    'answer': paragraph['qas'][rand_idx]['answers'][0]['text'],
+                    'context': paragraph['context']
+                }
+                items.append(item)
+            else:
+                for k, qa in enumerate(paragraph['qas']):
+                    item = {
+                        'index': index,
+                        'paragraph_index': j,
+                        'title': entry['title'],
+                        'question_id': qa['id'],
+                        'question': qa['question'],
+                        'answer': qa['answers'][0]['text'],
+                        'context': paragraph['context']
+                    }
+                    items.append(item)
         return items
