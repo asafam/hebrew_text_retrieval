@@ -186,13 +186,6 @@ question_edit:
     
     5. The edited question should be in Hebrew.
 
-    ## Output
-
-    Output Format:
-
-      * Edited question: A retrieval suitable question edited from the original question
-      * Edit: Select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
-
     Context: {context}
     Question: {question}
     Answer: {answer}
