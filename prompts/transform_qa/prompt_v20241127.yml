@@ -119,14 +119,6 @@ question_edit:
     Context: מייגן "מג" גריפין היא דמות מצוירת בדיונית בקומדיית המצבים המונפשת האמריקני ״איש משפחה״. מג הופיעה לראשונה בטלוויזיה ב-31 בינואר 1999, דובבה על ידי לייסי שאבר בעונה הראשונה של הסדרה ועל ידי מילה קוניס החל מעונתה השנייה. מג היא הבת הבכורה במשפחה, גדולה מסטואי ומכריס.
     Original question: מי דובבה במקור את מג בעונה הראשונה?
     answer: לייסי שאבר
-    Edited question: מי דובבה במקור את מג בעונה הראשונה של הסדרה ״איש משפחה״?
-    Edit: BRIDGING
-    </example>
-
-    <example>
-    Context: מייגן "מג" גריפין היא דמות מצוירת בדיונית בקומדיית המצבים המונפשת האמריקני ״איש משפחה״. מג הופיעה לראשונה בטלוויזיה ב-31 בינואר 1999, דובבה על ידי לייסי שאבר בעונה הראשונה של הסדרה ועל ידי מילה קוניס החל מעונתה השנייה. מג היא הבת הבכורה במשפחה, גדולה מסטואי ומכריס.
-    Original question: מי דובבה במקור את מג בעונה הראשונה?
-    answer: לייסי שאבר
     Edited question: מי דובבה במקור את מייגן "מג" גריפין בעונה הראשונה?
     Edit: NAME COMPLETION
     </example>
@@ -137,14 +129,6 @@ question_edit:
     answer: בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות
     Edited question: בכל הקרבות ב- UFC, כמה זמן נמשך כל סיבוב?
     Edit: BRIDGING
-    </example>
-
-    <example>
-    Context: בעונת 2009/2010, נאבקו הפועל תל אביב ומכבי חיפה על האליפות. במחזור האחרון, מכבי חיפה שיחקה נגד בני יהודה בבלומפילד, והפועל תל אביב יצאה למשחק חוץ בירושלים נגד בית"ר, שרצתה למנוע מהפועל לזכות בדאבל בכל דרך, בייחוד במגרשה הביתי. מכבי חיפה התקשתה נגד בני יהודה אך הייתה יותר קרובה לאליפות ברוב הדקות. לקראת סיום המשחק, כאשר נראה היה שמכבי חיפה היא זו שתזכה באליפות, כבש שחקן הפועל תל אביב, ערן זהבי, שער אליפות דרמטי בדקה ה-92, וקבע 1-2 לטובת קבוצתו, דבר שהעלה את הפועל למקום הראשון בליגה.
-    Original question: באיזו דקה כבש ערן זהבי את שער האליפות?
-    answer: בדקה ה-92
-    Edited question: באיזו דקה כבש ערן זהבי את שער האליפות עבור הפועל תל אביב?
-    Edit: GLOBAL SCOPING
     </example>
 
     <example>
@@ -171,7 +155,7 @@ question_edit:
     Edit: NAME COMPLETION
     </example>
     
-    <examples>
+    </examples>
 
     You will receive the original question, its associated context, and the answer. 
     If the question does not meet the definition of a retrieval-oriented question, suggest minimal edits to make it suitable for retrieval. 
@@ -193,6 +177,7 @@ question_edit:
       * ADDITION: Add background information for better readability (e.g., replacing "האיגלס" with "להקת האיגלס").
     
     Make only one minimal edit when possible. Clearly label the type of edit you applied.
+    Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
 
     ## Output
 
