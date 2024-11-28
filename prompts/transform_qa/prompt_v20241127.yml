@@ -1,0 +1,190 @@
+has_answer_classification:
+  system_prompt: |
+    You are an expert language model trained to assist with editing a question decontextualization tasks.
+
+  user_prompt: |
+    <examples>
+    <example>
+    Context: באפריל 2023 הכריז ביידן על התמודדותו למועמדות המפלגה הדמוקרטית בבחירות לנשיאות 2024, אך ב-21 ביולי 2024 הודיע כי הוא חוזר בו ולא יתמודד בבחירות לקדנציה נוספת ויתמוך במועמדותה של סגניתו קמלה האריס.
+    Question: מי היה הנשיא ה-47 של ארה״ב?
+    Result: Not Answerable
+    Explanation: The context discusses Joe Biden's decision in 2023 to run for the Democratic nomination for the 2024 presidential elections and his later withdrawal in favor of Kamala Harris in 2024. However, it does not provide information about who became the 47th president of the United States. The question requires details beyond what is available in the context to determine the identity of the 47th president.
+    </example>
+
+    <example>
+    Context: הארנב הלבן מגיע ומתבלבל בין אליס למשרתת שלו ומבקש מאליס להביא לו מניפה וכפפות מביתו. כאשר אליס מגיעה לביתו של הארנב היא מוצאת בקבוק נוסף ושותה ממנו, מעשה שגורם לה לגדול עד שהיא בקושי מתאימה למידות הבית. הארנב ושכניו מנסים להוציא אותה משם במספר דרכים שונות ולבסוף זורקים עליה עוגות קטנות שמכווצות אותה.
+    Question: מה ביקש הארנב הלבן מאליס להביא לו?
+    Result: Answerable
+    Explanation: The context explicitly states that the White Rabbit (הארנב הלבן) asked Alice (אליס) to bring him a fan (מניפה) and gloves (כפפות) from his house. This directly answers the question, making it fully answerable within the provided context.
+    </example>
+
+    <example>
+    Context: בוועידת מדריד הותוו למעשה הערוצים הרשמיים המשמשים בתהליך השלום הישראלי-ערבי עד היום הזה: הערוץ הבילטרלי (דו-צדדי), שבו נושאת ונותנת מדינת ישראל מול כל צד ערבי בנפרד, והערוץ המולטילטרלי (רב-צדדי), שבו נערכים דיונים רבי-משתתפים בעיקר בנושאים בעלי זיקה משותפת כגון פיתוח כלכלי, איכות סביבה, מים וכדומה.
+    Question: מי היה נשיא ארה״ב בזמן ועית מדריד?
+    Result: Not Answerable
+    Explanation: The context provides details about the Madrid Conference and the diplomatic channels it established but does not mention who the President of the United States was at the time. The question requires information that is not available in the provided context.
+    </example>
+    </examples>
+
+    You will be given a question and a context passage. Your task is to determine whether the question can be answered using the information in the context passage. 
+
+    ## Guidelines:
+    
+    Follow these steps:
+
+      1. Locate the Answer: Check if the context contains the information needed to answer the question.
+      2. Assess Completeness: Confirm whether the question retrieves a complete, specific, and relevant portion of the context as the answer.
+
+    ## Output:
+      
+      * Return "Answerable" if the context contains all the information required to answer the question. Return "Not Answerable" if the context lacks the necessary details.
+      * Explanation: Briefly explain why the question is answerable or not answerable based on the context.
+
+    Context: {context}
+    Question: {question}
+  
+edit_required_classification:
+  system_prompt: |
+    You are an expert tasked with evaluating whether a question needs editing to adhere to retrieval-oriented guidelines.
+
+  user_prompt: |
+    <examples>
+
+    <example>
+    Context: בעונת 2017 זכו לראשונה בוורלד סיריס לאחר ניצחון 4–3 על לוס אנג'לס דודג'רס. על הזכייה העיבה פרשיית גנבת הסימנים, כשנחשף שהקבוצה עשתה שימוש במצלמות על מנת לפענח את סימני התופסים בקבוצה היריבה ולאותת לחובטים באמצעים שונים. הליגה קבעה כי הקבוצה הפרה את ההוראות, קנסה אותה ב-5 מיליון דולר, באיבוד שתי בחירות הדראפט הראשונות שלה, כמו כן השעתה לשנה את המנהל ומאמן הקבוצה, שניהם פוטרו לאחר מכן על ידי בעלי הקבוצה. בעונת 2019 הפסידה בוורלד סיריס 4–3 לוושינגטון נשיונאלס.
+    Question: בכמה אליפויות זכתה הקבוצה מאז הקמתה?
+    Result: Edit Required
+    Explanation: The question "בכמה אליפויות זכתה הקבוצה מאז הקמתה?" is vague and lacks specificity. The term "הקבוצה" is not explicitly resolved to a particular team in the question itself, relying on the context to clarify that it refers to the team discussed in the passage. For a retrieval task, the question needs to be self-contained and unambiguous, explicitly stating the team's name to avoid confusion or misinterpretation.
+    </example>
+
+    <example>
+    Context: טיסה 1549 של יו אס איירווייז הייתה טיסה מסחרית וסדירה של חברת התעופה יו אס איירווייז מנמל התעופה לה גוארדיה לנמל התעופה של שארלוט. ב־15 בינואר 2009 נפגעה הטיסה מציפורים זמן קצר לאחר ההמראה, מה שגרם להשבתת שני מנועי מטוס האיירבוס A320 ואילץ את צוות הטיסה לבצע, כחמש דקות לאחר ההמראה, נחיתת חירום בנהר ההדסון. בזכות תפקודו יוצא הדופן של הקברניט צ'סלי סאלנברגר ושל טייס המשנה ג'פרי סקילס (אנ'), ניצלו כל 155 הנוסעים ואנשי הצוות.
+    Question: באיזו עיר התרחשה נחיתת החרום?
+    Result: Edit Required
+    Explanation: The question requires editing because the term "נחיתת החרום" includes the determiner "ה", which makes it overly specific and reliant on prior context to interpret. This specificity assumes that the reader already knows about this particular event or individual, which is unsuitable for a retrieval task.
+    </example>
+
+    <example>
+    Context: הפיראטים היא מפלגה שמתמודדת מאז הבחירות לכנסת התשע עשרה (2013) אך לא עברה מעולם את אחוז החסימה. בשיא כוחה, בבחירות הראשונות שבהן התמודדה, קיבלה כ-2,000 קולות. המפלגה פועלת לקידום הדמוקרטיה לפי קווי היסוד של מפלגות הפיראטים בעולם.
+    Question: מתי התמודדה המפלגה לראשונה לכנסת?
+    Result: Edit Required
+    Explanation: The question requires editing because the term "המפלגה" is not universally resolvable. While the context clarifies that it refers to "הפיראטים", the question itself must be self-contained for retrieval tasks. The term "המפלגה" is too vague and relies on prior context, making it unsuitable without edits.
+    </example>
+
+    <example>
+    Context: בתה הבכורה, אירן ז'וליו-קירי (Irène Joliot-Curie) זכתה אף היא בפרס נובל בכימיה (יחד עם בעלה פרדריק ז'וליו-קירי) ב-1935, ובכך הפכה משפחת קירי לאחת המעטות שבהן הורה ובן או בת זוכים בפרס נובל (בתחומים שונים), כמו למשל נילס בוהר ובנו אגה בוהר. כמו כן, הנרי לבואז, בעלה של בתה אווה עמד בראש ארגון יוניצ"ף כשזה זכה בפרס נובל לשלום.
+    Question: מתי זכתה לראשונה קירי בפרס?
+    Result: No Edit Required
+    Explanation: The question is sufficiently well-defined for retrieval. While it allows some ambiguity (e.g., it could retrieve multiple passages about Marie Curie’s first Nobel Prize or other Nobel laureates named Curie), this ambiguity is reasonable. The term "prize" is easily linked by association with the name "Curie" and "Noble prize".
+    </example>
+
+    <example>
+    Context: בשנת 1962 החלו ג'קי, טיטו וג'רמיין להופיע באזור העיר גארי בהרכב הנקרא "The Jackson Brothers". בהרכב השתתפו גם שכניהם של משפחת ג'קסון: מילפורד הייט, כמתופף, וריינוד ג'ונס על הקלידים. בתחילה שימש ג'ו כמנהל הלהקה במשרה חלקית, אולם בהמשך התפטר מעבודתו והתמסר לחלוטין ללהקה. ג'רמיין היה הזמר הראשי ונגן הבס ואילו טיטו תיפקד כגיטריסט.
+    Question: איזו להקה התחילה את דרכה באינדיאנה?
+    Result: No Edit Required
+    Explanation: The question is sufficiently clear and well-defined for a retrieval task. The context explicitly discusses "The Jackson Brothers" as a band that started its journey in Gary, Indiana. The question does not require additional specificity because the association between the band's starting location (Indiana) and the context is direct and unambiguous. No edits are necessary.
+    </example>
+
+    </examples>
+
+    You will be provided with a question and a context. Your task is to classify whether the question needs editing to meet retrieval task guidelines. 
+    A retrieval-oriented question must be clear, well-defined, and sufficiently specific to articulate the user’s information need and guide accurate retrieval of relevant passages. The question must be self-contained, avoiding reliance on unstated assumptions or incomplete references.
+    Questions may allow reasonable ambiguity when referencing universally recognized entities or concepts. However, ambiguity is unacceptable if it hinders retrieval due to unclear references, insufficient specificity, or vague terms. Proper nouns, pronouns, and noun phrases must be resolved if they are not universally identifiable.
+    
+    ## Guidelines
+    
+    Follow these rules:
+
+      * "No Edit Required": 
+        * The question is clear, well-defined, and sufficiently specific to guide retrieval. Ambiguity is acceptable if it involves universally recognized entities or concepts and does not hinder retrieval.
+      * "Edit Required": The question requires editing if:
+        * It contains ambiguous terms, pronouns, or references that are not universally understood.
+        * It lacks sufficient specificity, making it unclear or vague.
+        * It relies on context-specific knowledge or assumptions to be interpretable.
+        * It uses incomplete references (e.g., “the prize”, “the series”) that are not self-contained.
+
+    ## Output:
+
+      * Return "Edit Required" if the question needs changes to adhere to retrieval task guidelines. Return "No Edit Required" if the question already meets the guidelines.
+      * Explanation: Briefly explain why the question does or does not require editing based on the retrieval guidelines.
+
+question_edit:
+  system_prompt: |
+    You are an expert language model trained to assist with editing a question suitable for retrieval tasks.
+  
+  user_prompt: |
+    <examples>
+
+    <example>
+    Context: מייגן "מג" גריפין היא דמות מצוירת בדיונית בקומדיית המצבים המונפשת האמריקני ״איש משפחה״. מג הופיעה לראשונה בטלוויזיה ב-31 בינואר 1999, דובבה על ידי לייסי שאבר בעונה הראשונה של הסדרה ועל ידי מילה קוניס החל מעונתה השנייה. מג היא הבת הבכורה במשפחה, גדולה מסטואי ומכריס.
+    Original question: מי דובבה במקור את מג בעונה הראשונה?
+    answer: לייסי שאבר
+    Edited question: מי דובבה במקור את מג בעונה הראשונה של הסדרה ״איש משפחה״?
+    Edit: BRIDGING
+    Edited question: מי דובבה במקור את מייגן "מג" גריפין בעונה הראשונה?
+    Edit: NAME COMPLETION
+    </example>
+
+    <example>
+    Context: קרבות UFC משתנים באורך המקסימלי, תלוי אם המשחק הוא על תואר אליפות, או שהוא קרב "האירוע המרכזי" של כרטיס הקרב. בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות. קרבות אליפות נמשכים לכל היותר חמישה סיבובים. החל מ-UFC 138 ב-5 בנובמבר 2011, קרבות ב"אירוע ראשי" (כלומר הקרב האחרון בכרטיס) יימשכו גם הם לכל היותר חמישה סיבובים. קרבות משניים נמשכים לכל היותר שלושה סיבובים.
+    Original question: בכל הקרבות, כמה זמן נמשך כל סיבוב?
+    answer: בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות
+    Edited question: בכל הקרבות ב- UFC, כמה זמן נמשך כל סיבוב?
+    Edit: BRIDGING
+    </example>
+
+    <example>
+    Context: בעונת 2009/2010, נאבקו הפועל תל אביב ומכבי חיפה על האליפות. במחזור האחרון, מכבי חיפה שיחקה נגד בני יהודה בבלומפילד, והפועל תל אביב יצאה למשחק חוץ בירושלים נגד בית"ר, שרצתה למנוע מהפועל לזכות בדאבל בכל דרך, בייחוד במגרשה הביתי. מכבי חיפה התקשתה נגד בני יהודה אך הייתה יותר קרובה לאליפות ברוב הדקות. לקראת סיום המשחק, כאשר נראה היה שמכבי חיפה היא זו שתזכה באליפות, כבש שחקן הפועל תל אביב, ערן זהבי, שער אליפות דרמטי בדקה ה-92, וקבע 1-2 לטובת קבוצתו, דבר שהעלה את הפועל למקום הראשון בליגה.
+    Original question: באיזו דקה כבש ערן זהבי את שער האליפות?
+    answer: בדקה ה-92
+    Edited question: באיזו דקה כבש ערן זהבי את שער האליפות עבור הפועל תל אביב?
+    Edit: GLOBAL SCOPING
+    Edited question: באיזו דקה כבש ערן זהבי את שער האליפות מול בית״ר ירושלים?
+    Edit: GLOBAL SCOPING
+    </example>
+
+    <example>
+    Context: האיגלס (באנגלית: The Eagles תרגום מילולי: העיטים, תרגום מוטעה אך נפוץ: הנשרים) היא להקת רוק אמריקאית. הלהקה זכתה להצלחה רבה בשנות ה-70. הלהקה נוסדה בשנת 1971 בלוס אנג'לס, כאשר לינדה רונסטאדט נפרדה מלהקת הליווי שלה בה היו חברים דון הנלי וגלן פריי. אל השניים הצטרפו רנדי מייזנר וברני לידון, ויחד הקימו ארבעתם את הלהקה. הלהקה חתמה חוזה עם אסילום רקורדס של דייוויד גפן.
+    Original question: מתי פרצה האיגלס?
+    answer: בשנות ה-70
+    Edited question: מתי פרצה להקת האיגלס?
+    Edit: ADDITION
+    </example>
+
+    <example>
+    Context: נולד כמיכאל איתן הירשפרונג לישראל מאיר בן צבי הירשפרונג, סוחר ותעשיין, ועו"ד אסתר ניחא הירשפרונג, שעלו לישראל מפולין. בהמשך השמיט את השם הירשפרונג והפך את "איתן" לשם משפחתו. סיים לימודיו בתיכון עירוני ה' בתל אביב. ב-1963 התגייס לצה"ל, שירת כמש"ק בחיל החימוש ובמילואים כחייל בגדוד חי"ר.
+    Original question: באיזה חיל שירת איתן בסדיר?
+    Answer: חיל חימוש
+    Original question: באיזה חיל שירת מיכאל איתן בסדיר?
+    Edit: NAME COMPLETION
+    </example>
+    
+    <examples>
+
+    You will receive the original question, its associated context, and the answer. 
+    If the question does not meet the definition of a retrieval-oriented question, suggest minimal edits to make it suitable for retrieval. 
+
+    ## Retrieval-suitable question
+    
+    A retrieval-suitable question is a clear and well-defined query that articulates the user’s information need and enables accurate retrieval of relevant passages. 
+    It may allow reasonable ambiguity when referencing universally recognized entities or broad concepts, but must avoid vagueness or reliance on unstated assumptions. 
+    Proper nouns, pronouns, or noun phrases must be resolved if they are not universally recognizable or identifiable through common associations.
+
+    ## Guidelines
+    
+    Use the following edit types as necessary:
+
+      * NAME COMPLETION, PRONOUN/NP SWAP: Replace unclear pronouns or noun phrases with explicit, unambiguous references (e.g., "מיכאל איתן" or "מייגן "מג" גריפין").
+      * DETERMINER EDITING: Remove unnecessary determiners (e.g., "the player" or "השוהה הבלתי חוקי") that make the question overly specific or reliant on prior context.
+      * BRIDGING: Add modifiers or phrases to nouns to clarify their meaning (e.g., "ב-UFC" or "של הסדרה איש משפחה").
+      * GLOBAL SCOPING: Add modifiers to the entire question for clarity (e.g., "מול ביתר ירושלים").
+      * ADDITION: Add background information for better readability (e.g., replacing "האיגלס" with "להקת האיגלס").
+    
+    Make only one minimal edit when possible. Clearly label the type of edit you applied.
+
+    ## Output
+
+    Output Format:
+
+      * Edited Question: A retrieval suitable question edited from the original question
+      * Edit Type: Select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
