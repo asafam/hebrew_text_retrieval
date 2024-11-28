@@ -33,12 +33,12 @@ no_answer_classification:
     Follow these steps:
 
       1. Locate the Answer: Check if the context contains the information needed to answer the question.
-      2. Assess Completeness: Confirm whether the question retrieves a complete, specific, and relevant portion of the context as the answer.
-
-    ## Output:
       
-      * Return "Answerable" if the context contains all the information required to answer the question. Return "Not Answerable" if the context lacks the necessary details.
-      * Explanation: Briefly explain why the question is answerable or not answerable based on the context.
+      2. Assess Completeness: Confirm whether the question retrieves a complete, specific, and relevant portion of the context as the answer.
+      
+      3. Return "Answerable" if the context contains all the information required to answer the question. Return "Not Answerable" if the context lacks the necessary details.
+      
+      4. Briefly explain why the question is answerable or not answerable based on the context.
 
     Context: {context}
     Question: {question}
@@ -93,8 +93,7 @@ edit_required_classification:
     
     ## Guidelines
     
-    Follow these rules:
-
+    1. Follow these rules:
       * "No Edit Required": 
         * The question is clear, well-defined, and sufficiently specific to guide retrieval. Ambiguity is acceptable if it involves universally recognized entities or concepts and does not hinder retrieval.
       * "Edit Required": The question requires editing if:
@@ -103,10 +102,12 @@ edit_required_classification:
         * It relies on context-specific knowledge or assumptions to be interpretable.
         * It uses incomplete references (e.g., “the prize”, “the series”) that are not self-contained.
 
-    ## Output:
+    2. Return "Edit Required" if the question needs changes to adhere to retrieval task guidelines. Return "No Edit Required" if the question already meets the guidelines.
+    
+    3. Briefly explain why the question does or does not require editing based on the retrieval guidelines.
 
-      * Return "Edit Required" if the question needs changes to adhere to retrieval task guidelines. Return "No Edit Required" if the question already meets the guidelines.
-      * Explanation: Briefly explain why the question does or does not require editing based on the retrieval guidelines.
+    Context: {context}
+    Question: {question}
 
 question_edit:
   system_prompt: |
@@ -168,20 +169,21 @@ question_edit:
 
     ## Guidelines
     
-    Use the following edit types as necessary:
-
+    1. Use the following edit types as necessary:
       * NAME COMPLETION, PRONOUN/NP SWAP: Replace unclear pronouns or noun phrases with explicit, unambiguous references (e.g., "מיכאל איתן" or "מייגן "מג" גריפין").
       * DETERMINER EDITING: Remove unnecessary determiners (e.g., "the player" or "השוהה הבלתי חוקי") that make the question overly specific or reliant on prior context.
       * BRIDGING: Add modifiers or phrases to nouns to clarify their meaning (e.g., "ב-UFC" or "של הסדרה איש משפחה").
       * GLOBAL SCOPING: Add modifiers to the entire question for clarity (e.g., "מול ביתר ירושלים").
       * ADDITION: Add background information for better readability (e.g., replacing "האיגלס" with "להקת האיגלס").
+  
+    2. Indicate the type of edit you applied to make the question suiteable for retrieval -- select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
     
-    Make only one minimal edit when possible. Clearly label the type of edit you applied.
-    Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
+    3. Make only one minimal edit when possible. Clearly label the type of edit you applied.
 
-    ## Output
+    4. Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
+    
+    5. The edited question should be in Hebrew.
 
-    Output Format:
-
-      * Edited Question: A retrieval suitable question edited from the original question
-      * Edit Type: Select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
+    Context: {context}
+    Question: {question}
+    Answer: {answer}
