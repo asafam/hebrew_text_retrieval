@@ -176,7 +176,7 @@ question_edit:
       * GLOBAL SCOPING: Add modifiers to the entire question for clarity (e.g., "מול ביתר ירושלים").
       * ADDITION: Add background information for better readability (e.g., replacing "האיגלס" with "להקת האיגלס").
   
-    2. Indicate the type of edit you applied to make the question suiteable for retrieval -- select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
+    2. Indicate the type of edit you applied to make the question suitable for retrieval -- select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
     
     3. Make only one minimal edit when possible. Clearly label the type of edit you applied.
 
