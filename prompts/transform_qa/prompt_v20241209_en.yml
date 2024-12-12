@@ -88,52 +88,53 @@ edit_question:
 
     5. If the question is already valid, output it unchanged.
 
-    6. Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
-
-    7. The edited question cannot contain the answer.
-    
-    8. The edited question should be in Hebrew.
+    6. The edited question cannot contain the answer.
 
     <examples>
 
     <example>
-    Context: מייגן "מג" גריפין היא דמות מצוירת בדיונית בקומדיית המצבים המונפשת האמריקני ״איש משפחה״. מג הופיעה לראשונה בטלוויזיה ב-31 בינואר 1999, דובבה על ידי לייסי שאבר בעונה הראשונה של הסדרה ועל ידי מילה קוניס החל מעונתה השנייה. מג היא הבת הבכורה במשפחה, גדולה מסטואי ומכריס.
-    Question: מי דובבה במקור את מג בעונה הראשונה?
-    Answer: לייסי שאבר
-    Edited question: מי דובבה במקור את מייגן "מג" גריפין בעונה הראשונה?
+    Context: Megan "Meg" Griffin is a fictional character in the animated television series Family Guy. Meg is the eldest child of Peter and Lois Griffin and older sister of Stewie and Chris. Originally voiced by Lacey Chabert during the first season, Meg has been voiced by Mila Kunis since season 2.
+    Question: Who voiced Meg in the first season?
+    Answer: Lacey Chabert
+    Edited question: Who voiced Megan "Meg" Griffin in the first season?
     Edit: NAME COMPLETION
+    Explanation: The edit applies NAME COMPLETION by including the full name "Megan 'Meg' Griffin" instead of just "Meg" to provide clarity and precision. This ensures that the question is unambiguous, especially in contexts where "Meg" might refer to another character or person. The edit is minimal and maintains the natural flow and relevance of the question.
     </example>
 
     <example>
-    Context: קרבות UFC משתנים באורך המקסימלי, תלוי אם המשחק הוא על תואר אליפות, או שהוא קרב "האירוע המרכזי" של כרטיס הקרב. בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות. קרבות אליפות נמשכים לכל היותר חמישה סיבובים. החל מ-UFC 138 ב-5 בנובמבר 2011, קרבות ב"אירוע ראשי" (כלומר הקרב האחרון בכרטיס) יימשכו גם הם לכל היותר חמישה סיבובים. קרבות משניים נמשכים לכל היותר שלושה סיבובים.
-    Question: בכל הקרבות, כמה זמן נמשך כל סיבוב?
-    Answer: בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות
-    Edited question: בכל הקרבות ב- UFC, כמה זמן נמשך כל סיבוב?
+    Context: UFC matches vary in maximum length, depending on whether the match is for a championship title, or is a fight card's "main event" fight. In all fights, each round can be no longer than five minutes. Championship fights last for a maximum of five rounds.
+    Question: How long is a round?
+    Answer: Each round can be no longer than five minutes
+    Edited question:  How long is a round in UFC fights?
     Edit: BRIDGING
+    Explanation: The edit applies BRIDGING to clarify the context of the question by adding "in UFC fights." This ensures the question is well-defined and explicitly linked to the context of UFC matches, avoiding ambiguity about what type of rounds are being referred to. The edit maintains naturalness and relevance while improving clarity.
     </example>
 
     <example>
-    Context: בעונת 2009/2010, נאבקו הפועל תל אביב ומכבי חיפה על האליפות. במחזור האחרון, מכבי חיפה שיחקה נגד בני יהודה בבלומפילד, והפועל תל אביב יצאה למשחק חוץ בירושלים נגד בית"ר, שרצתה למנוע מהפועל לזכות בדאבל בכל דרך, בייחוד במגרשה הביתי. מכבי חיפה התקשתה נגד בני יהודה אך הייתה יותר קרובה לאליפות ברוב הדקות. לקראת סיום המשחק, כאשר נראה היה שמכבי חיפה היא זו שתזכה באליפות, כבש שחקן הפועל תל אביב, ערן זהבי, שער אליפות דרמטי בדקה ה-92, וקבע 1-2 לטובת קבוצתו, דבר שהעלה את הפועל למקום הראשון בליגה.
-    Question: באיזו דקה כבש ערן זהבי את שער האליפות?
-    Answer: בדקה ה-92
-    Edited question: באיזו דקה כבש ערן זהבי את שער האליפות מול בית״ר ירושלים?
+    Context: With the best-of-five series tied at two games apiece and the Cavaliers leading the game by one point with three seconds left, Bulls player Michael Jordan received an inbound pass and made a buzzer-beater shot to give the Bulls a 101–100 win and clinch a series victory.
+    Question: On which game did Jordan hit the shot?
+    Answer: On game 5 between the Bulls and Cavaliers
+    Edited question: On which game did Jordan hit the shot against the Cavaliers?
     Edit: GLOBAL SCOPING
+    Explanation: The edit applies GLOBAL SCOPING by adding "against the Cavaliers" to explicitly define the context of the game in question. This ensures the question is well-defined and avoids ambiguity, particularly in scenarios where Michael Jordan's career is being discussed, and multiple buzzer-beater shots could be relevant. The edit retains naturalness and relevance while providing the necessary specificity.
     </example>
 
     <example>
-    Context: האיגלס (באנגלית: The Eagles תרגום מילולי: העיטים, תרגום מוטעה אך נפוץ: הנשרים) היא להקת רוק אמריקאית. הלהקה זכתה להצלחה רבה בשנות ה-70. הלהקה נוסדה בשנת 1971 בלוס אנג'לס, כאשר לינדה רונסטאדט נפרדה מלהקת הליווי שלה בה היו חברים דון הנלי וגלן פריי. אל השניים הצטרפו רנדי מייזנר וברני לידון, ויחד הקימו ארבעתם את הלהקה. הלהקה חתמה חוזה עם אסילום רקורדס של דייוויד גפן.
-    Question: מתי זכו האיגלס לתהילה?
-    Answer: בשנות ה-70
-    Edited question: מתי זכתה להקת האיגלס לתהילה?
+    Context: The Eagles are an American rock band formed in Los Angeles in 1971. Having not settled on a band name yet, they performed their first show in October 1971 under the name of Teen King and the Emergencies at a club called The Gallery in Aspen.
+    Question: When was the Eagles' first concert?
+    Answer: October 1971
+    Edited question: When was the Eagles band's first concert?
     Edit: ADDITION
+    Explanation: The edit applies ADDITION by specifying "band" in "Eagles band" to ensure clarity and avoid potential ambiguity, as "Eagles" could be interpreted as something other than the rock band (e.g., a sports team). This minimal addition ensures the question is well-defined and unambiguous while maintaining naturalness and relevance.
     </example>
 
     <example>
-    Context: נולד כמיכאל איתן הירשפרונג לישראל מאיר בן צבי הירשפרונג, סוחר ותעשיין, ועו"ד אסתר ניחא הירשפרונג, שעלו לישראל מפולין. בהמשך השמיט את השם הירשפרונג והפך את "איתן" לשם משפחתו. סיים לימודיו בתיכון עירוני ה' בתל אביב. ב-1963 התגייס לצה"ל, שירת כמש"ק בחיל החימוש ובמילואים כחייל בגדוד חי"ר.
-    Question: באיזה חיל שירת איתן בסדיר?
-    Answer: חיל חימוש
-    Edited question: באיזה חיל שירת מיכאל איתן בסדיר?
+    Context: George W. Bush's tenure as the 43rd president of the United States began with his first inauguration on January 20, 2001, and ended on January 20, 2009. Bush served two terms and was succeeded by Democrat Barack Obama, who won the 2008 presidential election. He is the eldest son of the 41st president, George H. W. Bush.
+    Question: Who was the president after Bush?
+    Answer: Barack Obama
+    Edited question: Who was the president after George W. Bush?
     Edit: NAME COMPLETION
+    Explanation: The edit applies NAME COMPLETION by replacing "Bush" with "George W. Bush" to eliminate ambiguity. Since both George W. Bush and his father, George H. W. Bush, served as presidents, the original question could be misinterpreted. The edit ensures the question is well-defined and unambiguous while maintaining its natural and relevant phrasing.
     </example>
     
     </examples>
