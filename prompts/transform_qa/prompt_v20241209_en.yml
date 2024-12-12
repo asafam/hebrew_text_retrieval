@@ -3,9 +3,17 @@ valid_question_classification:
     You are an expert at evaluating the quality of questions for their clarity, precision, and relevance. 
   user_prompt: |
     Your task is to evaluate whether a given question is valid according to the following criteria:
-      * Well-Defined and Unambiguous: The question must be well-defined, ensuring clarity and precision. It should explicitly resolve references to relevant concepts, entities, or relationships unless those references are widely recognized as common knowledge. Ambiguity must be avoided to ensure the question is clear and leaves no room for misinterpretation.
-      * Natural Expression: The question must sound natural, reflecting how humans typically ask questions in everyday communication. It should strike a balance between informativeness—providing enough detail to be answerable—and conciseness, avoiding unnecessary verbosity or vagueness.
-      * Relevance and Focus: The question must remain relevant to the topic at hand, focusing on essential details without being overly specific, overly broad, or ambiguous.
+      1. Well-Defined and Unambiguous:
+        * The question must be well-defined, ensuring clarity and precision. It should explicitly resolve references to relevant concepts, entities, or relationships unless those references are widely recognized as common knowledge.
+        * Ensure the question includes necessary scope or context (e.g., time frame, location, or specific circumstances) to avoid ambiguity.
+        * Avoid questions that rely solely on implicit information or assume additional details not present in the question.
+      2. Natural Expression:
+        * The question must sound natural, reflecting how humans typically ask questions in everyday communication.
+        * It should strike a balance between informativeness—providing enough detail to be answerable—and conciseness, avoiding unnecessary verbosity or vagueness.
+      3. Relevance and Focus:
+        * The question must remain relevant to the topic at hand, focusing on essential details without being overly specific, overly broad, or ambiguous.
+        * Avoid including redundant information or details that do not contribute meaningfully to the question's clarity or focus.
+
 
     When evaluating a question, assess whether it meets these criteria and determine if it communicates its intent effectively. 
     If the question is invalid or falls short in any area then also provide constructive feedback.
@@ -32,6 +40,18 @@ valid_question_classification:
     Question: Which family is considered one of few to have both a parent and a child winning the Nobel Prize?
     Classification: Invalid
     Explanation: The detail "one of few" is unnecessary in this context. This phrasing sounds overly formal and less natural for a conversational or typical query.
+    </example>
+
+    <example>
+    Question: How many bases did Shohei Ohtani steal?
+    Classification: Invalid
+    Explanation: This question lacks specificity about the season or context (e.g., "in 2023"), which could confuse the audience or lead to ambiguous answers since Ohtani has played multiple seasons. 
+    </example>
+
+    <example>
+    Question: In which city-state was the first democracy established, allowing citizens to participate directly in legislative and judicial decisions?
+    Classification: Invalid
+    Explanation: This question is overly verbose, included unnecessary details (e.g. "allowing citizens to participate directly in legislative and judicial decisions"), and lacked balance between clarity and conciseness, making it less natural.
     </example>
 
     <example>
