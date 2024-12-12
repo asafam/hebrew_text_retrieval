@@ -1,0 +1,143 @@
+valid_question_classification:
+  system_prompt: |
+    You are an expert at evaluating the quality of questions for their clarity, precision, and relevance. 
+  user_prompt: |
+    Your task is to evaluate whether a given question is valid according to the following criteria:
+      * Well-Defined and Unambiguous: The question must be well-defined, ensuring clarity and precision. It should explicitly resolve references to relevant concepts, entities, or relationships unless those references are widely recognized as common knowledge. Ambiguity must be avoided to ensure the question is clear and leaves no room for misinterpretation.
+      * Natural Expression: The question must sound natural, reflecting how humans typically ask questions in everyday communication. It should strike a balance between informativeness—providing enough detail to be answerable—and conciseness, avoiding unnecessary verbosity or vagueness.
+      * Relevance and Focus: The question must remain relevant to the topic at hand, focusing on essential details without being overly specific, overly broad, or ambiguous.
+
+    When evaluating a question, assess whether it meets these criteria and determine if it communicates its intent effectively. 
+    If the question is invalid or falls short in any area then also provide constructive feedback.
+
+    Expected Output:
+      * classification: [Valid | Invalid] If the question fully meets the criteria for being well-defined, unambiguous, natural, and relevant, or not.
+      * explanation: Provide a brief explanation affirming why the question is valid or not.
+
+    <examples>
+
+    <example>
+    Question: בכמה אליפויות זכתה הקבוצה מאז הקמתה?
+    Classification: Invalid
+    Explanation: The question "בכמה אליפויות זכתה הקבוצה מאז הקמתה?" is vague and lacks specificity. The term "הקבוצה" is not explicitly resolved to a particular team in the question itself, relying on the context to clarify that it refers to the team discussed in the context passage. The question needis required to be self-contained and unambiguous, explicitly stating the team's name to avoid confusion or misinterpretation.
+    </example>
+
+    <example>
+    Question: מתי פרצה מלחמת מאה השנים בין צרפת לאנגליה?
+    Classification: Invalid
+    Explanation: The phrase "בין צרפת לאנגליה" (between France and England) is redundant, as the common knowledge on the Hundred Years' War inherently implies this information. This makes the phrasing sound slightly unnatural, as people familiar with the topic typically omit this redundant detail.
+    </example>
+
+    <example>
+    Question: איזו משפחה נחשבת לאחת המעטות שבהן הורה וילד זכו בפרסי נובל?
+    Classification: Invalid
+    Explanation: The detail "לאחת המעטות" (one of the few) is unnecessary in this context. This phrasing sounds overly formal and less natural for a conversational or typical query.
+    </example>
+
+    <example>
+    Question: איזה הרכב מוזיקלי התחיל את דרכו בגארי אינדיאנה?
+    Classification: Valid
+    Explanation: The question is sufficiently clear and well-defined for a retrieval task. The context explicitly discusses "The Jackson Brothers" as a band that started its journey in Gary, Indiana. The question does not require additional specificity because the association between the band's starting location (Gary, Indiana) and the context is direct and unambiguous.
+    </example>
+
+    <example>
+    Question: מי גילם את פרנק קונסטנזה?
+    Classification: Valid
+    Explanation: The question is specific and does not leave room for multiple interpretations. The phrasing is natural and aligns with how people typically ask about actors portraying specific characters. The question is concise, directly relevant to the topic, and does not include any unnecessary details.
+    </example>
+
+    <example>
+    Question: היכן נחתה בנחיתת חרום טיסת 1549 של יו אס איירווייז?
+    Classification: Valid
+    Explanation: The question is specific and leaves no room for ambiguity. The phrasing is natural and reflects how people typically ask such a question in everyday communication. The question is concise and focused on the key detail (the city where the emergency landing occurred). It avoids unnecessary verbosity or unrelated information.
+    </example>
+
+    </examples>
+
+    Please evaluate the following question:
+
+    Question: {question}
+
+edit_question:
+  system_prompt: |
+    You are an expert language model trained to assist with editing a question suitable for retrieval tasks.
+  user_prompt: |
+    You will receive an original question, its associated context, and the answer. 
+    Your task is to suggest minimal edits to make the question valid according to the following criteria:
+      * Well-Defined and Unambiguous: The question must be well-defined, ensuring clarity and precision. It should explicitly resolve references to relevant concepts, entities, or relationships unless those references are widely recognized as common knowledge. Ambiguity must be avoided to ensure the question is clear and leaves no room for misinterpretation.
+      * Natural Expression: The question must sound natural, reflecting how humans typically ask questions in everyday communication. It should strike a balance between informativeness—providing enough detail to be answerable—and conciseness, avoiding unnecessary verbosity or vagueness.
+      * Relevance and Focus: The question must remain relevant to the topic at hand, focusing on essential details without being overly specific, overly broad, or ambiguous.
+
+    ## Guidelines
+    
+    1. Edit the question such that it exhibits:
+      * Clarity and Definition: Ensure the question is well-defined, specific, and unambiguous.
+      * Naturalness: Rewrite the question so it sounds natural and conversational.
+      * Informativeness: Include enough detail to make it answerable without being verbose or vague.
+      * Relevance: Focus on essential details from the context, avoiding irrelevant or external information.
+    
+    2. Use the following edit types as necessary:
+      * NAME COMPLETION, PRONOUN/NP SWAP: Replace unclear pronouns or noun phrases with explicit, unambiguous references (e.g., "מיכאל איתן" or "מייגן 'מג' גריפין").
+      * BRIDGING: Add modifiers or phrases to nouns to clarify their meaning (e.g., "ב-UFC" or "של הסדרה איש משפחה").
+      * GLOBAL SCOPING: Add modifiers to the entire question for clarity (e.g., "מול ביתר ירושלים").
+      * ADDITION: Add background information for de-ambiguitating the question and improving readability (e.g., replacing "האיגלס" with "להקת האיגלס").
+  
+    3. Indicate the type of edit you applied to make the question suitable for retrieval -- select one of the edit types: NAME COMPLETION, PRONOUN/NP SWAP, DETERMINER EDITING, BRIDGING, GLOBAL SCOPING, ADDITION
+    
+    4. Make only one minimal edit when possible. Clearly label the type of edit you applied.
+
+    5. If the question is already valid, output it unchanged.
+
+    6. Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
+
+    7. The edited question cannot contain the answer.
+    
+    8. The edited question should be in Hebrew.
+
+    <examples>
+
+    <example>
+    Context: מייגן "מג" גריפין היא דמות מצוירת בדיונית בקומדיית המצבים המונפשת האמריקני ״איש משפחה״. מג הופיעה לראשונה בטלוויזיה ב-31 בינואר 1999, דובבה על ידי לייסי שאבר בעונה הראשונה של הסדרה ועל ידי מילה קוניס החל מעונתה השנייה. מג היא הבת הבכורה במשפחה, גדולה מסטואי ומכריס.
+    Question: מי דובבה במקור את מג בעונה הראשונה?
+    Answer: לייסי שאבר
+    Edited question: מי דובבה במקור את מייגן "מג" גריפין בעונה הראשונה?
+    Edit: NAME COMPLETION
+    </example>
+
+    <example>
+    Context: קרבות UFC משתנים באורך המקסימלי, תלוי אם המשחק הוא על תואר אליפות, או שהוא קרב "האירוע המרכזי" של כרטיס הקרב. בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות. קרבות אליפות נמשכים לכל היותר חמישה סיבובים. החל מ-UFC 138 ב-5 בנובמבר 2011, קרבות ב"אירוע ראשי" (כלומר הקרב האחרון בכרטיס) יימשכו גם הם לכל היותר חמישה סיבובים. קרבות משניים נמשכים לכל היותר שלושה סיבובים.
+    Question: בכל הקרבות, כמה זמן נמשך כל סיבוב?
+    Answer: בכל הקרבות, כל סיבוב לא יכול להיות יותר מחמש דקות
+    Edited question: בכל הקרבות ב- UFC, כמה זמן נמשך כל סיבוב?
+    Edit: BRIDGING
+    </example>
+
+    <example>
+    Context: בעונת 2009/2010, נאבקו הפועל תל אביב ומכבי חיפה על האליפות. במחזור האחרון, מכבי חיפה שיחקה נגד בני יהודה בבלומפילד, והפועל תל אביב יצאה למשחק חוץ בירושלים נגד בית"ר, שרצתה למנוע מהפועל לזכות בדאבל בכל דרך, בייחוד במגרשה הביתי. מכבי חיפה התקשתה נגד בני יהודה אך הייתה יותר קרובה לאליפות ברוב הדקות. לקראת סיום המשחק, כאשר נראה היה שמכבי חיפה היא זו שתזכה באליפות, כבש שחקן הפועל תל אביב, ערן זהבי, שער אליפות דרמטי בדקה ה-92, וקבע 1-2 לטובת קבוצתו, דבר שהעלה את הפועל למקום הראשון בליגה.
+    Question: באיזו דקה כבש ערן זהבי את שער האליפות?
+    Answer: בדקה ה-92
+    Edited question: באיזו דקה כבש ערן זהבי את שער האליפות מול בית״ר ירושלים?
+    Edit: GLOBAL SCOPING
+    </example>
+
+    <example>
+    Context: האיגלס (באנגלית: The Eagles תרגום מילולי: העיטים, תרגום מוטעה אך נפוץ: הנשרים) היא להקת רוק אמריקאית. הלהקה זכתה להצלחה רבה בשנות ה-70. הלהקה נוסדה בשנת 1971 בלוס אנג'לס, כאשר לינדה רונסטאדט נפרדה מלהקת הליווי שלה בה היו חברים דון הנלי וגלן פריי. אל השניים הצטרפו רנדי מייזנר וברני לידון, ויחד הקימו ארבעתם את הלהקה. הלהקה חתמה חוזה עם אסילום רקורדס של דייוויד גפן.
+    Question: מתי זכו האיגלס לתהילה?
+    Answer: בשנות ה-70
+    Edited question: מתי זכתה להקת האיגלס לתהילה?
+    Edit: ADDITION
+    </example>
+
+    <example>
+    Context: נולד כמיכאל איתן הירשפרונג לישראל מאיר בן צבי הירשפרונג, סוחר ותעשיין, ועו"ד אסתר ניחא הירשפרונג, שעלו לישראל מפולין. בהמשך השמיט את השם הירשפרונג והפך את "איתן" לשם משפחתו. סיים לימודיו בתיכון עירוני ה' בתל אביב. ב-1963 התגייס לצה"ל, שירת כמש"ק בחיל החימוש ובמילואים כחייל בגדוד חי"ר.
+    Question: באיזה חיל שירת איתן בסדיר?
+    Answer: חיל חימוש
+    Edited question: באיזה חיל שירת מיכאל איתן בסדיר?
+    Edit: NAME COMPLETION
+    </example>
+    
+    </examples>
+
+    Context: {context}
+    Question: {question}
+    Answer: {answer}

@@ -183,8 +183,10 @@ question_edit:
     4. If the question is already suitable for retrieval, output it unchanged.
 
     4. Do not include any meta-contextual references such as "לפי הקטע" or similar phrases that describe how the context relates to the question.
+
+    5. The edited question cannot contain the answer.
     
-    5. The edited question should be in Hebrew.
+    6. The edited question should be in Hebrew.
 
     Context: {context}
     Question: {question}
