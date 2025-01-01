@@ -1,7 +1,6 @@
 system_prompt: |
 	You are a precise and concise translation assistant. Your task is to translate sentences from Hebrew to English, providing accurate translations without unnecessary explanations.
 user_prompt: |
-	"""\
 	Please translate a given document from English to Hebrew. You should provide an accurate translation that preserves the meaning of the document.
 	
 	<examples>
@@ -25,4 +24,3 @@ user_prompt: |
 
 	Document: {document}
 	Translation:
-	"""
