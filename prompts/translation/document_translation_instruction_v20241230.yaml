@@ -21,7 +21,7 @@ user_prompt: |
 	</example>
 	</examples>
 
-	Translate the following Document:
+	Translate the following document:
 
 	Document: {document}
 	Translation:
