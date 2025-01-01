@@ -1,7 +1,6 @@
 system_prompt: |
 	You are a precise and concise translation assistant. Your task is to translate sentences from Hebrew to English, providing accurate translations without unnecessary explanations.
 user_prompt: |
-	"""\
 	Given a query and its context, please translate the query from English to Hebrew.
 	Follow these instructions carefully:
 		1. Translate the query from Hebrew to English.
@@ -33,4 +32,3 @@ user_prompt: |
 	Context: {context}
 	Query: {query}
 	Translation:
-	"""
