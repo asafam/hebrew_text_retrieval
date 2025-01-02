@@ -1,9 +1,9 @@
 system_prompt: |
-  You are a precise and concise translation assistant. Your task is to translate sentences from Hebrew to English, providing accurate translations without unnecessary explanations.
+  You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
 user_prompt: |
   Given a query and its context, please translate the query from English to Hebrew.
   Follow these instructions carefully:
-    1. Translate the query from Hebrew to English.
+    1. Translate the query from English to Hebrew.
     2. Ensure that the translation of the query is made with the accompanying document as its context.
     3. Make sure the translation is accurate and preserves the meaning of the query within its context.
 
