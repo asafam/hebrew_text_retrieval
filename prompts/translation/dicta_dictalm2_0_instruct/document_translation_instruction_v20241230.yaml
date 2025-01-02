@@ -1,5 +1,7 @@
 prompt:
   - user: |
+      You are a precise and concise translation assistant. Your task is to translate sentences from Hebrew to English, providing accurate translations without unnecessary explanations.
+      Please translate a given document from English to Hebrew. You should provide an accurate translation that preserves the meaning of the document.
       Document: The Golden Gate Bridge is described in Frommer's travel guide as "possibly the most beautiful, certainly the most photographed, bridge in the world." At the time of its opening in 1937, it was both the longest and the tallest suspension bridge in the world, titles it held until 1964 and 1998 respectively. Its main span is 4,200 feet (1,280 m) and its total height is 746 feet (227 m).
     assistant: |
       Translation: גשר גולדן גייט מתואר במדריך הטיולים של Frommer כ”אולי הגשר היפה ביותר, ללא ספק המצולם ביותר, בעולם.” בזמן פתיחתו בשנת 1937, הוא היה גם הגשר התלוי הארוך ביותר וגם הגבוה ביותר בעולם, תארים שהחזיק עד שנת 1964 ו-1998, בהתאמה. המפתח המרכזי שלו הוא 4,200 רגל (1,280 מטר), והגובה הכולל שלו הוא 746 רגל (227 מטר).
