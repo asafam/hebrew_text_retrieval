@@ -1,0 +1,18 @@
+prompt:
+  - user: |
+      Document: The Golden Gate Bridge is described in Frommer's travel guide as "possibly the most beautiful, certainly the most photographed, bridge in the world." At the time of its opening in 1937, it was both the longest and the tallest suspension bridge in the world, titles it held until 1964 and 1998 respectively. Its main span is 4,200 feet (1,280 m) and its total height is 746 feet (227 m).
+    assistant: |
+      Translation: גשר גולדן גייט מתואר במדריך הטיולים של Frommer כ”אולי הגשר היפה ביותר, ללא ספק המצולם ביותר, בעולם.” בזמן פתיחתו בשנת 1937, הוא היה גם הגשר התלוי הארוך ביותר וגם הגבוה ביותר בעולם, תארים שהחזיק עד שנת 1964 ו-1998, בהתאמה. המפתח המרכזי שלו הוא 4,200 רגל (1,280 מטר), והגובה הכולל שלו הוא 746 רגל (227 מטר).
+
+  - user: |
+      Document: Wicked is a musical with music and lyrics by Stephen Schwartz and a book by Winnie Holzman. The musical is told from the perspective of two witches, Elphaba and Galinda, before and after Dorothy's arrival in Oz. The story explores the complex friendship between Elphaba (who becomes the Wicked Witch of the West) and Galinda (who becomes Glinda the Good). Their relationship is tested by their contrasting personalities, conflicting viewpoints, shared love interest, reactions to the corrupt rule of the Wizard of Oz, and ultimately, Elphaba's tragic fall.
+    assistant: |
+      Translation: ״מרושעת״ ("Wicked") הוא מחזמר עם מוזיקה ומילים מאת סטיבן שוורץ וספר מאת ויני הולצמן. המחזמר מסופר מנקודת המבט של שתי מכשפות, אלפבה וגלינדה, לפני ולאחר הגעתה של דורותי לארץ עוץ. הסיפור בוחן את החברות המורכבת בין אלפבה (שהופכת למכשפה הרעה מהמערב) וגלינדה (שהופכת לגלינדה הטובה). מערכת היחסים שלהן עומדת למבחן בשל ניגודי האישיות שלהן, נקודות המבט הסותרות, העניין הרומנטי המשותף, התגובות שלהן לשלטון המושחת של הקוסם מארץ עוץ, ולבסוף, נפילתה הטרגית של אלפבה.
+
+  - user: |
+      Document: Stanley Martin Lieber was born on December 28, 1922, in Manhattan, New York City, in the apartment of his Romanian-born Jewish immigrant parents, Celia (née Solomon) and Jack Lieber, at the corner of West 98th Street and West End Avenue. Lee was raised in a Jewish household. In a 2002 interview, he stated when asked if he believed in God, "Well, let me put it this way... [Pauses.] No, I'm not going to try to be clever. I really don't know. I just don't know."
+    assistant: |
+      Translation: סטנלי מרטין ליבר נולד ב־28 בדצמבר 1922 במנהטן, ניו יורק, בדירה של הוריו שהיו מהגרים יהודים ילידי רומניה, סליה (לבית סולומון) וג'ק ליבר, בפינת רחוב 98 מערב ושדרת ווסט אנד. לי גדל במשפחה יהודית. בראיון משנת 2002, כשנשאל אם הוא מאמין באלוהים, אמר: "ובכן, בוא נאמר כך... [עוצר.] לא, אני לא אנסה להיות שנון. אני באמת לא יודע. אני פשוט לא יודע."
+  
+  - user: |
+      Document: {document}
