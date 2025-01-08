@@ -1,0 +1,20 @@
+prompt:
+  - user: |
+      You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+      Document: The Golden Gate Bridge is described in Frommer's travel guide as "possibly the most beautiful, certainly the most photographed, bridge in the world."
+    assistant: |
+      גשר גולדן גייט מתואר במדריך הטיולים של Frommer כ”אולי הגשר היפה ביותר, ללא ספק המצולם ביותר, בעולם.”
+
+  - user: |
+      Document: Wicked is a musical with music and lyrics by Stephen Schwartz and a book by Winnie Holzman.
+    assistant: |
+      ״מרושעת״ ("Wicked") הוא מחזמר עם מוזיקה ומילים מאת סטיבן שוורץ וספר מאת ויני הולצמן.
+
+  - user: |
+      Document: Stanley Martin Lieber was born on December 28, 1922, in Manhattan, New York City, in the apartment of his Romanian-born Jewish immigrant parents, Celia (née Solomon) and Jack Lieber, at the corner of West 98th Street and West End Avenue.
+    assistant: |
+      סטנלי מרטין ליבר נולד ב־28 בדצמבר 1922 במנהטן, ניו יורק, בדירה של הוריו שהיו מהגרים יהודים ילידי רומניה, סליה (לבית סולומון) וג'ק ליבר, בפינת רחוב 98 מערב ושדרת ווסט אנד. לי גדל במשפחה יהודית. 
+
+  - user: |
+      Document: {document}
