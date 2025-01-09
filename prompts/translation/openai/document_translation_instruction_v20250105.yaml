@@ -4,24 +4,24 @@ system_prompt: |
 user_prompt_prefix: |
   Please translate a given document from English to Hebrew. You should provide an accurate translation that preserves the meaning of the document.
 
-  אנגלית: And during the evening they would sit, each man under his vine and under his fig tree, with his wife and children sitting with him, happy with their work and delighted in their sitting, and they would reminisce about the old days in the Diaspora, like people who in happy times recall days of sorry, and delight doubly in the good.
-  עברית נמלצת: לעתותי ערב כל אחד ואחד יושב לו איש תחת גפנו ואיש תחת תאנתו, כשאשתו ובניו ובנותיו יושבים עמו, שמחים על עבודת
+  English: And during the evening they would sit, each man under his vine and under his fig tree, with his wife and children sitting with him, happy with their work and delighted in their sitting, and they would reminisce about the old days in the Diaspora, like people who in happy times recall days of sorry, and delight doubly in the good.
+  Hebrew: לעתותי ערב כל אחד ואחד יושב לו איש תחת גפנו ואיש תחת תאנתו, כשאשתו ובניו ובנותיו יושבים עמו, שמחים על עבודת
   
-  אנגלית: At the end of the year 1914, the sounds of the First World War started to sound. The superpowers of the world clashed in a frontal battle that was accompanied by blood, fire and smoke.
-  עברית נמלצת: בשלהי שנת 1914 החלו קולות המלחמה העולמית הראשונה להרעים. מעצמות תבל התנגשו בקרב חזיתי שלווה בדם ואש ותימרות עשן.
+  English: At the end of the year 1914, the sounds of the First World War started to sound. The superpowers of the world clashed in a frontal battle that was accompanied by blood, fire and smoke.
+  Hebrew: בשלהי שנת 1914 החלו קולות המלחמה העולמית הראשונה להרעים. מעצמות תבל התנגשו בקרב חזיתי שלווה בדם ואש ותימרות עשן.
 
-  אנגלית: The commander who got the authorization declares delightedly that the explosion is dedicated to the residents of the kibbutz. He counts down until the loud explosion and the shock wave that comes afterward. The officer grabs me from behind by my shoulders, to keep from falling.  A humongous cloud of smoke rises in front of us. It gradually disappears, and the view to the kibbutz can be seen.
-  עברית נמלצת: המפקד שקיבל הרשאה מכריז חגיגית שהפיצוץ מוקדש לתושבי הקיבוץ. הוא סופר לאחור עד הפיצוץ המהדהד וגל ההדף שבעקבותיו. הקצין אוחז מאחור בכתפיי, מוודא יציבות. פטריית עשן עצומה מתאבכת מולנו. היא מתפזרת בהדרגה, והנוף לקיבוץ מתבהר.
+  English: The commander who got the authorization declares delightedly that the explosion is dedicated to the residents of the kibbutz. He counts down until the loud explosion and the shock wave that comes afterward. The officer grabs me from behind by my shoulders, to keep from falling.  A humongous cloud of smoke rises in front of us. It gradually disappears, and the view to the kibbutz can be seen.
+  Hebrew: המפקד שקיבל הרשאה מכריז חגיגית שהפיצוץ מוקדש לתושבי הקיבוץ. הוא סופר לאחור עד הפיצוץ המהדהד וגל ההדף שבעקבותיו. הקצין אוחז מאחור בכתפיי, מוודא יציבות. פטריית עשן עצומה מתאבכת מולנו. היא מתפזרת בהדרגה, והנוף לקיבוץ מתבהר.
 
-  אנגלית: Over the last few years, the much praised musician wished to play his few melodies in his study, whose windows looked out to a beautiful view of chains of mountains, neverending forests, and fresh springs that burst forst between the green and shining fields.
-  עברית נמלצת: בשנים האחרונות אוה לו המנגן המהולל לנגן את נגינותיו הבודדות בחדר משכיתו, שחלונותיו נשקפים אל יפה־נוף של שלשלאות הרים, יערי עד ומעינות חיים הפורצים להם דרכם בין ירק חרוץ ומזהיר.
+  English: Over the last few years, the much praised musician wished to play his few melodies in his study, whose windows looked out to a beautiful view of chains of mountains, neverending forests, and fresh springs that burst forst between the green and shining fields.
+  Hebrew: בשנים האחרונות אוה לו המנגן המהולל לנגן את נגינותיו הבודדות בחדר משכיתו, שחלונותיו נשקפים אל יפה־נוף של שלשלאות הרים, יערי עד ומעינות חיים הפורצים להם דרכם בין ירק חרוץ ומזהיר.
 
-  אנגלית: The previous mayor continues to serve as a public figure on a national level. She has plenty of public support. Every few minutes a local acquaintance approaches the table and praises her with loving words. Her cellphone is full of appreciative texts which she received.
-  עברית נמלצת: ראש העיר לשעבר ממשיכה לכהן כידוענית בקנה מידה ארצי. אהדה ציבורית לא חסרה לה. מדי כמה דקות ניגש לשולחן שלנו מכר מקומי ומרעיף עליה מילות חיבה. הטלפון הנייד שלה מכיל מסרוני תודה לבביים שקיבלה.
+  English: The previous mayor continues to serve as a public figure on a national level. She has plenty of public support. Every few minutes a local acquaintance approaches the table and praises her with loving words. Her cellphone is full of appreciative texts which she received.
+  Hebrew: ראש העיר לשעבר ממשיכה לכהן כידוענית בקנה מידה ארצי. אהדה ציבורית לא חסרה לה. מדי כמה דקות ניגש לשולחן שלנו מכר מקומי ומרעיף עליה מילות חיבה. הטלפון הנייד שלה מכיל מסרוני תודה לבביים שקיבלה.
 
-  אנגלית: I saw that the afternoon sun had not yet come down from the tree in front of the house, and hadn"t sent her rays of light, to wash out the blank pages next to my pen.
-  עברית נמלצת: ראיתי ששמש אחר הצהריים טרם רכנה מבעד האילן שלפני הבית, ולא שלחה רצדי אור, לסנוור את הדפים הריקים שליד עטי.
+  English: I saw that the afternoon sun had not yet come down from the tree in front of the house, and hadn"t sent her rays of light, to wash out the blank pages next to my pen.
+  Hebrew: ראיתי ששמש אחר הצהריים טרם רכנה מבעד האילן שלפני הבית, ולא שלחה רצדי אור, לסנוור את הדפים הריקים שליד עטי.
 
 user_prompt_template: |
-  אנגלית: {document}
-  עברית נמלצת:
+  English: {document}
+  Hebrew:
