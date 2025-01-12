@@ -13,7 +13,7 @@ from torch.optim import AdamW
 from data import *
 from loss import *
 from trainings import *
-from utils import *
+from model.utils import *
 
 
 def main(

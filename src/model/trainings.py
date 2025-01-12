@@ -6,7 +6,7 @@ import logging
 import os
 from datasets import DatasetDict, Dataset
 from tqdm import tqdm
-from utils import *
+from model.utils import *
 
 
 def train(
