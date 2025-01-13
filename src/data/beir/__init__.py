@@ -18,7 +18,7 @@ class BaseBeIRDataBuilder():
 
         if n > 0:
             random.seed(random_seed)
-            sampled_indexes = random.sample(range(len(qrels_dataset[split]), n))
+            sampled_indexes = random.sample(range(len(qrels_dataset[split])), n)
         else:
             sampled_indexes = range(len(qrels_dataset[split]))  # Use all data
         
@@ -29,7 +29,7 @@ class BaseBeIRDataBuilder():
         documents0 = corpus_dataset['corpus'].filter(lambda x: str(x["_id"]) in corpus_ids)
         documents = []
         for document in documents0:
-            documents.extend(self._split_document_by_sentences(document, tokenizer, max_tokens=max_tokens))
+            documents.extend(self._split_document_by_segments(document, tokenizer, max_tokens=max_tokens))
         
         queries0 = queries_dataset['queries'].filter(lambda x: str(x["_id"]) in query_ids)
         queries = []
@@ -39,19 +39,16 @@ class BaseBeIRDataBuilder():
             if query is not None and context is not None:
                 queries.append({
                     'id': str(qrel['query-id']),
-                    'segment_id': query['segment_id'],
                     'text': query['text'],
-                    'context': {
-                        'id': str(qrel['corpus-id']),
-                        'text': context['text']
-                    }
+                    'context_id': str(qrel['corpus-id']),
+                    'context_text': context['text']
                 })
         return queries, documents
     
     def is_match(self, dataset_name: str) -> bool:
-        return True
+        raise NotImplementedError()
 
-    def _split_document_by_segments(self, document: dict, max_tokens: int = 256):
+    def _split_document_by_segments(self, document: dict, tokenizer, max_tokens: int = 256):
         # Split document into sentences
         sentences = sent_tokenize(document['text'])
 
@@ -62,7 +59,7 @@ class BaseBeIRDataBuilder():
 
         for sentence in sentences:
             # Tokenize the sentence and count tokens
-            sentence_tokens = len(self.tokenizer(sentence)["input_ids"])
+            sentence_tokens = len(tokenizer(sentence)["input_ids"])
             
             # Check if adding this sentence would exceed max tokens
             if current_segment_tokens + sentence_tokens <= max_tokens:
@@ -83,7 +80,7 @@ class BaseBeIRDataBuilder():
         document_segments = []
         for idx, segment in enumerate(segments):
             document_segments.append({
-                '_id': str(document['_id']),
+                'id': str(document['_id']),
                 'segments_id': idx,
                 'text': segment
             })
@@ -101,10 +98,9 @@ def build_data(dataset_name: str, **kwargs):
 
 def _get_builder(dataset_name: str) -> BaseBeIRDataBuilder:
     folder_path = os.path.dirname(os.path.abspath(__file__))
-    print(folder_path)
+
     # Get all Python files in the folder
     files = [f for f in os.listdir(folder_path) if f.endswith('.py') and f != '__init__.py']
-    print(files)
 
     # List to hold instantiated classes
     builders = []
