@@ -30,50 +30,48 @@ def build_dataset_candidates(dataset_names: List[str],
                              force: bool = False,
                              random_seed: int = 42) -> None:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    for i, dataset_name in tqdm(enumerate(dataset_names), desc="Processing {dataset_name}}"):
+    for dataset_name in tqdm(dataset_names, desc="Processing datasets: "):
         print(f"Processing dataset: {dataset_name}")
         
         # Load the dataset
         tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side='left')
         
-        # Process each sample
-        for i, dataset_name in tqdm(dataset_names, desc=f"Processing {dataset_name}"):
-            # Determine file paths
-            dataset_name_slug = dataset_name.replace("/", "_")
-            queries_output_path = f"{output_path}/queries_{dataset_name_slug}.csv"
-            documents_output_path = f"{output_path}/documents_{dataset_name_slug}.csv"
+        # Determine file paths
+        dataset_name_slug = dataset_name.replace("/", "_")
+        queries_output_path = f"{output_path}/{dataset_name_slug}_queries.csv"
+        documents_output_path = f"{output_path}/{dataset_name_slug}_documents.csv"
 
-            if not force and os.path.exists(queries_output_path) and os.path.exists(documents_output_path):
-                print(f"Skipping {dataset_name} as files already exist and --force is not set.")
-                continue
+        if not force and os.path.exists(queries_output_path) and os.path.exists(documents_output_path):
+            print(f"Skipping {dataset_name} as files already exist and --force is not set.")
+            continue
 
-            data = build_data(dataset_name=dataset_name, 
-                              tokenizer=tokenizer, 
-                              n=num_samples, 
-                              max_tokens=max_document_segment_tokens,
-                              random_seed=random_seed)
-            queries, documents = data
+        # Build the data
+        data = build_data(dataset_name=dataset_name, 
+                            tokenizer=tokenizer, 
+                            n=num_samples, 
+                            max_tokens=max_document_segment_tokens,
+                            random_seed=random_seed)
+        queries, documents = data
 
+        # Convert to DataFrames
+        queries_df = pd.DataFrame(queries)
+        documents_df = pd.DataFrame(documents)
+
+        for df in [queries_df, documents_df]:
             category_name = next((k for k, v in BeIR.items() if dataset_name in v), None)
+            df['category'] = category_name
+            df['dataset_name'] = dataset_name
+            df['tokenizer'] = model_name
 
-            # Convert to DataFrames
-            queries_df = pd.DataFrame(queries)
-            documents_df = pd.DataFrame(documents)
+        # Create the output path folder if it does not exist
+        os.makedirs(output_path, exist_ok=True)
+        
+        # Save to CSV
+        queries_df.to_csv(queries_output_path, index=False, encoding='utf-8')
+        print(f"Saved queries to {queries_output_path}")
 
-            for df in [queries_df, documents_df]:
-                df['category'] = category_name
-                df['dataset_name'] = dataset_name
-                df['tokenizer'] = model_name
-
-            # Create the output path folder if it does not exist
-            os.makedirs(output_path, exist_ok=True)
-            
-            # Save to CSV
-            queries_df.to_csv(queries_output_path, index=False)
-            print(f"Saved queries to {queries_output_path}")
-
-            documents_df.to_csv(documents_output_path, index=False)
-            print(f"Saved documents to {documents_output_path}")
+        documents_df.to_csv(documents_output_path, index=False, encoding='utf-8')
+        print(f"Saved documents to {documents_output_path}")
 
 
 # Main function

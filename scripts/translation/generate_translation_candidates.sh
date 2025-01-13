@@ -1,11 +1,17 @@
 #!/bin/bash
 
+# Activate conda environment
+source activate htr
+
+# Add src folder to PYTHONPATH
+export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
+
 # Define variables
 DATASET_NAMES="BeIR/msmarco"
 NUM_SAMPLES=1024
 MAX_DOCUMENT_SEGMENT_TOKENS=256
 MODEL_NAME="dicta-il/dictalm2.0-AWQ"
-OUTPUT_PATH="./output/traslation/BeIR/dicta-il_dictalm2.0-AWQ"
+OUTPUT_PATH="./output/traslation/BeIR"
 RANDOM_SEED=42
 
 # Run the Python script
