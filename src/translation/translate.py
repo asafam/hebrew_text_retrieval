@@ -5,6 +5,7 @@ from tqdm import tqdm
 from datetime import datetime
 import pandas as pd
 import yaml
+from tqdm import tqdm
 from translation.utils import *
 
 
@@ -168,7 +169,6 @@ def run_translation_pipeline(model_name: str,
 
 
 def translate_queries(data_file_path: str,
-                      translation_output_file_path: str,
                       prompt_file_name: str,
                       model_name: str,
                       batch_size: int,
@@ -226,6 +226,7 @@ def translate_queries(data_file_path: str,
     
     # Save the results
     translated_queries = pd.DataFrame(translated_queries)
+    translation_output_file_path = os.path.join(os.path.dirname(data_file_path), model_name, os.path.basename(data_file_path))
     translated_queries.to_csv(translation_output_file_path, encoding='utf-8', index=False)
 
     # Save the resources usage
@@ -236,7 +237,6 @@ def translate_queries(data_file_path: str,
 
 
 def translate_documents(data_file_path: str,
-                        translation_output_file_path: str,
                         prompt_file_name: str,
                         model_name: str,
                         batch_size: int,
@@ -294,6 +294,7 @@ def translate_documents(data_file_path: str,
     
     # Save the results
     translated_documents = pd.DataFrame(translated_documents)
+    translation_output_file_path = os.path.join(os.path.dirname(data_file_path), model_name, os.path.basename(data_file_path))
     translated_documents.to_csv(translation_output_file_path, encoding='utf-8', index=False)
 
     # Save the resources usage
@@ -307,7 +308,6 @@ def main():
     parser = argparse.ArgumentParser(description="Translate queries and documents using a specified model.")
 
     parser.add_argument('--data_file_paths', type=str, nargs='+', required=True, help="Paths to the input files containing queries.")
-    parser.add_argument('--translation_output_file_path', type=str, required=True, help="Path to save the translated queries.")
     parser.add_argument('--prompt_file_name', type=str, required=True, help="File name for the translation prompt.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--batch_size', type=int, default=32, help="Number of queries to translate in each batch.")
@@ -319,10 +319,10 @@ def main():
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    for data_file_path in args.data_file_paths:
+    for data_file_path in tqdm(args.data_file_paths, desc="Data files"):
+        print(f"Translating {data_file_path}...")
         args = dict(
-            data_file_path=args.data_file_path,
-            translation_output_file_path=args.translation_output_file_path,
+            data_file_path=data_file_path,
             prompt_file_name=args.prompt_file_name,
             model_name=args.model_name,
             batch_size=args.batch_size,

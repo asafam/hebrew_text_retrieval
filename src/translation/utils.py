@@ -12,6 +12,7 @@ PAD_TOKEN = "<PAD>"
 def get_model_and_tokenizer(model_name: str, 
                             device: str = "cuda", 
                             special_tokens: List[str] = [STOP_TOKEN, PAD_TOKEN]):
+    print(f"Loading model {model_name} on device {device}")
     # Load the model
     model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device)
     
