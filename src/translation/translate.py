@@ -64,13 +64,13 @@ def run_translation_pipeline(model_name: str,
                              ids: list[str] = ['id'],
                              max_new_tokens=None,
                              verbose: bool = False,
-                             cache_prefix: bool = True,
+                             use_cached_prefix: bool = True,
                              device = "cuda"):
     # Create the model and tokenizer
     model, tokenizer = get_model_and_tokenizer(model_name)
 
     # Cache the prefix
-    past_key_values = cache_prefix(model, prompt_prefix, batch_size)
+    past_key_values = cache_prefix(model, tokenizer, prompt_prefix, batch_size, device)
 
     # Create the batches
     original_order = [tuple(item[field] for field in ids) for item in data] # Store the original order
@@ -102,7 +102,7 @@ def run_translation_pipeline(model_name: str,
             device=device
         )
 
-        if cache_prefix:
+        if use_cached_prefix:
             # Adjust past_key_values to match the batch size
             current_batch_size = len(batch)
             if current_batch_size < batch_size:
@@ -173,7 +173,7 @@ def translate_queries(data_file_path: str,
                       model_name: str,
                       batch_size: int,
                       max_new_tokens: int,
-                      cache_prefix: bool,
+                      use_cached_prefix: bool,
                       device: str,
                       force: bool,) -> List[dict]:
     if not force and os.path.exists(translation_output_file_path):
@@ -193,7 +193,7 @@ def translate_queries(data_file_path: str,
     data = [{
             'id': query['id'],
             'text': prompt['prompt_template'].format(query=query['text'], context=query['context']).strip()
-        } for query in queries.to_list()]
+        } for query in queries.to_dict(orient='records')]
 
     # Run the translation pipeline
     translations, resources_usage = run_translation_pipeline(
@@ -202,7 +202,7 @@ def translate_queries(data_file_path: str,
         data=data,
         batch_size=batch_size,
         max_new_tokens=max_new_tokens,
-        cache_prefix=cache_prefix,
+        use_cached_prefix=use_cached_prefix,
         device=device
     )
 
@@ -220,7 +220,7 @@ def translate_queries(data_file_path: str,
         translated_query['prompt_file_name'] = prompt_file_name
         translated_query['batch_size'] = batch_size
         translated_query['max_new_tokens'] = max_new_tokens
-        translated_query['cache_prefix'] = cache_prefix
+        translated_query['use_cached_prefix'] = use_cached_prefix
         translated_query['device'] = device
         translated_queries.append(translated_query)
     
@@ -241,7 +241,7 @@ def translate_documents(data_file_path: str,
                         model_name: str,
                         batch_size: int,
                         max_new_tokens: int,
-                        cache_prefix: bool,
+                        use_cached_prefix: bool,
                         device: str,
                         force: bool,) -> List[dict]:
     if not force and os.path.exists(translation_output_file_path):
@@ -261,7 +261,7 @@ def translate_documents(data_file_path: str,
     data = [{
             'id': document['id'],
             'text': prompt['prompt_template'].format(document=document['text']).strip()
-        } for document in documents.to_list()]
+        } for document in documents.to_dict(orient='records')]
 
     # Run the translation pipeline
     translations, resources_usage = run_translation_pipeline(
@@ -270,7 +270,7 @@ def translate_documents(data_file_path: str,
         data=data,
         batch_size=batch_size,
         max_new_tokens=max_new_tokens,
-        cache_prefix=cache_prefix,
+        use_cached_prefix=use_cached_prefix,
         device=device
     )
 
@@ -288,7 +288,7 @@ def translate_documents(data_file_path: str,
         translated_document['prompt_file_name'] = prompt_file_name
         translated_document['batch_size'] = batch_size
         translated_document['max_new_tokens'] = max_new_tokens
-        translated_document['cache_prefix'] = cache_prefix
+        translated_document['use_cached_prefix'] = use_cached_prefix
         translated_document['device'] = device
         translated_documents.append(translated_document)
     
@@ -302,40 +302,3 @@ def translate_documents(data_file_path: str,
     resources_usage.to_csv(translation_output_file_path.replace('.csv', '_resources_usage.csv'), encoding='utf-8', index=False)
 
     return translated_documents
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Translate queries and documents using a specified model.")
-
-    parser.add_argument('--data_file_paths', type=str, nargs='+', required=True, help="Paths to the input files containing queries.")
-    parser.add_argument('--prompt_file_name', type=str, required=True, help="File name for the translation prompt.")
-    parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
-    parser.add_argument('--batch_size', type=int, default=32, help="Number of queries to translate in each batch.")
-    parser.add_argument('--max_new_tokens', type=int, default=None, help="Maximum number of tokens to generate per query.")
-    parser.add_argument('--cache_prefix', action='store_true', help="Use cached results for translation.")
-    parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
-
-    args = parser.parse_args()
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-    for data_file_path in tqdm(args.data_file_paths, desc="Data files"):
-        print(f"Translating {data_file_path}...")
-        args = dict(
-            data_file_path=data_file_path,
-            prompt_file_name=args.prompt_file_name,
-            model_name=args.model_name,
-            batch_size=args.batch_size,
-            max_new_tokens=args.max_new_tokens,
-            cache_prefix=args.cache_prefix,
-            device=device,
-            force=args.force
-        )
-        if 'queries' in data_file_path:
-            translate_queries(**args)
-        elif 'documents' in data_file_path:
-            translate_documents(**args)
-            
-
-if __name__ == "__main__":
-    main()
