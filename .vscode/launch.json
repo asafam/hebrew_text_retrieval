@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Run Generate Translation Candidates",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/translation/generate_translation_candidates.py",
+            "args": [
+                "--dataset_names",
+                "BeIR/msmarco",
+                "BeIR/fever",
+                "--num_samples",
+                "1024",
+                "--max_document_segment_tokens",
+                "256",
+                "--model_name",
+                "dicta-il/dictalm2.0-AWQ",
+                "--output_path",
+                "./output/translation/BeIR",
+                "--random_seed",
+                "42"
+            ],
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            }
+        }
+    ]
+}
