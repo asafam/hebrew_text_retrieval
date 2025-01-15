@@ -87,13 +87,13 @@ def run_translation_pipeline(source_file_path: str,
     with open(prompt_file_name, 'r') as file:
         prompt_data = yaml.safe_load(file)
     prompt = prompt_data['query']
-    meta_fields = {
+    prompt_meta_fields = {
         'english_key': kwargs.get('english_key', 'אנגלית'),
         'hebrew_key': kwargs.get('hebrew_key', 'עברית'),
         'context_key': kwargs.get('context_key', 'רקע'),
     }
-    prompt_prefix = prompt['prompt_prefix'].format_map(SafeDict(meta_fields))
-    prompt_template = prompt['prompt_template'].format_map(SafeDict(meta_fields))
+    prompt_prefix = prompt['prompt_prefix'].format_map(SafeDict(prompt_meta_fields))
+    prompt_template = prompt['prompt_template'].format_map(SafeDict(prompt_meta_fields))
 
     # Cache the prefix
     past_key_values = cache_prefix(model, tokenizer, prompt_prefix, batch_size, device)
@@ -153,7 +153,7 @@ def run_translation_pipeline(source_file_path: str,
         for i, item in enumerate(batch):
             translation = {
                 **item,
-                **meta_fields,
+                **prompt_meta_fields,
                 "translation": results['decoded_outputs'][i],
                 "input_tokens": results['input_tokens'][i],
                 "output_tokens": results['output_tokens'][i],
