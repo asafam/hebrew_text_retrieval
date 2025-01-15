@@ -20,7 +20,7 @@ export CUDA_VISIBLE_DEVICES=4
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=("outputs/translation/BeIR/BeIR_msmarco_documents.csv" "outputs/translation/BeIR/BeIR_msmarco_queries.csv") 
-PROMPT_FILE_NAME="prompts/translation/dicta_dictalm2_0/translation_prompts_v20250105.yaml"
+PROMPT_FILE_NAME="prompts/translation/dicta_dictalm2_0/translation_prompts_few_shot_v20250105.yaml"
 MODEL_NAME="dicta-il/dictalm2.0-AWQ"  
 BATCH_SIZE=16
 MAX_NEW_TOKENS=0  
