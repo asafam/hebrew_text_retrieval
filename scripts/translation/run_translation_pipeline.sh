@@ -26,6 +26,9 @@ BATCH_SIZE=16
 MAX_NEW_TOKENS=0  
 USE_CACHED_PREFIX=true
 FORCE=true 
+ENGLISH_KEY="אנגלית"
+HEBREW_KEY="עברית"
+CONTEXT_KEY="הקשר"
 
 # Print execution parameters
 echo "Running translate_queries with the following parameters:"
@@ -35,10 +38,11 @@ echo "Prompt file name: $PROMPT_FILE_NAME"
 echo "Model name: $MODEL_NAME"
 echo "Batch size: $BATCH_SIZE"
 echo "Max new tokens: $MAX_NEW_TOKENS"
-echo "Device: $DEVICE"
 echo "Use cached prefix: ${USE_CACHED_PREFIX:-false}"
 echo "Force re-translation: ${FORCE:-false}"
-
+echo "English key: $ENGLISH_KEY"
+echo "Hebrew key: $HEBREW_KEY"
+echo "Context key: $CONTEXT_KEY"
 
 # Run the Python script
 python src/translation/run_translation_pipeline.py \
@@ -48,4 +52,7 @@ python src/translation/run_translation_pipeline.py \
   --batch_size $BATCH_SIZE \
   --max_new_tokens $MAX_NEW_TOKENS \
   ${USE_CACHED_PREFIX:+--use_cached_prefix} \
-  ${FORCE:+--force}
+  ${FORCE:+--force} \
+  --english_key "$ENGLISH_KEY" \
+  --hebrew_key "$HEBREW_KEY" \
+  --context_key "$CONTEXT_KEY"
