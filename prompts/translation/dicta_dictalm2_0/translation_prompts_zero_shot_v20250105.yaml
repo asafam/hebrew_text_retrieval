@@ -1,0 +1,12 @@
+document:
+  prompt_prefix: ""
+  prompt_template: |
+    {english_key}: {text}
+    {hebrew_key}:
+
+query:
+  prompt_prefix: ""
+  prompt_template: |
+    {context_key}: {context}
+    {english_key}: {text}
+    {hebrew_key}:

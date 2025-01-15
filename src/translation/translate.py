@@ -65,14 +65,15 @@ def run_translation_pipeline(source_file_path: str,
                              verbose: bool = False,
                              use_cached_prefix: bool = True,
                              device = "cuda",
-                             force: bool = False):
+                             force: bool = False,
+                             **kwargs):
     # Determine the output file path
     translation_output_file_path = os.path.join(os.path.dirname(source_file_path), model_name, os.path.basename(source_file_path))
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
     df = pd.read_csv(file_path, encoding='utf-8')
-    filtered_df = df[df['translation'].isnull()]
+    filtered_df = df[df['translation'].isnull()] if not force else df
 
     # Check if the file has been fully translated
     if not force and os.path.exists(translation_output_file_path) and filtered_df.empty:
@@ -86,8 +87,13 @@ def run_translation_pipeline(source_file_path: str,
     with open(prompt_file_name, 'r') as file:
         prompt_data = yaml.safe_load(file)
     prompt = prompt_data['query']
-    prompt_prefix = prompt['prompt_prefix']
-    prompt_template = prompt['prompt_template']
+    meta_fields = {
+        'english_key': kwargs.get('english_key', 'אנגלית'),
+        'hebrew_key': kwargs.get('hebrew_key', 'עברית'),
+        'context_key': kwargs.get('context_key', 'רקע'),
+    }
+    prompt_prefix = prompt['prompt_prefix'].format_map(SafeDict(meta_fields))
+    prompt_template = prompt['prompt_template'].format_map(SafeDict(meta_fields))
 
     # Cache the prefix
     past_key_values = cache_prefix(model, tokenizer, prompt_prefix, batch_size, device)
@@ -95,7 +101,7 @@ def run_translation_pipeline(source_file_path: str,
     # Create the batches
     data = [{
             **item, 
-            'text': prompt_template.format(**item)
+            'dynamic_prompt': prompt_template.format(**item)
         } for item in filtered_df.to_dict(orient='records')]
     batches = batch_texts_by_length(data, tokenizer, batch_size=batch_size)
 
@@ -116,7 +122,7 @@ def run_translation_pipeline(source_file_path: str,
         max_new_tokens = max_new_tokens or (prefix_length + (max([x['text_length'] for x in batch]) * 1.25))
 
         # Prepare the batch for translation
-        batch_texts = [(prompt_prefix + '\n' + x['text']).strip() for x in batch]
+        batch_texts = [(prompt_prefix + '\n' + x['dynamic_prompt']).strip() for x in batch]
         translation_args = dict(
             model=model, 
             tokenizer=tokenizer,
@@ -147,6 +153,7 @@ def run_translation_pipeline(source_file_path: str,
         for i, item in enumerate(batch):
             translation = {
                 **item,
+                **meta_fields,
                 "translation": results['decoded_outputs'][i],
                 "input_tokens": results['input_tokens'][i],
                 "output_tokens": results['output_tokens'][i],

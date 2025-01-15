@@ -14,6 +14,9 @@ def main():
     parser.add_argument('--max_new_tokens', type=int, default=None, help="Maximum number of tokens to generate per query.")
     parser.add_argument('--use_cached_prefix', action='store_true', help="Use cached results for translation.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
+    parser.add_argument('--english_key', type=str, default="אנגלית", help="Key for the English translation in the prompt file.")
+    parser.add_argument('--hebrew_key', type=str, default="עברית", help="Key for the Hebrew translation in the prompt file.")
+    parser.add_argument('--context_key', type=str, default="רקע", help="Key for the English context translation in the prompt file.")
 
     args = parser.parse_args()
 

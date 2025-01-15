@@ -48,7 +48,7 @@ def get_stopping_criteria(tokenizer, stop_token: str = STOP_TOKEN) -> StoppingCr
     return stopping_criteria
 
 
-def batch_texts_by_length(data: List[dict], tokenizer, text_key='text', batch_size: int = 512):
+def batch_texts_by_length(data: List[dict], tokenizer, text_key='dynamic_prompt', batch_size: int = 512):
     # Tokenize and compute text lengths
     data_with_lengths = [{**item, 'text_length': len(tokenizer(item[text_key])["input_ids"])} for item in data]
 
@@ -82,3 +82,8 @@ def get_cpu_memory_usage():
     process = psutil.Process(os.getpid())
     memory_info = process.memory_info()
     return memory_info.rss / (1024 ** 2)  # Resident Set Size in MB
+
+
+class SafeDict(dict):
+    def __missing__(self, key):
+        return f"{{{key}}}"  # Keep unresolved placeholders
