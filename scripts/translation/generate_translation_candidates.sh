@@ -11,9 +11,9 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 # Define variables
 DATASET_NAMES="BeIR/msmarco BeIR/fever BeIR/climate-fever BeIR/scifact BeIR/scidocs BeIR/quora BeIR/arguana BeIR/nq BeIR/hotpotqa BeIR/trec-covid BeIR/nfcorpus BeIR/dbpedia-entity"
 NUM_SAMPLES=1024
-MAX_DOCUMENT_SEGMENT_TOKENS=256
+MAX_DOCUMENT_SEGMENT_TOKENS=2
 MODEL_NAME="dicta-il/dictalm2.0-AWQ"
-OUTPUT_PATH="./output/translation/BeIR"
+OUTPUT_PATH="./outputs/translation/BeIR"
 RANDOM_SEED=42
 
 # Run the Python script

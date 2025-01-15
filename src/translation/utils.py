@@ -11,7 +11,8 @@ PAD_TOKEN = "<PAD>"
 
 def get_model_and_tokenizer(model_name: str, 
                             device: str = "cuda", 
-                            special_tokens: List[str] = [STOP_TOKEN, PAD_TOKEN]):
+                            pad_token: str = PAD_TOKEN,
+                            special_tokens: List[str] = [STOP_TOKEN]):
     print(f"Loading model {model_name} on device {device}")
     # Load the model
     model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device)
@@ -19,6 +20,7 @@ def get_model_and_tokenizer(model_name: str,
     # Load the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side='left')
     if tokenizer.pad_token is None:
+        tokenizer.add_special_tokens({'pad_token': pad_token})
         tokenizer.add_special_tokens({'additional_special_tokens': special_tokens})
         model.resize_token_embeddings(len(tokenizer)) # Resize the model's embeddings to account for the new token
     
@@ -38,7 +40,11 @@ def get_stopping_criteria(tokenizer, stop_token: str = STOP_TOKEN) -> StoppingCr
     stop_token_id = tokenizer.convert_tokens_to_ids(stop_token)
     
     # create stop token strategy
-    stopping_criteria = StopOnToken(stop_token_id)
+    stop_on_token = StopOnToken(stop_token_id)
+    
+    # Wrap in a StoppingCriteriaList
+    stopping_criteria = StoppingCriteriaList([stop_on_token])
+    
     return stopping_criteria
 
 
