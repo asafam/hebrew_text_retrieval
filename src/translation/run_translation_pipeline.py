@@ -7,7 +7,7 @@ from translation.translate import *
 def main():
     parser = argparse.ArgumentParser(description="Translate queries and documents using a specified model.")
 
-    parser.add_argument('--data_file_paths', type=str, nargs='+', required=True, help="Paths to the input files containing queries.")
+    parser.add_argument('--source_file_path', type=str, nargs='+', required=True, help="Paths to the source input files containing queries.")
     parser.add_argument('--prompt_file_name', type=str, required=True, help="File name for the translation prompt.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--batch_size', type=int, default=32, help="Number of queries to translate in each batch.")
@@ -21,8 +21,8 @@ def main():
 
     for data_file_path in tqdm(args.data_file_paths, desc="Data files"):
         print(f"Translating {data_file_path}...")
-        args = dict(
-            data_file_path=data_file_path,
+        run_translation_pipeline(
+            source_file_path=args.source_file_path,
             prompt_file_name=args.prompt_file_name,
             model_name=args.model_name,
             batch_size=args.batch_size,
@@ -31,10 +31,6 @@ def main():
             device=device,
             force=args.force
         )
-        if 'queries' in data_file_path:
-            translate_queries(**args)
-        elif 'documents' in data_file_path:
-            translate_documents(**args)
             
 
 if __name__ == "__main__":

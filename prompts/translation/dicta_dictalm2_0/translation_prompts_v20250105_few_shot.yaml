@@ -18,7 +18,7 @@ document:
     אנגלית: I saw that the afternoon sun had not yet come down from the tree in front of the house, and hadn"t sent her rays of light, to wash out the blank pages next to my pen.
     עברית נמלצת: ראיתי ששמש אחר הצהריים טרם רכנה מבעד האילן שלפני הבית, ולא שלחה רצדי אור, לסנוור את הדפים הריקים שליד עטי.<STOP>
   prompt_template: |
-    אנגלית: {document}
+    אנגלית: {text}
     עברית נמלצת:
 
 query:
@@ -41,5 +41,5 @@ query:
 
   prompt_template: |
     רקע: {context}
-    אנגלית: {query}
+    אנגלית: {text}
     עברית נמלצת:

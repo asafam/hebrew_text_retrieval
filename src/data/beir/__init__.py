@@ -16,11 +16,12 @@ class BaseBeIRDataBuilder():
         queries_dataset = load_dataset(dataset_name, 'queries')
         qrels_dataset = load_dataset(f'{dataset_name}-qrels')
 
-        if n > 0:
+        all_indexes = list(range(len(qrels_dataset[split])))
+        if 0 < n < len(all_indexes):
             random.seed(random_seed)
-            sampled_indexes = random.sample(range(len(qrels_dataset[split])), n)
+            sampled_indexes = random.sample(all_indexes, n)
         else:
-            sampled_indexes = range(len(qrels_dataset[split]))  # Use all data
+            sampled_indexes = all_indexes # Use all data
         
         qrels = [qrels_dataset[split][i] for i in sampled_indexes]
         corpus_ids = [str(x['corpus-id']) for x in qrels]

@@ -38,8 +38,8 @@ def build_dataset_candidates(dataset_names: List[str],
         
         # Determine file paths
         dataset_name_slug = dataset_name.replace("/", "_")
-        queries_output_path = f"{output_path}/{dataset_name_slug}_queries.csv"
-        documents_output_path = f"{output_path}/{dataset_name_slug}_documents.csv"
+        queries_output_path = f"{output_path}/{dataset_name_slug}/queries.csv"
+        documents_output_path = f"{output_path}/{dataset_name_slug}/documents.csv"
 
         if not force and os.path.exists(queries_output_path) and os.path.exists(documents_output_path):
             print(f"Skipping {dataset_name} as files already exist and --force is not set.")
@@ -47,10 +47,10 @@ def build_dataset_candidates(dataset_names: List[str],
 
         # Build the data
         data = build_data(dataset_name=dataset_name, 
-                            tokenizer=tokenizer, 
-                            n=num_samples, 
-                            max_tokens=max_document_segment_tokens,
-                            random_seed=random_seed)
+                          tokenizer=tokenizer,
+                          n=num_samples, 
+                          max_tokens=max_document_segment_tokens,
+                          random_seed=random_seed)
         queries, documents = data
 
         # Convert to DataFrames

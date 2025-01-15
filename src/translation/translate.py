@@ -57,30 +57,52 @@ def translate(model,
     return result
 
 
-def run_translation_pipeline(model_name: str,
-                             prompt_prefix: str, 
-                             data: List[dict], 
-                             batch_size: int, 
-                             ids: list[str] = ['id'],
+def run_translation_pipeline(source_file_path: str,
+                             prompt_file_name: str,
+                             model_name: str,
+                             batch_size: int,
                              max_new_tokens=None,
                              verbose: bool = False,
                              use_cached_prefix: bool = True,
-                             device = "cuda"):
+                             device = "cuda",
+                             force: bool = False):
+    # Determine the output file path
+    translation_output_file_path = os.path.join(os.path.dirname(source_file_path), model_name, os.path.basename(source_file_path))
+
+    # Load the data
+    file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
+    df = pd.read_csv(file_path, encoding='utf-8')
+    filtered_df = df[df['translation'].isnull()]
+
+    # Check if the file has been fully translated
+    if not force and os.path.exists(translation_output_file_path) and filtered_df.empty:
+        print(f"Skipping translation of {translation_output_file_path} as have been translated.")
+        return
+
     # Create the model and tokenizer
     model, tokenizer = get_model_and_tokenizer(model_name)
+
+    # Load the prompt yaml file
+    with open(prompt_file_name, 'r') as file:
+        prompt_data = yaml.safe_load(file)
+    prompt = prompt_data['query']
+    prompt_prefix = prompt['prompt_prefix']
+    prompt_template = prompt['prompt_template']
 
     # Cache the prefix
     past_key_values = cache_prefix(model, tokenizer, prompt_prefix, batch_size, device)
 
     # Create the batches
-    original_order = [tuple(item[field] for field in ids) for item in data] # Store the original order
-    batches = batch_texts_by_length(data, batch_size=batch_size)
+    data = [{
+            **item, 
+            'text': prompt_template.format(**item)
+        } for item in filtered_df.to_dict(orient='records')]
+    batches = batch_texts_by_length(data, tokenizer, batch_size=batch_size)
 
     # Get the prefix length for the new tokens estimation
     prefix_length = len(tokenizer(prompt_prefix)["input_ids"])
 
     # Translate a batch of texts
-    translations = []
     resources_usage = []
     for batch_idx, batch in tqdm(enumerate(batches), desc="Batches", total=len(batches)):
         # Reset memory stats
@@ -94,9 +116,10 @@ def run_translation_pipeline(model_name: str,
         max_new_tokens = max_new_tokens or (prefix_length + (max([x['text_length'] for x in batch]) * 1.25))
 
         # Prepare the batch for translation
-        batch_texts = [prompt_prefix + '\n' + x['text'] for x in batch]
+        batch_texts = [(prompt_prefix + '\n' + x['text']).strip() for x in batch]
         translation_args = dict(
             model=model, 
+            tokenizer=tokenizer,
             texts=batch_texts, 
             max_new_tokens=max_new_tokens,
             device=device
@@ -119,30 +142,11 @@ def run_translation_pipeline(model_name: str,
         # Translate batch
         results = translate(**translation_args)
 
-        # Measure memory after
-        gpu_memory_after, gpu_peak_memory = get_gpu_memory_usage()
-        cpu_memory_after = get_cpu_memory_usage()
-        resources_usage.append({
-            "batch_idx": batch_idx,
-            "batch_size": batch_size,
-            "gpu_memory_before": gpu_memory_before,
-            "gpu_memory_after": gpu_memory_after,
-            "gpu_peak_memory": gpu_peak_memory,
-            "cpu_memory_before": cpu_memory_before,
-            "cpu_memory_after": cpu_memory_after
-        })
-
-        # Print memory usage for the batch
-        if verbose:
-            print(f"Batch {batch_idx + 1} for batch size {batch_size}:")
-            print(f"  GPU memory used: {gpu_memory_after - gpu_memory_before:.2f} MB")
-            print(f"  GPU peak memory: {gpu_peak_memory:.2f} MB")
-            print(f"  CPU memory used: {cpu_memory_after - cpu_memory_before:.2f} MB")
-
         # Collect results
-        for i, _ in enumerate(results['decoded_outputs']):
+        batch_translations = []
+        for i, item in enumerate(batch):
             translation = {
-                **batch[i],
+                **item,
                 "translation": results['decoded_outputs'][i],
                 "input_tokens": results['input_tokens'][i],
                 "output_tokens": results['output_tokens'][i],
@@ -152,11 +156,44 @@ def run_translation_pipeline(model_name: str,
                 "prompt_prefix": prompt_prefix,
                 "batch_idx": batch_idx,
                 "batch_size": batch_size,
+                "max_new_tokens": max_new_tokens,
+                "prompt_file_name": prompt_file_name,
+                "use_cached_prefix": use_cached_prefix,
+                "device": device,
+                "timestamp": timestamp
             }
-            translations.append(translation)
+            batch_translations.append(translation)
+        
+        # Save the results
+        batch_df = pd.DataFrame(batch_translations)
+        df = pd.merge(df, batch_df, on='id', how='outer')
+        df.to_csv(translation_output_file_path, encoding='utf-8', index=False)
 
-    # Sort translations by original order
-    translations = sorted(translations, key=lambda x: original_order.index(tuple(x[field] for field in ids)))
+        # Measure memory after
+        gpu_memory_after, gpu_peak_memory = get_gpu_memory_usage()
+        cpu_memory_after = get_cpu_memory_usage()
+        timestamp = datetime.now()
+        resources_usage.append({
+            "batch_idx": batch_idx,
+            "batch_size": batch_size,
+            "gpu_memory_before": gpu_memory_before,
+            "gpu_memory_after": gpu_memory_after,
+            "gpu_peak_memory": gpu_peak_memory,
+            "cpu_memory_before": cpu_memory_before,
+            "cpu_memory_after": cpu_memory_after,
+            "timestamp": timestamp,
+        })
+
+        # Print memory usage for the batch
+        if verbose:
+            print(f"Batch {batch_idx + 1} for batch size {batch_size}:")
+            print(f"  GPU memory used: {gpu_memory_after - gpu_memory_before:.2f} MB")
+            print(f"  GPU peak memory: {gpu_peak_memory:.2f} MB")
+            print(f"  CPU memory used: {cpu_memory_after - cpu_memory_before:.2f} MB")
+
+    # Save the resources usage
+    resources_usage_df = pd.DataFrame(resources_usage)
+    resources_usage_df.to_csv(translation_output_file_path.replace('.csv', '_resources_usage.csv'), encoding='utf-8', index=False)
 
     # Clear CUDA memory
     del model  # Delete the model
@@ -165,140 +202,4 @@ def run_translation_pipeline(model_name: str,
     import gc
     gc.collect()  # Run garbage collection
 
-    return translations, resources_usage
-
-
-def translate_queries(data_file_path: str,
-                      prompt_file_name: str,
-                      model_name: str,
-                      batch_size: int,
-                      max_new_tokens: int,
-                      use_cached_prefix: bool,
-                      device: str,
-                      force: bool,) -> List[dict]:
-    if not force and os.path.exists(translation_output_file_path):
-        print(f"Skipping translation of {data_file_path} as the output file already exists.")
-        return
-
-    # Load the prompt yaml file
-    with open(prompt_file_name, 'r') as file:
-        data = yaml.safe_load(file)
-    prompt = data['query']
-
-    # Load the data
-    queries = pd.read_csv(data_file_path, encoding='utf-8')
-    
-    # Cast data to list of dictionaries
-    prompt_prefix = prompt['prompt_prefix']
-    data = [{
-            'id': query['id'],
-            'text': prompt['prompt_template'].format(query=query['text'], context=query['context']).strip()
-        } for query in queries.to_dict(orient='records')]
-
-    # Run the translation pipeline
-    translations, resources_usage = run_translation_pipeline(
-        model_name=model_name,
-        prompt_prefix=prompt_prefix,
-        data=data,
-        batch_size=batch_size,
-        max_new_tokens=max_new_tokens,
-        use_cached_prefix=use_cached_prefix,
-        device=device
-    )
-
-    # Save the translations
-    translated_queries = []
-    for query, translation in zip(queries, translations):
-        assert query['id'] == translation['id'], "The ids do not match" # Check that the ids match
-        translated_query = {
-            **query,
-            **translation
-        }
-        translated_query['task'] = 'query_translation'
-        translated_query['timestamp'] = datetime.now()
-        translated_query['model'] = model_name
-        translated_query['prompt_file_name'] = prompt_file_name
-        translated_query['batch_size'] = batch_size
-        translated_query['max_new_tokens'] = max_new_tokens
-        translated_query['use_cached_prefix'] = use_cached_prefix
-        translated_query['device'] = device
-        translated_queries.append(translated_query)
-    
-    # Save the results
-    translated_queries = pd.DataFrame(translated_queries)
-    translation_output_file_path = os.path.join(os.path.dirname(data_file_path), model_name, os.path.basename(data_file_path))
-    translated_queries.to_csv(translation_output_file_path, encoding='utf-8', index=False)
-
-    # Save the resources usage
-    resources_usage = pd.DataFrame(resources_usage)
-    resources_usage.to_csv(translation_output_file_path.replace('.csv', '_resources_usage.csv'), encoding='utf-8', index=False)
-
-    return translated_queries
-
-
-def translate_documents(data_file_path: str,
-                        prompt_file_name: str,
-                        model_name: str,
-                        batch_size: int,
-                        max_new_tokens: int,
-                        use_cached_prefix: bool,
-                        device: str,
-                        force: bool,) -> List[dict]:
-    if not force and os.path.exists(translation_output_file_path):
-        print(f"Skipping translation of {data_file_path} as the output file already exists.")
-        return
-
-    # Load the prompt yaml file
-    with open(prompt_file_name, 'r') as file:
-        data = yaml.safe_load(file)
-    prompt = data['document']
-
-    # Load the data
-    documents = pd.read_csv(data_file_path, encoding='utf-8')
-    
-    # Cast data to list of dictionaries
-    prompt_prefix = prompt['prompt_prefix']
-    data = [{
-            'id': document['id'],
-            'text': prompt['prompt_template'].format(document=document['text']).strip()
-        } for document in documents.to_dict(orient='records')]
-
-    # Run the translation pipeline
-    translations, resources_usage = run_translation_pipeline(
-        model_name=model_name,
-        prompt_prefix=prompt_prefix,
-        data=data,
-        batch_size=batch_size,
-        max_new_tokens=max_new_tokens,
-        use_cached_prefix=use_cached_prefix,
-        device=device
-    )
-
-    # Save the translations
-    translated_documents = []
-    for document, translation in zip(documents, translations):
-        assert document['id'] == translation['id'], "The ids do not match" # Check that the ids match
-        translated_document = {
-            **document,
-            **translation
-        }
-        translated_document['task'] = 'query_translation'
-        translated_document['timestamp'] = datetime.now()
-        translated_document['model'] = model_name
-        translated_document['prompt_file_name'] = prompt_file_name
-        translated_document['batch_size'] = batch_size
-        translated_document['max_new_tokens'] = max_new_tokens
-        translated_document['use_cached_prefix'] = use_cached_prefix
-        translated_document['device'] = device
-        translated_documents.append(translated_document)
-    
-    # Save the results
-    translated_documents = pd.DataFrame(translated_documents)
-    translation_output_file_path = os.path.join(os.path.dirname(data_file_path), model_name, os.path.basename(data_file_path))
-    translated_documents.to_csv(translation_output_file_path, encoding='utf-8', index=False)
-
-    # Save the resources usage
-    resources_usage = pd.DataFrame(resources_usage)
-    resources_usage.to_csv(translation_output_file_path.replace('.csv', '_resources_usage.csv'), encoding='utf-8', index=False)
-
-    return translated_documents
+    return df, resources_usage
