@@ -6,35 +6,39 @@ from datetime import datetime
 import pandas as pd
 import yaml
 from tqdm import tqdm
+from translation.model.utils import *
 from translation.utils import *
 
 
 def translate(model, 
               tokenizer, 
               texts: List[str], 
-              past_key_values, 
+              past_key_values,
               max_new_tokens: int,
-              device: str = "cuda"):
+              use_stop_token: bool = True,
+              device: str = "cuda") -> dict:
     start_datetime = datetime.now()
 
     # Tokenize the texts
     inputs = tokenizer(texts, return_tensors="pt", padding=True, truncation=True).to(device)
 
-    # Define stopping criteria
-    stopping_criteria = get_stopping_criteria(tokenizer)
-
     # Run batch inference using cached prefix
     with torch.no_grad():
-        model_start_datetime = datetime.now()
-        outputs = model.generate(
-            inputs["input_ids"],
+        # Define generate method arguments
+        args = dict(
             max_new_tokens=max_new_tokens,
-            stopping_criteria=stopping_criteria,
             use_cache=True,
             past_key_values=past_key_values,  # Use cached prefix for all queries
             pad_token_id=tokenizer.pad_token_id  # Set pad token during generation
         )
+        # Add stopping criteria if needed
+        if use_stop_token:
+            args['stopping_criteria'] = get_stopping_criteria(tokenizer)
+        
+        # Generate outputs
         model_start_datetime = datetime.now()
+        outputs = model.generate(inputs["input_ids"], **args)
+        model_end_datetime = datetime.now()
 
     # Decode outputs
     decoded_outputs = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -45,7 +49,7 @@ def translate(model,
         input_tokens=[input_ids.size(0) for input_ids in inputs["input_ids"]],
         outputs=outputs,
         output_tokens=[output.size(0) for output in outputs],
-        model_time=(model_start_datetime - start_datetime).total_seconds(),
+        model_time=(model_end_datetime - model_start_datetime).total_seconds(),
         translation_time=(datetime.now() - start_datetime).total_seconds(),
     )
 
@@ -64,15 +68,22 @@ def run_translation_pipeline(source_file_path: str,
                              max_new_tokens=None,
                              verbose: bool = False,
                              use_cached_prefix: bool = True,
+                             use_stop_token: bool = True,
                              device = "cuda",
+                             limit: int = 0,
                              force: bool = False,
+                             max_new_tokens_factor: float = 1.75,
                              **kwargs):
     # Determine the output file path
-    translation_output_file_path = os.path.join(os.path.dirname(source_file_path), model_name, os.path.basename(source_file_path))
+    model_name_slug = model_name.replace('/', '_')
+    translation_output_file_path = os.path.join(os.path.dirname(source_file_path), model_name_slug, os.path.basename(source_file_path))
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
     df = pd.read_csv(file_path, encoding='utf-8')
+    if limit > 0:
+        print(f"Limiting the number of texts to {limit}.")
+        df = df.head(limit)
     filtered_df = df[df['translation'].isnull()] if not force else df
 
     # Check if the file has been fully translated
@@ -86,11 +97,12 @@ def run_translation_pipeline(source_file_path: str,
     # Load the prompt yaml file
     with open(prompt_file_name, 'r') as file:
         prompt_data = yaml.safe_load(file)
-    prompt = prompt_data['query']
+    prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
+    prompt = prompt_data[prompt_type]
     prompt_meta_fields = {
         'english_key': kwargs.get('english_key', 'אנגלית'),
         'hebrew_key': kwargs.get('hebrew_key', 'עברית'),
-        'context_key': kwargs.get('context_key', 'רקע'),
+        'context_key': kwargs.get('context_key', 'הקשר'),
     }
     prompt_prefix = prompt['prompt_prefix'].format_map(SafeDict(prompt_meta_fields))
     prompt_template = prompt['prompt_template'].format_map(SafeDict(prompt_meta_fields))
@@ -99,18 +111,24 @@ def run_translation_pipeline(source_file_path: str,
     past_key_values = cache_prefix(model, tokenizer, prompt_prefix, batch_size, device)
 
     # Create the batches
+    id_columns = ['id', 'segment_id'] if 'segment_id' in filtered_df.columns else ['id', 'context_id']
+    def limit_context(x):
+        tokens = tokenizer.tokenize(x)
+        new_x = tokenizer.convert_tokens_to_string(tokens[:64])
+        return new_x
+    if 'context_text' in filtered_df.columns:
+        filtered_df['context_text'] = filtered_df['context_text'].apply(limit_context)
     data = [{
-            **item, 
+            **{id: item[id] for id in id_columns},
             'dynamic_prompt': prompt_template.format(**item)
         } for item in filtered_df.to_dict(orient='records')]
     batches = batch_texts_by_length(data, tokenizer, batch_size=batch_size)
 
-    # Get the prefix length for the new tokens estimation
-    prefix_length = len(tokenizer(prompt_prefix)["input_ids"])
-
     # Translate a batch of texts
     resources_usage = []
+    translation_datetime = datetime.now()
     for batch_idx, batch in tqdm(enumerate(batches), desc="Batches", total=len(batches)):
+        batch_datetime = datetime.now()
         # Reset memory stats
         torch.cuda.reset_peak_memory_stats()
 
@@ -119,7 +137,7 @@ def run_translation_pipeline(source_file_path: str,
         cpu_memory_before = get_cpu_memory_usage()
 
         # Estimate the max new tokens value
-        max_new_tokens = max_new_tokens or (prefix_length + (max([x['text_length'] for x in batch]) * 1.25))
+        max_new_tokens = max_new_tokens or (max([x['text_length'] for x in batch]) * max_new_tokens_factor)
 
         # Prepare the batch for translation
         batch_texts = [(prompt_prefix + '\n' + x['dynamic_prompt']).strip() for x in batch]
@@ -128,6 +146,7 @@ def run_translation_pipeline(source_file_path: str,
             tokenizer=tokenizer,
             texts=batch_texts, 
             max_new_tokens=max_new_tokens,
+            use_stop_token=use_stop_token,
             device=device
         )
 
@@ -150,9 +169,9 @@ def run_translation_pipeline(source_file_path: str,
 
         # Collect results
         batch_translations = []
-        for i, item in enumerate(batch):
+        for i, batch_item in enumerate(batch):
             translation = {
-                **item,
+                **batch_item,
                 **prompt_meta_fields,
                 "translation": results['decoded_outputs'][i],
                 "input_tokens": results['input_tokens'][i],
@@ -161,25 +180,33 @@ def run_translation_pipeline(source_file_path: str,
                 "model_time": results['model_time'],
                 "model_name": model_name,
                 "prompt_prefix": prompt_prefix,
+                "prompt": batch_texts[i],
                 "batch_idx": batch_idx,
                 "batch_size": batch_size,
                 "max_new_tokens": max_new_tokens,
                 "prompt_file_name": prompt_file_name,
                 "use_cached_prefix": use_cached_prefix,
                 "device": device,
-                "timestamp": timestamp
+                "batch_datetime": batch_datetime,
+                "translation_datetime": translation_datetime,
             }
             batch_translations.append(translation)
         
         # Save the results
         batch_df = pd.DataFrame(batch_translations)
-        df = pd.merge(df, batch_df, on='id', how='outer')
+        df = pd.merge(df, batch_df, on=id_columns, how='left')
+        # Overwrite columns in left_df with values from right_df if available
+        for col in batch_df.columns:
+            if (col + '_y') in df.columns and col not in id_columns:  # Skip key columns
+                df[col] = df[col + '_y'].combine_first(df[col + '_x'])
+                df.drop(columns=[col + '_x', col + '_y'], inplace=True)
+        os.makedirs(os.path.dirname(translation_output_file_path), exist_ok=True)
         df.to_csv(translation_output_file_path, encoding='utf-8', index=False)
 
         # Measure memory after
         gpu_memory_after, gpu_peak_memory = get_gpu_memory_usage()
         cpu_memory_after = get_cpu_memory_usage()
-        timestamp = datetime.now()
+
         resources_usage.append({
             "batch_idx": batch_idx,
             "batch_size": batch_size,
@@ -188,7 +215,8 @@ def run_translation_pipeline(source_file_path: str,
             "gpu_peak_memory": gpu_peak_memory,
             "cpu_memory_before": cpu_memory_before,
             "cpu_memory_after": cpu_memory_after,
-            "timestamp": timestamp,
+            "batch_datetime": batch_datetime,
+            "translation_datetime": translation_datetime,
         })
 
         # Print memory usage for the batch
@@ -200,7 +228,9 @@ def run_translation_pipeline(source_file_path: str,
 
     # Save the resources usage
     resources_usage_df = pd.DataFrame(resources_usage)
-    resources_usage_df.to_csv(translation_output_file_path.replace('.csv', '_resources_usage.csv'), encoding='utf-8', index=False)
+    resources_usage_output_file_path = translation_output_file_path.replace('.csv', '_resources_usage.csv')
+    os.makedirs(os.path.dirname(resources_usage_output_file_path), exist_ok=True)
+    resources_usage_df.to_csv(resources_usage_output_file_path, encoding='utf-8', index=False)
 
     # Clear CUDA memory
     del model  # Delete the model
