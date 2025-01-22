@@ -28,14 +28,14 @@
             }
         },
         {
-            "name": "Run Translation Pipeline",
+            "name": "Run Translation Model Pipeline",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/translation/run_translation_pipeline.py",
+            "program": "${workspaceFolder}/src/translation/model/run_translation_pipeline.py",
             "args": [
-                "--data_file_paths",
-                "outputs/translation/BeIR/BeIR_msmarco_documents.csv",
-                "outputs/translation/BeIR/BeIR_msmarco_queries.csv",
+                "--source_file_paths",
+                "outputs/translation/BeIR/BeIR_msmarco/documents.csv",
+                "outputs/translation/BeIR/BeIR_msmarco/queries.csv",
                 "--prompt_file_name",
                 "prompts/translation/dicta_dictalm2_0/translation_prompts_v20250105.yaml",
                 "--model_name",
@@ -50,6 +50,29 @@
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src"
             }
+        },
+        {
+            "name": "Run Translation API Pipeline",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/translation/api/run_translation_pipeline.py",
+            "args": [
+                "--source_file_paths",
+                "outputs/translation/BeIR/BeIR_msmarco/documents.csv",
+                "outputs/translation/BeIR/BeIR_msmarco/queries.csv",
+                "--prompt_file_name",
+                "prompts/translation/openai/translation_prompts_few_shot_v20250105.yaml",
+                "--model_name",
+                "gpt-4o-mini",
+                "--limit",
+                "256",
+                "--force"
+            ],
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+            },
+            "envFile": "${workspaceFolder}/.env"
         }
     ]
 }

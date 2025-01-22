@@ -82,7 +82,7 @@ class BaseBeIRDataBuilder():
         for idx, segment in enumerate(segments):
             document_segments.append({
                 'id': str(document['_id']),
-                'segments_id': idx,
+                'segment_id': idx,
                 'text': segment
             })
         return document_segments
