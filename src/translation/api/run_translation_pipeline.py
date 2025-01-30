@@ -7,7 +7,7 @@ from translation.api.translate import *
 def main():
     parser = argparse.ArgumentParser(description="Translate queries and documents using a specified model.")
 
-    parser.add_argument('--source_file_paths', type=str, nargs='+', required=True, help="Paths to the source input files containing queries.")
+    parser.add_argument('--source_file_paths', type=str, nargs='+', required=True, help="Paths to the source input files containing the queries and docuemnts.")
     parser.add_argument('--prompt_file_name', type=str, required=True, help="File name for the translation prompt.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--limit', type=int, default=0, help="Limit the number of texts to translate.")

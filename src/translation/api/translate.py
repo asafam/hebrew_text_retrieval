@@ -10,10 +10,21 @@ import os
 from translation.utils import *
 
 
+class Translation(BaseModel):
+    hebrew: str
+
+    def __str__(self):
+        return self.hebrew
+    
+    def __repr__(self):
+        return self.hebrew
+    
+
 def translate(system_prompt: str,
               user_prompt: str,
               model_name: str,
-              temperature=0.7):
+              temperature=0.7,
+              response_format=Translation):
     start_datetime = datetime.now()
 
     # Load the OpenAI client
@@ -21,12 +32,7 @@ def translate(system_prompt: str,
         organization=os.environ['OPENAI_API_ORG'],
         api_key=os.environ['OPENAI_API_KEY'],
         project=os.environ['OPENAI_PROJECT']
-    )    
-
-    # Define the response format
-    class Translation(BaseModel):
-        hebrew: str
-    response_format = Translation
+    )
 
     # Define the messages
     messages = [
@@ -44,7 +50,7 @@ def translate(system_prompt: str,
     )
     model_time = (datetime.now() - model_start_datetime).total_seconds()
 
-    translation = completion.choices[0].message.parsed.hebrew
+    translation = completion.choices[0].message.parsed
     input_tokens = completion.usage.prompt_tokens
     output_tokens = completion.usage.completion_tokens
 
@@ -52,7 +58,7 @@ def translate(system_prompt: str,
     translation_time = (end_datetime - start_datetime).total_seconds()
 
     return {
-        'translation': translation,
+        'translation': str(translation),
         'input_tokens': input_tokens,
         'output_tokens': output_tokens,
         'model_name': model_name,
@@ -94,6 +100,8 @@ def run_translation_pipeline(source_file_path: str,
         'english_key': kwargs.get('english_key', 'English'),
         'hebrew_key': kwargs.get('hebrew_key', 'Hebrew'),
         'context_key': kwargs.get('context_key', 'Context'),
+        'hebrew_key_query': kwargs.get('hebrew_key_query', 'Hebrew Query'),
+        'hebrew_key_document': kwargs.get('hebrew_key_document', 'Hebrew Document'),
     }
     system_prompt = prompt['system_prompt']
     user_prompt_prefix = prompt['user_prompt_prefix'].format_map(SafeDict(prompt_meta_fields))
@@ -105,6 +113,9 @@ def run_translation_pipeline(source_file_path: str,
             **{id: item[id] for id in id_columns},
             'dynamic_prompt': user_prompt_template.format(**item)
         } for item in filtered_df.to_dict(orient='records')]
+    
+    # Define the response format
+    response_format = kwargs.get('response_format', Translation)
 
     # Translate a batch of texts
     translation_datetime = datetime.now()
@@ -117,7 +128,8 @@ def run_translation_pipeline(source_file_path: str,
         # Translate batch
         results = translate(system_prompt=system_prompt, 
                             user_prompt=user_prompt,
-                            model_name=model_name)
+                            model_name=model_name,
+                            response_format=response_format)
 
         translation = {
             **item,

@@ -1,0 +1,55 @@
+document:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English document into Hebrew. 
+    You should provide an accurate translation that preserves the meaning of the document.
+
+    {english_key}: Losing weight quickly requires a combination of a healthy diet and regular exercise. Reducing sugar intake, increasing protein consumption, and engaging in high-intensity interval training (HIIT) can help accelerate fat loss. However, it's important to adopt sustainable habits to maintain results in the long term.
+    {hebrew_key}: ירידה מהירה במשקל דורשת שילוב של תזונה בריאה ופעילות גופנית סדירה. הפחתת צריכת סוכר, הגברת צריכת חלבון ואימוני אינטרוולים בעצימות גבוהה (HIIT) יכולים להאיץ את הירידה באחוזי השומן. עם זאת, חשוב לאמץ הרגלים ברי קיימא לשמירה על התוצאות לאורך זמן.
+
+    {english_key}: Python is an excellent programming language for beginners because of its simple syntax and readability. It allows users to quickly write and execute code without dealing with complex structures. Many online resources and tutorials are available to help new learners get started.
+    {hebrew_key}: פייתון היא שפת תכנות מצוינת למתחילים בשל התחביר הפשוט והקריאות הגבוהה שלה. היא מאפשרת למשתמשים לכתוב ולהריץ קוד במהירות מבלי להתמודד עם מבנים מורכבים. ישנם משאבים מקוונים רבים ומדריכים זמינים כדי לעזור ללומדים חדשים להתחיל.
+
+    {english_key}: To cook pasta with tomato sauce, start by boiling water with a pinch of salt. Once the pasta is al dente, drain it and set it aside. In a separate pan, heat olive oil, add garlic and onions, and sauté until golden. Then, add crushed tomatoes, salt, and basil, and let the sauce simmer for 15 minutes. Finally, mix the pasta with the sauce and serve with grated cheese on top.
+    {hebrew_key}: כדי לבשל פסטה עם רוטב עגבניות, התחילו בהרתחת מים עם קורט מלח. לאחר שהפסטה מבושלת לאל-דנטה, סננו והניחו בצד. במחבת נפרדת חממו שמן זית, הוסיפו שום ובצל וטגנו עד להזהבה. לאחר מכן, הוסיפו עגבניות מרוסקות, מלח ובזיליקום, ותנו לרוטב להתבשל במשך 15 דקות. לבסוף, ערבבו את הפסטה עם הרוטב והגישו עם גבינה מגוררת מעל.
+
+    {english_key}: The top gaming laptops of 2024 feature powerful graphics cards like the NVIDIA RTX 40 series, high refresh rate displays, and advanced cooling systems. Brands such as ASUS, Alienware, and MSI lead the market with their latest innovations. Battery life and portability are also key factors when choosing a gaming laptop.
+    {hebrew_key}: הלפטופים הטובים ביותר לגיימינג בשנת 2024 כוללים כרטיסי מסך מתקדמים כמו סדרת NVIDIA RTX 40, מסכים עם קצב רענון גבוה, ומערכות קירור מתקדמות. מותגים כמו ASUS, Alienware ו-MSI מובילים את השוק עם חידושים אחרונים. חיי סוללה וניידות הם גם גורמים חשובים בבחירת לפטופ לגיימינג.
+
+  user_prompt_template: |
+    {english_key}: {text}
+    {hebrew_key}:
+
+query:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English query and its corresponding document into Hebrew, ensuring the query remains relevant to the document.
+      
+    {context_key}: Losing weight quickly requires a combination of a healthy diet and regular exercise. Reducing sugar intake, increasing protein consumption, and engaging in high-intensity interval training (HIIT) can help accelerate fat loss. However, it's important to adopt sustainable habits to maintain results in the long term.
+    {english_key}: Best way to lose weight fast
+    {hebrew_key_document}: ירידה מהירה במשקל דורשת שילוב של תזונה בריאה ופעילות גופנית סדירה. הפחתת צריכת סוכר, הגברת צריכת חלבון ואימוני אינטרוולים בעצימות גבוהה (HIIT) יכולים להאיץ את הירידה באחוזי השומן. עם זאת, חשוב לאמץ הרגלים ברי קיימא לשמירה על התוצאות לאורך זמן.
+    {hebrew_key_query}: איך לרדת במשקל מהר?
+
+    {context_key}: Python is an excellent programming language for beginners because of its simple syntax and readability. It allows users to quickly write and execute code without dealing with complex structures. Many online resources and tutorials are available to help new learners get started.
+    {english_key}: Python programming for beginners
+    {hebrew_key_document}: פייתון היא שפת תכנות מצוינת למתחילים בשל התחביר הפשוט והקריאות הגבוהה שלה. היא מאפשרת למשתמשים לכתוב ולהריץ קוד במהירות מבלי להתמודד עם מבנים מורכבים. ישנם משאבים מקוונים רבים ומדריכים זמינים כדי לעזור ללומדים חדשים להתחיל.
+    {hebrew_key_query}: תכנות בפייתון למתחילים
+
+    {context_key}: To cook pasta with tomato sauce, start by boiling water with a pinch of salt. Once the pasta is al dente, drain it and set it aside. In a separate pan, heat olive oil, add garlic and onions, and sauté until golden. Then, add crushed tomatoes, salt, and basil, and let the sauce simmer for 15 minutes. Finally, mix the pasta with the sauce and serve with grated cheese on top.
+    {english_key}: How do I cook pasta with tomato sauce?
+    {hebrew_key_document}: כדי לבשל פסטה עם רוטב עגבניות, התחילו בהרתחת מים עם קורט מלח. לאחר שהפסטה מבושלת לאל-דנטה, סננו והניחו בצד. במחבת נפרדת חממו שמן זית, הוסיפו שום ובצל וטגנו עד להזהבה. לאחר מכן, הוסיפו עגבניות מרוסקות, מלח ובזיליקום, ותנו לרוטב להתבשל במשך 15 דקות. לבסוף, ערבבו את הפסטה עם הרוטב והגישו עם גבינה מגוררת מעל.
+    {hebrew_key_query}: איך לבשל פסטה עם רוטב עגבניות?
+
+    {context_key}: The top gaming laptops of 2024 feature powerful graphics cards like the NVIDIA RTX 40 series, high refresh rate displays, and advanced cooling systems. Brands such as ASUS, Alienware, and MSI lead the market with their latest innovations. Battery life and portability are also key factors when choosing a gaming laptop.
+    {english_key}: Best gaming laptop 2024
+    {hebrew_key_document}: הלפטופים הטובים ביותר לגיימינג בשנת 2024 כוללים כרטיסי מסך מתקדמים כמו סדרת NVIDIA RTX 40, מסכים עם קצב רענון גבוה, ומערכות קירור מתקדמות. מותגים כמו ASUS, Alienware ו-MSI מובילים את השוק עם חידושים אחרונים. חיי סוללה וניידות הם גם גורמים חשובים בבחירת לפטופ לגיימינג.
+    {hebrew_key_query}: הלפטופ הטוב ביותר לגיימינג 2024
+
+  user_prompt_template: |
+    {context_key}: {context_text}
+    {english_key}: {text}
+    {hebrew_key_document}:
