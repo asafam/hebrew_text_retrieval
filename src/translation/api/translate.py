@@ -76,7 +76,12 @@ def run_translation_pipeline(source_file_path: str,
                              **kwargs):
     # Determine the output file path
     model_name_slug = model_name.replace('/', '_')
-    translation_output_file_path = os.path.join(os.path.dirname(source_file_path), model_name_slug, os.path.basename(source_file_path))
+    file_path = os.path.dirname(source_file_path)
+    file_name = os.path.basename(source_file_path)
+    if kwargs.get('version') is not None:
+        file_name = f"{file_name.split('.')[0]}_{kwargs['version']}.{file_name.split('.')[1]}"
+        print(file_name)
+    translation_output_file_path = os.path.join(file_path, model_name_slug, file_name)
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
@@ -84,7 +89,7 @@ def run_translation_pipeline(source_file_path: str,
     if limit > 0:
         print(f"Limiting the number of texts to {limit}.")
         df = df.head(limit)
-    filtered_df = df[df['translation'].isnull()] if not force else df
+    filtered_df = df[df['translation'].isnull()] if 'translation' in df.columns and not force else df
 
     # Check if the file has been fully translated
     if not force and os.path.exists(translation_output_file_path) and filtered_df.empty:
@@ -108,7 +113,9 @@ def run_translation_pipeline(source_file_path: str,
     user_prompt_template = prompt['user_prompt_template'].format_map(SafeDict(prompt_meta_fields))
 
     # Create the batches
-    id_columns = ['id', 'segment_id'] if 'segment_id' in filtered_df.columns else ['id']
+    id_columns = ['id']
+    if 'segment_id' in filtered_df.columns:
+        id_columns.append('segment_id')
     data = [{
             **{id: item[id] for id in id_columns},
             'dynamic_prompt': user_prompt_template.format(**item)
