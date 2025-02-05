@@ -7,7 +7,7 @@ document:
     You should provide an accurate translation that preserves the meaning of the document.
 
   user_prompt_template: |
-    {english_key}: {text}
+    {english_key}: {segment_text}
     {hebrew_key}:
 
 query:
