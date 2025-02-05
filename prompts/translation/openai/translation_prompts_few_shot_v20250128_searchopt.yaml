@@ -20,7 +20,7 @@ document:
     {hebrew_key}: הלפטופים הטובים ביותר לגיימינג בשנת 2024 כוללים כרטיסי מסך מתקדמים כמו סדרת NVIDIA RTX 40, מסכים עם קצב רענון גבוה, ומערכות קירור מתקדמות. מותגים כמו ASUS, Alienware ו-MSI מובילים את השוק עם חידושים אחרונים. חיי סוללה וניידות הם גם גורמים חשובים בבחירת לפטופ לגיימינג.
 
   user_prompt_template: |
-    {english_key}: {text}
+    {english_key}: {segment_text}
     {hebrew_key}:
 
 query:

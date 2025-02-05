@@ -29,12 +29,8 @@ def build_dataset_candidates(dataset_names: List[str],
                              output_path: str, 
                              force: bool = False,
                              random_seed: int = 42) -> None:
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
     for dataset_name in tqdm(dataset_names, desc="Processing datasets: "):
         print(f"Processing dataset: {dataset_name}")
-        
-        # Load the dataset
-        tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side='left')
         
         # Determine file paths
         dataset_name_slug = dataset_name.replace("/", "_")
@@ -47,7 +43,7 @@ def build_dataset_candidates(dataset_names: List[str],
 
         # Build the data
         data = build_data(dataset_name=dataset_name, 
-                          tokenizer=tokenizer,
+                          model_name=model_name,
                           n=num_samples, 
                           max_tokens=max_document_segment_tokens,
                           random_seed=random_seed)
@@ -80,7 +76,7 @@ def main():
     
     parser.add_argument('--dataset_names', nargs='+', required=True, help="List of space separated dataset names to process.")
     parser.add_argument('--num_samples', type=int, required=True, help="Number of samples to load from each dataset.")
-    parser.add_argument('--max_document_segment_tokens', type=int, required=True, help="Maximum number of tokens per document segment.")
+    parser.add_argument('--max_document_segment_tokens', type=int, default=2048, required=True, help="Maximum number of tokens per document segment.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the model to use for tokenization.")
     parser.add_argument('--output_path', type=str, required=True, help="Path to save the output CSV files.")
     parser.add_argument('--force', action='store_true', help="Override existing files for the datasets.")

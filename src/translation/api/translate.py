@@ -7,7 +7,7 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 import os
-from translation.utils import *
+from translation.api.utils import *
 
 
 class Translation(BaseModel):
@@ -75,76 +75,38 @@ def run_translation_pipeline(source_file_path: str,
                              force: bool = False,
                              **kwargs):
     # Determine the output file path
-    model_name_slug = model_name.replace('/', '_')
-    file_path = os.path.dirname(source_file_path)
-    file_name = os.path.basename(source_file_path)
-    if kwargs.get('version') is not None:
-        file_name = f"{file_name.split('.')[0]}_{kwargs['version']}.{file_name.split('.')[1]}"
-        print(file_name)
-    translation_output_file_path = os.path.join(file_path, model_name_slug, file_name)
+    translation_output_file_path = get_translation_output_file(source_file_path, model_name, **kwargs)
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
-    df = pd.read_csv(file_path, encoding='utf-8')
-    if limit > 0:
-        print(f"Limiting the number of texts to {limit}.")
-        df = df.head(limit)
-    filtered_df = df[df['translation'].isnull()] if 'translation' in df.columns and not force else df
+    filtered_df = load_data(file_path, limit, force)
 
-    # Check if the file has been fully translated
-    if not force and os.path.exists(translation_output_file_path) and filtered_df.empty:
-        print(f"Skipping translation of {translation_output_file_path} as have been translated.")
-        return
-
-    # Load the prompt yaml file
-    with open(prompt_file_name, 'r') as file:
-        prompt_data = yaml.safe_load(file)
-    prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
-    prompt = prompt_data[prompt_type]
-    prompt_meta_fields = {
-        'english_key': kwargs.get('english_key', 'English'),
-        'hebrew_key': kwargs.get('hebrew_key', 'Hebrew'),
-        'context_key': kwargs.get('context_key', 'Context'),
-        'hebrew_key_query': kwargs.get('hebrew_key_query', 'Hebrew Query'),
-        'hebrew_key_document': kwargs.get('hebrew_key_document', 'Hebrew Document'),
-    }
-    system_prompt = prompt['system_prompt']
-    user_prompt_prefix = prompt['user_prompt_prefix'].format_map(SafeDict(prompt_meta_fields))
-    user_prompt_template = prompt['user_prompt_template'].format_map(SafeDict(prompt_meta_fields))
-
-    # Create the batches
+    # Get the ID columns
     id_columns = ['id']
-    if 'segment_id' in filtered_df.columns:
+    if 'segment_id' in df.columns:
         id_columns.append('segment_id')
-    data = [{
-            **{id: item[id] for id in id_columns},
-            'dynamic_prompt': user_prompt_template.format(**item)
-        } for item in filtered_df.to_dict(orient='records')]
+
+    # Get the batch data
+    prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
+    batch_data = get_prompts(prompt_file_name, prompt_type, filtered_df, id_columns, **kwargs)
     
     # Define the response format
     response_format = kwargs.get('response_format', Translation)
 
     # Translate a batch of texts
     translation_datetime = datetime.now()
-    for i, item in tqdm(enumerate(data), desc="Rows", total=len(data)):
+    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
         batch_datetime = datetime.now()
-
-        # Prepare the batch for translation
-        user_prompt = (user_prompt_prefix + '\n' + item['dynamic_prompt']).strip()
         
-        # Translate batch
-        results = translate(system_prompt=system_prompt, 
-                            user_prompt=user_prompt,
+        # Translate batch item
+        results = translate(system_prompt=item['system_prompt'], 
+                            user_prompt=item['user_prompt'],
                             model_name=model_name,
                             response_format=response_format)
 
         translation = {
             **item,
-            **prompt_meta_fields,
             **results,
-            "prompt_prefix": user_prompt_prefix,
-            "system_prompt": system_prompt,
-            "user_prompt": user_prompt,
             "batch_idx": i,
             "batch_size": 1,
             "prompt_file_name": prompt_file_name,
