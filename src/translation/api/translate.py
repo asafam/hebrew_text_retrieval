@@ -77,7 +77,13 @@ def run_translation_pipeline(source_file_path: str,
                              force: bool = False,
                              **kwargs):
     # Determine the output file path
-    translation_output_file_path = get_translation_output_file(source_file_path, model_name, **kwargs)
+    model_name_slug = model_name.replace('/', '_')
+    file_path = os.path.dirname(source_file_path)
+    file_name = os.path.basename(source_file_path)
+    if kwargs.get('version') is not None:
+        file_name = f"{file_name.split('.')[0]}_{kwargs['version']}.{file_name.split('.')[1]}"
+    translation_output_file_path = os.path.join(file_path, model_name_slug, file_name)
+    print(f"Translation output file path: {translation_output_file_path}")
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
