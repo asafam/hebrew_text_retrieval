@@ -59,13 +59,13 @@ def build_dataset_candidates(dataset_names: List[str],
             df['dataset_name'] = dataset_name
             df['tokenizer'] = model_name
 
-        # Create the output path folder if it does not exist
-        os.makedirs(output_path, exist_ok=True)
         
         # Save to CSV
+        os.makedirs(os.path.dirname(queries_output_path), exist_ok=True) # Create the output path folder if it does not exist
         queries_df.to_csv(queries_output_path, index=False, encoding='utf-8')
         print(f"Saved queries to {queries_output_path}")
 
+        os.makedirs(os.path.dirname(documents_output_path), exist_ok=True) # Create the output path folder if it does not exist
         documents_df.to_csv(documents_output_path, index=False, encoding='utf-8')
         print(f"Saved documents to {documents_output_path}")
 
