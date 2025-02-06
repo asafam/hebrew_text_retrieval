@@ -12,7 +12,7 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 DATASET_NAMES="BeIR/msmarco" # BeIR/fever BeIR/climate-fever BeIR/scifact BeIR/scidocs BeIR/quora BeIR/arguana BeIR/nq BeIR/hotpotqa BeIR/trec-covid BeIR/nfcorpus BeIR/dbpedia-entity"
 NUM_SAMPLES=1024
 MAX_DOCUMENT_SEGMENT_TOKENS=2048
-MODEL_NAME="dicta-il/dictalm2.0-AWQ"
+MODEL_NAME="gpt-4o-mini-2024-07-18"
 OUTPUT_PATH="./outputs/translation/BeIR"
 RANDOM_SEED=42
 
