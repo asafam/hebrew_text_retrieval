@@ -7,6 +7,7 @@ import pandas as pd
 import yaml
 from tqdm import tqdm
 import os
+import re
 from translation.api.utils import *
 
 
@@ -88,7 +89,7 @@ def run_translation_pipeline(source_file_path: str,
         id_columns.append('segment_id')
 
     # Get the batch data
-    prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
+    prompt_type = 'query' if re.fullmatch(r'.*queries.*.csv', os.path.basename(source_file_path)) else 'document'
     batch_data = get_prompts(prompt_file_name, prompt_type, df, id_columns, **kwargs)
     
     # Define the response format
