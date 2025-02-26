@@ -29,13 +29,17 @@ export CUDA_VISIBLE_DEVICES=3
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=("outputs/translation/BeIR/BeIR_msmarco/documents.csv" "outputs/translation/BeIR/BeIR_msmarco/queries.csv") 
-PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_few_shot_v20250105.yaml"
-MODEL_NAME="o1-mini-2024-09-12"  
-LIMIT=256
+PROMPT_FILE_NAME=# "prompts/translation/openai/translation_prompts_few_shot_v20250128_searchopt.yaml", 
+    # "prompts/translation/openai/translation_prompts_few_shot_v20250128_unified.yaml", 
+    # "prompts/translation/openai/translation_prompts_few_shot_v20250128_zeroshot.yaml", 
+    # "prompts/translation/openai/translation_prompts_few_shot_v20250128_default.yaml"            
+    # "prompts/translation/openai/translation_prompts_few_shot_v20250105_default.yaml"
+MODEL_NAME="gpt-4o-mini-2024-07-18"  
+LIMIT=100
 FORCE=true 
-ENGLISH_KEY="English"
-HEBREW_KEY="Hebrew"
-CONTEXT_KEY="Context"
+ENGLISH_KEY="Text"
+HEBREW_KEY="Translation"
+CONTEXT_KEY="Text2"
 
 # Print execution parameters
 echo "Running translation API with the following parameters:"
@@ -50,7 +54,7 @@ echo "Hebrew key: $HEBREW_KEY"
 echo "Context key: $CONTEXT_KEY"
 
 # Run the Python script
-python src/translation/run_translation_api_pipeline.py \
+python src/translation/api/run_translation_pipeline.py \
   --source_file_paths "${SOURCE_FILE_PATHS[@]}" \
   --prompt_file_name "$PROMPT_FILE_NAME" \
   --model_name "$MODEL_NAME" \

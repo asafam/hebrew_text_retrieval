@@ -11,13 +11,14 @@ from translation.api.utils import *
 
 
 class Translation(BaseModel):
-    hebrew: str
+    text: str
+    translation: str
 
     def __str__(self):
-        return self.hebrew
+        return self.translation
     
     def __repr__(self):
-        return self.hebrew
+        return self.translation
     
 
 def translate(system_prompt: str,
@@ -79,16 +80,16 @@ def run_translation_pipeline(source_file_path: str,
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
-    filtered_df = load_data(file_path, limit, force)
+    df = load_data(file_path, limit, force)
 
     # Get the ID columns
-    id_columns = ['id']
+    id_columns = ['_id']
     if 'segment_id' in df.columns:
         id_columns.append('segment_id')
 
     # Get the batch data
     prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
-    batch_data = get_prompts(prompt_file_name, prompt_type, filtered_df, id_columns, **kwargs)
+    batch_data = get_prompts(prompt_file_name, prompt_type, df, id_columns, **kwargs)
     
     # Define the response format
     response_format = kwargs.get('response_format', Translation)
