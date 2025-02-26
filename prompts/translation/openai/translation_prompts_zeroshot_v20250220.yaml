@@ -1,0 +1,22 @@
+document:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate texts from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English text into Hebrew.
+
+  user_prompt_template: |
+    {english_key}: {segment_text}
+    {hebrew_key}:
+
+query:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate texts from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English text into Hebrew.
+
+  user_prompt_template: |
+    {context_key}: {context_text}
+    {english_key}: {text}
+    {hebrew_key}:

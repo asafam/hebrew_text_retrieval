@@ -1,5 +1,4 @@
 import argparse
-import torch
 from tqdm import tqdm
 from translation.api.translate import *
 
