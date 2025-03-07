@@ -1,0 +1,25 @@
+#!/bin/bash -i
+
+# Activate the htr conda environment
+echo "Activating Conda environment: bert24"
+source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly initialized
+conda activate bert24
+
+# Add src folder to PYTHONPATH
+export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
+
+# Define variables
+JSON_FILES_PATH="data/mafat/hebrew/sources/*.jsonl"
+LIMIT=100000
+OUTPUT_FILE="data/mafat/hebrew/data/tokenizer_corpus_100K.txt"
+
+echo "Running the Python script: build_tokenizer_corpus.py"
+echo "JSON files path: $JSON_FILES_PATH"
+echo "Limit: $LIMIT"
+echo "Output file: $OUTPUT_FILE"
+
+# Run the Python script
+python src/data/preprocessing/build_tokenizer_corpus.py \
+    --jsonl_files_path "data/mafat/hebrew/sources/*.jsonl" \
+    --limit $LIMIT \
+    --output_file $OUTPUT_FILE
