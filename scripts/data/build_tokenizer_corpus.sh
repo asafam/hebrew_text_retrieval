@@ -12,14 +12,19 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 JSON_FILES_PATH="data/mafat/hebrew/sources/*.jsonl"
 LIMIT=100000
 OUTPUT_FILE="data/mafat/hebrew/data/tokenizer_corpus_100K.txt"
+FORCE=true
+
 
 echo "Running the Python script: build_tokenizer_corpus.py"
 echo "JSON files path: $JSON_FILES_PATH"
 echo "Limit: $LIMIT"
 echo "Output file: $OUTPUT_FILE"
+echo "Force: $FORCE"
+
 
 # Run the Python script
 python src/data/preprocessing/build_tokenizer_corpus.py \
-    --jsonl_files_path "data/mafat/hebrew/sources/*.jsonl" \
+    --jsonl_files_path "$JSON_FILES_PATH" \
     --limit $LIMIT \
-    --output_file $OUTPUT_FILE
+    --output_file "$OUTPUT_FILE"
+    ${FORCE:+--force} \
