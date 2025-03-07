@@ -2,15 +2,20 @@ import json
 import glob
 import argparse
 import random
+import os
 from tqdm import tqdm
 
-def build(jsonl_files_path: str, limit: int, output_file: str, random_state: int = 42):
+def build(jsonl_files_path: str, limit: int, output_file: str, force: bool = False, random_state: int = 42):
     # List all JSONL files
     jsonl_files = glob.glob(jsonl_files_path)
 
     samples_per_file = limit // len(jsonl_files)
 
     random.seed(random_state)
+
+    if os.path.exists(output_file) and not force:
+        print(f"⚠️ {output_file} already exists. Use --force to overwrite.")
+        return
 
     # Sample from each file and write results
     with open(output_file, "w", encoding="utf-8-sig") as out_f:
@@ -49,10 +54,14 @@ def main():
     parser.add_argument("--jsonl_files_path", type=str, help="Path to JSONL files")
     parser.add_argument("--limit", type=int, help="Limit the number of records to process")
     parser.add_argument("--output_file", type=str, help="Path to output tokenizer corpus file")
+    parser.add_argument('--force', action='store_true', help="Force rebuild if output file exists.")
     
     args = parser.parse_args()
     
-    build(args.jsonl_files_path, args.limit, args.output_file)  # Adjust the path
+    build(jsonl_files_path=args.jsonl_files_path, 
+          limit=args.limit, 
+          output_file=args.output_file,
+          force=args.force)
 
 
 if __name__ == "__main__":
