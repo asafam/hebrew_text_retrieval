@@ -1,12 +1,6 @@
 #!/bin/bash -i
 
 # This script runs the translate_queries Python script with the specified arguments.
-# 8 8G 71%
-# 16 11 98%
-# 32 19GB 98%
-# 64 71G 99%
-# 128 56G 100%
-
 
 # Activate the htr conda environment
 echo "Activating Conda environment: htr"
@@ -29,11 +23,12 @@ export CUDA_VISIBLE_DEVICES=3
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=(
-    "/Users/asaf/Workspace/biu/hebrew_text_retrieval/outputs/translation/long_docs_segmented_1024.csv"
+    "outputs/translation/BeIR/gpt-4o-mini-2024-07-18/long_documents/long_docs.csv"
 ) 
-PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_zeroshot_v20250220.yaml"
+GOLD_FILE_PATHS=""
+PROMPT_FILE_NAME="prompts/translation/openai/translation_evaluation_nogold_v20250304.yaml"
 OUTPUT_DIR="outputs/translation/BeIR/gpt-4o-mini-2024-07-18/long_documents"
-MODEL_NAME="gpt-4o-mini-2024-07-18"  
+MODEL_NAME="gpt-4o-2024-08-06"  
 LIMIT=0
 FORCE=false 
 PARALLEL=true
@@ -53,7 +48,7 @@ echo "Force re-evaluation: ${FORCE:-false}"
 echo "Run in parallel: ${PARALLEL:-false}"
 
 # Run the Python script
-python src/translation/api/run_translation_pipeline.py \
+python src/translation/api/run_evaluate_translations.py \
     --source_file_paths "${SOURCE_FILE_PATHS[@]}" \
     --prompt_file_name "$PROMPT_FILE_NAME" \
     --output_dir "$OUTPUT_DIR" \

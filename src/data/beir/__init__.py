@@ -1,5 +1,6 @@
 import os
 from datasets import load_dataset
+import tiktoken
 import nltk
 nltk.download('punkt')
 nltk.download('punkt_tab')
