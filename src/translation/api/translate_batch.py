@@ -1,8 +1,5 @@
 from typing import List 
-from pydantic import BaseModel
-from datetime import datetime
 import pandas as pd
-import time
 import os
 import io
 import json
@@ -12,16 +9,6 @@ from translation.api.utils import *
 JOB_TRACKING_PATH = "jobs"
 JOB_TRACKING_FILE = "batch_jobs.json"
 JOB_TRACKING_FILE_MD = "batch_jobs.json"
-
-
-class Translation(BaseModel):
-    hebrew: str
-
-    def __str__(self):
-        return self.hebrew
-    
-    def __repr__(self):
-        return self.hebrew
     
 
 def translate(system_prompts: List[str],
@@ -92,7 +79,7 @@ def run_translation_pipeline(source_file_path: str,
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
-    filtered_df = load_data(file_path, limit, force)
+    filtered_df = load_data(file_path, limit, force, ignore_populated_column='translation')
 
    # Get the ID columns
     id_columns = ['id']
