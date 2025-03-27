@@ -17,13 +17,12 @@ COLUMNS = {
     "_row_number": "int"  # Row index metadata
 }
 
-def stream_jsonl_files(jsonl_files, split='train', split_ratio=0.1, random_state=42):
+def stream_jsonl_files(jsonl_files, split_ratio=0.1, random_state=42):
     """ 
     Generator to stream JSONL rows as either train or validation split.
     
     Parameters:
         jsonl_files (list): List of JSONL file paths.
-        split (str): "train" or "validation".
         split_ratio (float): Proportion of samples to use for validation.
         random_state (int): Random seed for reproducibility.
     
@@ -51,15 +50,14 @@ def stream_jsonl_files(jsonl_files, split='train', split_ratio=0.1, random_state
                         "_row_number": idx
                     }
 
-                    # Yield based on the split type
-                    if (split == "train"):
-                        if idx != validation_indexes_stack[0]:
-                            yield record
-                        else:
-                            validation_indexes_stack.pop(0)
-                    elif (split == "validation" and idx == validation_indexes_stack[0]):
-                        yield record
+                    # Yield record based on the split type
+                    if validation_indexes_stack and idx == validation_indexes_stack[0]:
+                        split = "validation"
                         validation_indexes_stack.pop(0)
+                    else:
+                        split = "train"
+                        
+                    yield record, split
                     
                 except json.JSONDecodeError:
                     print(f"Skipping malformed line {idx} in {file_path}")
@@ -72,22 +70,20 @@ def save_as_mds(jsonl_files: List[str],
                 compression:Optional[int] = None):
     print(f"ℹ️ Processing {len(jsonl_files)} JSONL files into MDS format")
 
-    # Save training data
-    train_dir = os.path.join(output_dir, "train")
-    os.makedirs(train_dir, exist_ok=True)
+    # Save split dir data
+    split_dir = {}
+    for split in ["train", "validation"]:
+        split_dir[split] = os.path.join(output_dir, split)
+        os.makedirs(split_dir[split], exist_ok=True)
 
-    with MDSWriter(out=train_dir, columns=columns, size_limit=size_limit, compression=compression) as writer:
-        for record in tqdm(stream_jsonl_files(jsonl_files, split="train"), desc="Processing Train Split"):
-            writer.write(record)
+    with MDSWriter(out=split_dir['train'], columns=columns, size_limit=size_limit, compression=compression) as train_writer, \
+        MDSWriter(out=split_dir['validation'], columns=columns, size_limit=size_limit, compression=compression) as val_writer:
+        for record, split in tqdm(stream_jsonl_files(jsonl_files), desc="Processing JSONL files"):
+            if split == "train":
+                train_writer.write(record)
+            elif split == "validation":
+                val_writer.write(record)
 
-    # Save validation data
-    val_dir = os.path.join(output_dir, "validation")
-    os.makedirs(val_dir, exist_ok=True)
-
-    with MDSWriter(out=val_dir, columns=columns, size_limit=size_limit, compression=compression) as writer:
-        for record in tqdm(stream_jsonl_files(jsonl_files, split="validation"), desc="Processing Validation Split"):
-            writer.write(record)
-    
     print(f"✅ Dataset saved in MDS format at {output_dir}")
 
 

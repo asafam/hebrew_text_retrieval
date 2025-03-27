@@ -10,15 +10,17 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
 JSON_FILES_PATH="data/mafat/hebrew/sources/*.jsonl"
-LIMIT=100000
-OUTPUT_FILE="data/mafat/hebrew/data/tokenizer_corpus_100K.txt"
+LIMIT=1000000
+OUTPUT_FILE="data/mafat/hebrew/tokenizer_validation_1M.txt"
+RANDOM_STATE=42
 FORCE=true
 
-
+# Print the variables
 echo "Running the Python script: build_tokenizer_corpus.py"
 echo "JSON files path: $JSON_FILES_PATH"
 echo "Limit: $LIMIT"
 echo "Output file: $OUTPUT_FILE"
+echo "Random state: $RANDOM_STATE"
 echo "Force: $FORCE"
 
 
@@ -26,5 +28,6 @@ echo "Force: $FORCE"
 python src/data/preprocessing/build_tokenizer_corpus.py \
     --jsonl_files_path "$JSON_FILES_PATH" \
     --limit $LIMIT \
-    --output_file "$OUTPUT_FILE"
+    --output_file "$OUTPUT_FILE" \
+    --random_state $RANDOM_STATE \
     ${FORCE:+--force} \
