@@ -166,4 +166,4 @@ cython_debug/
 checkpoints
 /data/
 embeddings
-outputs
+/outputs/
