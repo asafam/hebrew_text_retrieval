@@ -3,7 +3,7 @@ from openai import OpenAI
 import pandas as pd
 import os
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EvaluatedTranslation():
@@ -26,8 +26,8 @@ class TranslationCritique(BaseModel):
 
 
 class Translation(BaseModel):
-    text: str
-    translation: str
+    text: str = Field(description="The text to be translated.")
+    translation: str = Field(description="The translated text.")
 
     def __str__(self):
         return self.translation
@@ -152,11 +152,10 @@ def get_prompt_meta_fields(**kwargs):
     return prompt_meta_fields
 
 
-def get_translation_output_file(source_file_path, output_dir, **kwargs):
+def get_output_file(source_file_path, output_dir, **kwargs):
     """
     Return the output file path for the translation.
     """
     file_name = os.path.basename(source_file_path)
-    translation_output_file_path = os.path.join(output_dir, file_name)
-    translation_output_file_path = translation_output_file_path.replace('.csv', '_translated.csv')
-    return translation_output_file_path
+    output_file_path = os.path.join(output_dir, file_name)
+    return output_file_path

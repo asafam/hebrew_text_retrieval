@@ -85,7 +85,7 @@ def run_evaluate_translations(
         **kwargs
     ):
     # Determine the output file path
-    translations_evaluation_output_file_path = get_translation_output_file(source_file_path, output_dir, **kwargs).replace('.csv', '_evaluated.csv')
+    translations_evaluation_output_file_path = get_output_file(source_file_path, output_dir, **kwargs).replace('.csv', '_evaluated.csv')
 
     # Load the data
     file_path = translations_evaluation_output_file_path if os.path.exists(translations_evaluation_output_file_path) else source_file_path

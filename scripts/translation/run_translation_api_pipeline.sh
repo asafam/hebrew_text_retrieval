@@ -29,11 +29,11 @@ export CUDA_VISIBLE_DEVICES=3
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=(
-    "/Users/asaf/Workspace/biu/hebrew_text_retrieval/outputs/translation/long_docs_segmented_1024.csv"
+    "/Users/asaf/Workspace/biu/hebrew_text_retrieval/outputs/translation/BeIR/long_documents/long_docs_segmented_512.csv"
 ) 
 PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_zeroshot_v20250220.yaml"
-OUTPUT_DIR="outputs/translation/BeIR/gpt-4o-mini-2024-07-18/long_documents"
-MODEL_NAME="gpt-4o-mini-2024-07-18"  
+OUTPUT_DIR="outputs/translation/BeIR/long_documents/gemini-2.0-flash-lite"
+MODEL_NAME="gemini-2.0-flash-lite" # "gpt-4o-mini-2024-07-18"  
 LIMIT=0
 FORCE=false 
 PARALLEL=true

@@ -1,0 +1,54 @@
+document:
+  system_prompt: |
+    You are a senior translator evaluating the quality of a translation.
+
+  user_prompt_template: |
+    Below is an extract of a translation. Your task is to evaluate a Hebrew translation based on an English text. Carefully analyze how well the Hebrew version reflects the original English in terms of **semantics, syntax, morphology, and fluency**.
+
+    Follow this reasoning-based approach:
+
+    <translation>
+    English: {segment_text}
+    Hebrew: {translation}
+    </translation>
+
+    Step-by-step:
+
+    1. Read both the English and Hebrew sentences carefully.
+    2. Think through the quality of the translation using the following criteria:
+      - If the translation is missing or is not in Hebrew, assign a score of 0.
+      - Add 1 point if the translation maintains a core element of the original semantics but is largely incorrect. The translation may have major errors, mistranslations, or poor phrasing.
+      - Add another point if the translation uses incorrect terms but still maintains the correct syntax, structure, and overall semantics of the original text.
+      - Award a third point if the translation is mostly accurate but contains minor syntactic or morphological errors, unnecessary question marks, or slight awkwardness.
+      - Grant a fourth point if the translation aligns with the syntax of the original text and highly accurate, with only small stylistic, phrasing issues that do not impact comprehension or is adding panctuation marks that are not included in the original text.
+      - Bestow a fifth point if the translation is flawless, fully preserving meaning, fluency, and naturalness without any unnecessary additions, omissions, or errors.
+    3. Assign a score using the additive 5-point system above
+    4. Write a single sentence that justifies the score, combining your observations about semantics, syntax, morphology, and fluency.
+
+query:
+  system_prompt: |
+    You are a senior translator evaluating the quality of a translation.
+
+  user_prompt_template: |
+    Below is an extract of a translation. Your task is to evaluate a Hebrew translation based on an English text. Carefully analyze how well the Hebrew version reflects the original English in terms of **semantics, syntax, morphology, and fluency**.
+
+    Follow this reasoning-based approach:
+
+    <translation>
+    English: {text}
+    Hebrew: {translation}
+    </translation>
+
+    Step-by-step:
+
+    1. Read both the English and Hebrew sentences carefully.
+    2. Think through the quality of the translation using the following criteria:
+      - If the translation is missing or is not in Hebrew, assign a score of 0.
+      - Add 1 point if the translation maintains a core element of the original semantics but is largely incorrect. The translation may have major errors, mistranslations, or poor phrasing.
+      - Add another point if the translation uses incorrect terms but still maintains the correct syntax, structure, and overall semantics of the original text.
+      - Award a third point if the translation is mostly accurate but contains minor syntactic or morphological errors, unnecessary question marks, or slight awkwardness.
+      - Grant a fourth point if the translation aligns with the syntax of the original text and highly accurate, with only small stylistic, phrasing issues that do not impact comprehension or is adding panctuation marks that are not included in the original text.
+      - Bestow a fifth point if the translation is flawless, fully preserving meaning, fluency, and naturalness without any unnecessary additions, omissions, or errors.
+    3. Assign a score using the additive 5-point system above
+    4. Write a single sentence that justifies the score, combining your observations about semantics, syntax, morphology, and fluency.
+

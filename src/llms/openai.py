@@ -1,7 +1,7 @@
 from openai import OpenAI
 import os
 
-class OpenAI():
+class OpenAILLM():
     def __init__(self, 
                  organization=os.environ['OPENAI_API_ORG'],
                  api_key=os.environ['OPENAI_API_KEY'],
@@ -20,11 +20,10 @@ class OpenAI():
             self, 
             model_name, 
             messages, 
+            response_format,
             temperature=0.7, 
-            **kwargs
         ):
         # Run chat completion inference
-        response_format = kwargs.get('response_format')    
         completion = self.client.beta.chat.completions.parse(
             model=model_name,
             messages=messages,
