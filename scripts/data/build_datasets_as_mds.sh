@@ -9,17 +9,17 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-JSON_FILES_PATH="data/mafat/hebrew/sources"
+CONFIG="config/data/datasets.yaml"
 SIZE_LIMIT=67108864
 OUTPUT_DIR="data/mafat/hebrew/data"
 
 echo "Running the Python script: jsonl_to_mds.py"
-echo "JSON files path: $JSON_FILES_PATH"
+echo "Config file path: $CONFIG_FILE"
 echo "Size limit: $SIZE_LIMIT"
 echo "Output directory: $OUTPUT_DIR"
 
 # Run the Python script
-python src/data/preprocessing/jsonl_to_mds.py \
-    --jsonl_files "$JSON_FILES_PATH" \
+python src/data/preprocessing/build_datasets_as_mds.py \
+    --config_file "$CONFIG_FILE" \
     --output_dir "$OUTPUT_DIR" \
     --size_limit $SIZE_LIMIT
