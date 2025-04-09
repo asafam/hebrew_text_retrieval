@@ -3,7 +3,7 @@ from openai import OpenAI
 from tqdm import tqdm
 from datetime import datetime
 import pandas as pd
-import llms.openai
+from llms.router import get_llm
 from tqdm import tqdm
 import os
 import re
@@ -29,9 +29,9 @@ def translate(system_prompt: str,
     # Run chat completion inference
     try:
         model_start_datetime = datetime.now()
-        client = llms.openai.OpenAI()
+        client = get_llm(model_name)
         result = client.completions(
-            model=model_name,
+            model_name=model_name,
             messages=messages,
             temperature=temperature,
             response_format=response_format
@@ -73,16 +73,11 @@ def run_translation_pipeline(source_file_path: str,
                              sleep_time: int = 0,
                              **kwargs):
     # Determine the output file path
-    model_name_slug = model_name.replace('/', '_')
-    file_path = os.path.dirname(source_file_path)
-    file_name = os.path.basename(source_file_path)
-    if kwargs.get('version') is not None:
-        file_name = f"{file_name.split('.')[0]}_{kwargs['version']}.{file_name.split('.')[1]}"
-    translation_output_file_path = os.path.join(file_path, model_name_slug, file_name)
-    print(f"Translation output file path: {translation_output_file_path}")
+    output_file_path = get_output_file(source_file_path, output_dir, **kwargs).replace('.csv', '_translated.csv')
+    print(f"Translation output file path: {output_file_path}")
 
     # Load the data
-    file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
+    file_path = output_file_path if os.path.exists(output_file_path) else source_file_path
     df = load_data(file_path, limit, force=force, ignore_populated_column='translation')
 
     # Get the ID columns
@@ -104,11 +99,11 @@ def run_translation_pipeline(source_file_path: str,
 
     # Translate the batch data
     if parallel:
-        df = translate_parallel(df, batch_data, model_name, response_format, prompt_file_name, id_columns, translation_output_file_path, 
+        df = translate_parallel(df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, 
                                    num_workers=kwargs.get('num_workers', 0), 
                                    sleep_time=sleep_time)
     else:
-        df = translate_serial(df, batch_data, model_name, response_format, prompt_file_name, id_columns, translation_output_file_path, 
+        df = translate_serial(df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, 
                                     sleep_time=sleep_time)
 
     return df
