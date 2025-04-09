@@ -1,0 +1,21 @@
+- name: mafat
+  type: jsonl
+  dir: data/mafat
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.9
+    validation: 0.1
+  tokens_limit:
+    train: 0
+    validation: 0
+- name: dolma
+  type: hf
+  args:
+    path: "allenai/dolma"
+    name: v1_7
+    streaming: True
+    trust_remote_code: True
+  tokens_limit:
+    train: 22_500_000_000
+    validation: 2_500_000_000
