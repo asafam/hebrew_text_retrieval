@@ -107,6 +107,41 @@
                 "PYTHONPATH": "${workspaceFolder}/src",
             },
             "envFile": "${workspaceFolder}/.env"
-        }
+        },
+        {
+            "name": "prepare_dolma_dataset_train",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/preprocessing/prepare_dolma_dataset_train.py",
+            "args": [], 
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+            },
+        },
+        {
+            "name": "build_dataset",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/data/preprocessing/build_datasets.py",
+            "args": [
+                "--config_file",
+                "config/data/datasets_train_corpus.yaml",
+                "--output_path",
+                "data/test",
+                "--split",
+                "train",
+                "--format",
+                "mds",
+                "--shard_size_limit",
+                "67108864",
+                "--buffer_size",
+                "1000000"
+            ], 
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+            },
+        },
     ]
 }

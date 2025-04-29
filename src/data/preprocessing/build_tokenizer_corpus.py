@@ -22,10 +22,10 @@ def build(jsonl_files_path: str, limit: int, output_file: str, force: bool = Fal
     # Create output directory if it doesn't exist
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
 
-    # Sample from each file and write results
+    sam# Sample from each file and write results
     with open(output_file, "w", encoding="utf-8-sig") as out_f:
         for file in tqdm(jsonl_files, desc="Sampling JSONL files"):
-            sampled_lines = reservoir_sample(file, samples_per_file)
+            pled_lines = reservoir_sample(file, samples_per_file)
             out_f.writelines(sampled_lines)  # Stream writing to avoid memory issues
 
     sampled_records_count = sum(1 for _ in open(output_file, "r", encoding="utf-8"))

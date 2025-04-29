@@ -10,8 +10,8 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
 JSON_FILES_PATH="data/mafat/hebrew/sources/*.jsonl"
-LIMIT=1000000
-OUTPUT_FILE="data/mafat/hebrew/tokenizer_validation_1M.txt"
+LIMIT=500000
+OUTPUT_FILE="data/mafat/hebrew/tokenizer_corpus_500K.txt"
 RANDOM_STATE=42
 FORCE=true
 

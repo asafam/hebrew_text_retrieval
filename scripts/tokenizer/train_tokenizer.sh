@@ -9,9 +9,9 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CORPUS="data/mafat/hebrew/tokenizer_corpus_100K.txt"
-VOCAB_SIZE=96000
-OUTPUT_DIR="outputs/tokenizer/HebrewModernBERT_heb_100K_96K"
+CORPUS="data/tokenizer_corpus_1M.txt"
+VOCAB_SIZE=100000
+OUTPUT_DIR="outputs/tokenizer/HebrewModernBERT_mixed_1M_100K"
 
 # Print the variables
 echo "Running the Python script: build_tokenizer_corpus.py"
