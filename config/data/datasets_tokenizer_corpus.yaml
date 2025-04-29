@@ -1,0 +1,37 @@
+- name: mafat
+  type: jsonl
+  dir: data/mafat/hebrew/sources
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.9
+    validation: 0.1
+  limit: 500000
+
+- name: dolma.text
+  type: hf
+  args:
+    path: allenai/dolma
+    name: v1_7
+    split: train
+    # data_dir: /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/dolma
+    trust_remote_code: True
+    num_proc: 24
+  filter_criteria:
+    - source: books # todo!!!!
+    - source: wikipedia # todo!!!!
+    - source: news # todo!!!!
+  limit: 250000
+
+- name: dolma.code
+  type: hf
+  args:
+    path: allenai/dolma
+    name: v1_7
+    split: train
+    # data_dir: /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/dolma
+    trust_remote_code: True
+    num_proc: 24
+  filter_criteria:
+    - source: github # todo!!!!
+  limit: 250000

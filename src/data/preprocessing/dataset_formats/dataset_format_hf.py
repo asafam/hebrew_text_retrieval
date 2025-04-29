@@ -1,5 +1,8 @@
 from typing import Optional
-from datasets import load_dataset, DatasetDict
+import random
+from tqdm import tqdm
+from datasets import load_dataset, concatenate_datasets
+from utils import tokenize
 
 dataset_to_text_field = {
     "allenai/c4": "text",
@@ -10,7 +13,16 @@ class DatasetFormatHF:
                  dataset_name: str):
         self.name = dataset_name
 
-    def stream(self, split: str, text_field: str = "text", **kwargs):
+    def stream(self,
+               hf_dataset_args: dict,
+               text_field: str = "text", 
+               filter_criteria: list = [],
+               split: str = "train",
+               split_ratio: float = 0.1,
+               limit: int = 0,
+               tokens_limit: int = 0,
+               shuffle: bool = True,
+               random_state: int = 42):
         """
         Generator to stream datasets as either train or validation split.
         Parameters:
@@ -20,7 +32,57 @@ class DatasetFormatHF:
             dict: {"text": ..., "_source": ..., "_row_number": ...}
         """
         # Load the dataset
-        dataset = load_dataset(**kwargs, split=split)
+        dataset = load_dataset(**hf_dataset_args)
+
+        # Train/validation splits
+        random.seed(random_state)
+        dataset_size = sum(1 for _ in dataset)
+        validation_size = int(split_ratio * dataset_size)
+        validation_indexes = random.sample(range(0, dataset_size), validation_size)
+        indexes = validation_indexes.copy()
+        
+        if split == "train":
+            train_indexes = [i for i in range(dataset_size) if i not in validation_indexes]
+            indexes = train_indexes
+
+        sorted_indices = sorted(indexes)
+        dataset = dataset.select(sorted_indices) # Select the rows corresponding to the sorted indices
+
+        # Check if the dataset is in the dataset_to_text_field mapping
+        if filter_criteria:
+            filtered_datasets = []
+            for criteria in filter_criteria:
+                filtered = dataset.filter(
+                    lambda example: all(example.get(field) == value for field, value in criteria.items())
+                )
+                filtered_datasets.append(filtered)
+            dataset = concatenate_datasets(filtered_datasets)
+
+        # Shuffle the dataset if required
+        if shuffle:
+            dataset = dataset.shuffle(seed=random_state)
+
+        # Limit the number of records if specified
+        if limit > 0:
+            dataset_size = sum(1 for _ in dataset)
+            dataset = dataset.select(range(min(limit, dataset_size)))
+        
+        # Limit the number of tokens if specified
+        if tokens_limit > 0:
+            total_tokens = 0
+            end_tokens_index = 0
+            for i, record in enumerate(dataset):
+                text = record[text_field]
+                tokens = tokenize(text)
+                token_count = len(tokens)
+                
+                # Check if adding this record exceeds the token limit
+                if total_tokens + token_count > tokens_limit:
+                    end_tokens_index = i
+                    break
+                
+            dataset = dataset.select(range(end_tokens_index)) if end_tokens_index > 0 else dataset
+
         for idx, record in enumerate(dataset):
             record = {
                 "text": record[text_field],
