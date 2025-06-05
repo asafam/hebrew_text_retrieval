@@ -2,6 +2,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Run current file",
+            "type": "python",
+            "request": "launch",
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src"
+            },
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "envFile": "${workspaceFolder}/.env"
+        },
+        {
             "name": "Run Generate Translation Candidates",
             "type": "debugpy",
             "request": "launch",
@@ -113,7 +126,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/data/preprocessing/prepare_dolma_dataset_train.py",
-            "args": [], 
+            "args": [],
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
@@ -137,7 +150,7 @@
                 "67108864",
                 "--buffer_size",
                 "1000000"
-            ], 
+            ],
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",

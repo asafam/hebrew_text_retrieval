@@ -68,7 +68,8 @@ class DatasetFormatJSONL:
 
                     record = {
                         "text": data[text_field],
-                        "_source": os.path.basename(file_path),
+                        "_source": data["source"] if "source" in data else os.path.basename(file_path),
+                        "_file": os.path.basename(file_path),
                         "_row_number": idx
                     }
 

@@ -3,6 +3,7 @@ import os
 import importlib.util
 import inspect
 import logging
+from pathlib import Path
 
 # Define special tokens
 DOCUMENT_TOKEN = 'passage:'
@@ -24,6 +25,9 @@ class DatasetName(Enum):
 
 
 class BaseDatasetBuilder():
+    def __init__(self, decorate_with_task_tokens: bool = True,):
+        self.decorate_with_task_tokens = decorate_with_task_tokens
+        
     def build_dataset(self, **kwargs):
         raise NotImplementedError()
     
@@ -41,17 +45,18 @@ def build_dataset(dataset_name: str, **kwargs):
 
 
 def build_eval_dataset(dataset_name: str, **kwargs):
-    builder = _get_builder(dataset_name)
+    builder = _get_builder(dataset_name, **kwargs)
     dataset = builder.build_eval_dataset(**kwargs)
     return dataset
 
 
-def _get_builder(dataset_name: str) -> BaseDatasetBuilder:
+def _get_builder(dataset_name: str, **kwargs) -> BaseDatasetBuilder:
     logger = logging.getLogger('default')
     
     folder_path = os.path.dirname(os.path.abspath(__file__))
     # Get all Python files in the folder
-    files = [f for f in os.listdir(folder_path) if f.endswith('.py') and f != '__init__.py']
+    files = list(Path(folder_path).rglob('*_data.py'))
+    files = [str(f) for f in files]
 
     # List to hold instantiated classes
     builders = []
@@ -71,7 +76,7 @@ def _get_builder(dataset_name: str) -> BaseDatasetBuilder:
             if issubclass(obj, BaseDatasetBuilder) and name != 'BaseDatasetBuilder':
                 try:
                     # Instantiate the class with the given prompt_type
-                    builder = obj()
+                    builder = obj(**kwargs)
                     builders.append(builder)
                 except Exception as e:
                     logger.error(f"Failed to instantiate {name}: {e}")
