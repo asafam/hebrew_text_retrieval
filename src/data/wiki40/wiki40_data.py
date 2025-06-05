@@ -42,7 +42,7 @@ class Wiki40bDatasetBuilder(BaseDatasetBuilder):
         logger.info("Done transforming Wiki40B dataset")
         return DatasetDict(transformed_dataset)
     
-    def build_eval_dataset(self, split='test', random_seed: int = 42):
+    def build_eval_dataset(self, split='test', random_seed: int = 42, **kwargs):
         logger = logging.getLogger('default')
         logger.info("Building Synthesized Query Document evaluation dataset")
 
