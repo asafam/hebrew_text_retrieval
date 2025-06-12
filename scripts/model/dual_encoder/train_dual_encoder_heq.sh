@@ -27,6 +27,6 @@ python src/model/dual_encoder/train_dual_encoder_heq.py \
     --query_model_name "$QUERY_MODEL_NAME" \
     --doc_model_name "$DOC_MODEL_NAME" \
     --num_train_epochs "$NUM_EPOCHS" \
-    --output_dir "$OUTPUT_DIR" \
+    --output_dir "$OUTPUT_DIR"
 
 echo "Done."
