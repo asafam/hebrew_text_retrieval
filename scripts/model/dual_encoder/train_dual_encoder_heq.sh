@@ -10,10 +10,10 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 export CUDA_VISIBLE_DEVICES=1
 
 # Define variables
-QUERY_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331"
-DOC_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331"
+QUERY_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"
+DOC_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/ckpt_c20250603_1331_ep4-ba628000"
+OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/ckpt_c20250603_1331_ep5-ba708253"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder_heq.py"
