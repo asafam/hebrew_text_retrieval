@@ -10,8 +10,8 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 export CUDA_VISIBLE_DEVICES=2
 
 # Define variables
-MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331"
-OUTPUT_PATH="./outputs/models/sbert/sbert-hebmodernbert-hebnli/ckpt_20250603_1331_ep4-ba628000"
+MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"
+OUTPUT_PATH="./outputs/models/sbert/sbert-hebmodernbert-hebnli/ckpt_20250603_1331_ep5-ba708253"
 
 # Print the variables
 echo "Running the Python script: train_sbert_hebmodernbert_hebnli.py"
