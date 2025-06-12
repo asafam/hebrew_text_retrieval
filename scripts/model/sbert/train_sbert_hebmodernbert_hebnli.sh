@@ -11,7 +11,7 @@ export CUDA_VISIBLE_DEVICES=2
 
 # Define variables
 MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331"
-OUTPUT_PATH="./outputs/models/sbert/sbert-hebmodernbert-hebnli/ckpt_c20250603_1331_ep4-ba628000"
+OUTPUT_PATH="./outputs/models/sbert/sbert-hebmodernbert-hebnli/ckpt_20250603_1331_ep4-ba628000"
 
 # Print the variables
 echo "Running the Python script: train_sbert_hebmodernbert_hebnli.py"
@@ -21,6 +21,6 @@ echo "Output path: $OUTPUT_PATH"
 # Run the Python script
 python src/model/sbert/train_sbert_hebmodernbert_hebnli.py \
     --model_name_or_path "$MODEL_PATH" \
-    --output_path "$OUTPUT_PATH" \
+    --output_path "$OUTPUT_PATH"
 
 echo "Done."
