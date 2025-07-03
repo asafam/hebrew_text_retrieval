@@ -1,0 +1,32 @@
+- name: heq
+  type: hf
+  args:
+    path: pig4431/HeQ_v1
+    split: test
+    trust_remote_code: True
+    num_proc: 24
+  text_field: Context
+  remove_duplicates: True
+    
+- name: wikipedia_hebrew
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29-2023.forgpt.jsonl
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29.forgpt.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.8
+    validation: 0.1
+    test: 0.1
+
+- name: geektime
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/GeektimeCorpus-Combined-Deduped.forgpt.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.8
+    validation: 0.1
+    test: 0.1

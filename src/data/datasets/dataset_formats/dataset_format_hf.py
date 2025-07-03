@@ -2,7 +2,7 @@ from typing import Optional
 import random
 from tqdm import tqdm
 from datasets import load_dataset, concatenate_datasets
-from utils import tokenize
+from data.datasets.utils import tokenize, hash_text
 
 dataset_to_text_field = {
     "allenai/c4": "text",
@@ -22,6 +22,7 @@ class DatasetFormatHF:
                limit: int = 0,
                tokens_limit: int = 0,
                shuffle: bool = True,
+               remove_duplicates: bool = False,
                random_state: int = 42):
         """
         Generator to stream datasets as either train or validation split.
@@ -83,10 +84,16 @@ class DatasetFormatHF:
                 
             dataset = dataset.select(range(end_tokens_index)) if end_tokens_index > 0 else dataset
 
+        if remove_duplicates:
+            dataset = dataset.unique(text_field)
+            
         for idx, record in enumerate(dataset):
+            # Create a record with the required fields
             record = {
+                **{key.lower(): value for key, value in record.items()},
+                "guid": hash_text(record[text_field]),
                 "text": record[text_field],
-                "_source": self.dataset_name,
-                "_row_number": idx
+                "_source": self.name,
+                "_row_number": idx,
             }
             yield record

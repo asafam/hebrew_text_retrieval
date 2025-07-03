@@ -7,13 +7,13 @@ conda activate htr
 
 # Add src folder to PYTHONPATH
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=1
 
 # Define variables
-QUERY_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"
-DOC_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"
+QUERY_MODEL_NAME="intfloat/multilingual-e5-large"
+DOC_MODEL_NAME="intfloat/multilingual-e5-large"
+MAX_LENGTH=512
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/ckpt_c20250603_1331_ep5-ba708253"
+OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/intfloat_multilingual-e5-large"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder_heq.py"
@@ -26,6 +26,7 @@ echo "Output dir: $OUTPUT_DIR"
 python src/model/dual_encoder/train_dual_encoder_heq.py \
     --query_model_name "$QUERY_MODEL_NAME" \
     --doc_model_name "$DOC_MODEL_NAME" \
+    --max_length "$MAX_LENGTH" \
     --num_train_epochs "$NUM_EPOCHS" \
     --output_dir "$OUTPUT_DIR"
 

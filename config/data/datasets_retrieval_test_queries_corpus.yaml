@@ -1,0 +1,10 @@
+- name: heq
+  type: hf
+  args:
+    path: pig4431/HeQ_v1
+    split: test
+    trust_remote_code: True
+    num_proc: 24
+  text_field: Question
+  remove_duplicates: True
+  

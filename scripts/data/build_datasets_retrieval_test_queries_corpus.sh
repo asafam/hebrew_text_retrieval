@@ -1,6 +1,6 @@
 #!/bin/bash -i
 
-# Activate the htr conda environment
+# Activate the bert24 conda environment
 echo "Activating Conda environment: bert24"
 source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly initialized
 conda activate bert24
@@ -9,15 +9,17 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CONFIG_FILE="config/data/datasets_tokenizer_corpus.yaml"
-OUTPUT_PATH="data/hebrew_modernbert/v20250421/tokenizer_corpus_1M.txt"
-FORMAT="txt"
+CONFIG_FILE="config/data/datasets_retrieval_test_queries_corpus.yaml"
+OUTPUT_PATH="data/retrieval/queries/test.jsonl"
+FORMAT="jsonl"
 SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000
+SPLIT="test"
 
-echo "Running the Python script: jsonl_to_mds.py"
+echo "Running the Python script: build_datasets.py"
 echo "Config file path: $CONFIG_FILE"
 echo "Output directory: $OUTPUT_DIR"
+echo "Split: $SPLIT"
 echo "Format: $FORMAT"
 echo "Shard size limit: $SHARD_SIZE_LIMIT"
 echo "Buffer size: $BUFFER_SIZE"
@@ -26,6 +28,8 @@ echo "Buffer size: $BUFFER_SIZE"
 python src/data/datasets/build_datasets.py \
     --config_file "$CONFIG_FILE" \
     --output_path "$OUTPUT_PATH" \
+    --split "$SPLIT" \
     --format $FORMAT \
     --shard_size_limit $SHARD_SIZE_LIMIT \
     --buffer_size $BUFFER_SIZE \
+    --remove_duplicates

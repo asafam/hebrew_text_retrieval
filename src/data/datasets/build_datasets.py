@@ -7,9 +7,9 @@ import argparse
 import yaml
 import dotenv
 from datasets import IterableDataset, interleave_datasets
-from data.preprocessing.utils import save_as_mds, save_as_txt
-from data.preprocessing.dataset_formats.dataset_format_jsonl import DatasetFormatJSONL
-from data.preprocessing.dataset_formats.dataset_format_hf import DatasetFormatHF
+from data.datasets.utils import save_as_mds, save_as_txt, save_as_jsonl
+from data.datasets.dataset_formats.dataset_format_jsonl import DatasetFormatJSONL
+from data.datasets.dataset_formats.dataset_format_hf import DatasetFormatHF
 
 # Load environment variables from .env file
 dotenv.load_dotenv()
@@ -27,6 +27,7 @@ def build(
         format: str,
         shard_size_limit: int = 67108864,
         buffer_size: int = 10000,
+        remove_duplicates: bool = False,
         random_state: int = 42
     ) -> None:
     """
@@ -53,6 +54,7 @@ def build(
             dataset = DatasetFormatHF(config.get("name"))\
                     .stream(
                         hf_dataset_args=config.get("args"),
+                        text_field=config.get("text_field", "text"),
                         filter_criteria=config.get("filter_criteria", {}),
                         limit=config.get("limit", 0),
                         tokens_limit=config.get("tokens_limit", 0),
@@ -77,11 +79,17 @@ def build(
                     )
             # dataset = IterableDataset.from_generator(generator_func)
             datasets.append(dataset)
+        print(f"Finished processing {config['name']} dataset.")
 
     merged_dataset = chain(*datasets)
     # Interleave datasets
     # interleaved_dataset = interleave_datasets(datasets, probabilities=None) # iterate over each dataset until it is exhausted
     # shuffled_dataset = interleaved_dataset.shuffle(buffer_size=buffer_size, seed=random_state)
+
+    if remove_duplicates:
+        print("Removing duplicate records...")
+        seen = set()
+        merged_dataset = (record for record in merged_dataset if not (record['guid'] in seen or seen.add(record['guid'])))
     
     if format.lower() == "mds":
         # Ensure output directory is clean
@@ -95,18 +103,25 @@ def build(
                     output_dir=output_dir,
                     shard_size_limit=shard_size_limit) # Save the dataset in MDS format
     elif format.lower() == "txt":
+        output_file = os.path.join(output_path, split + ".txt") if not output_path.endswith(".txt") else  output_path
         save_as_txt(dataset=merged_dataset,
                     column="text",
-                    output_file=output_path) # Save the dataset in TXT format
+                    output_file=output_file) # Save the dataset in TXT format
+    elif format.lower() == "jsonl":
+        output_file = os.path.join(output_path, split + ".jsonl") if not output_path.endswith(".jsonl") else  output_path
+        save_as_jsonl(dataset=merged_dataset,
+                      column="text",
+                      output_file=output_file) # Save the dataset in JSONL format
 
 def main():
     parser = argparse.ArgumentParser(description="Process JSONL files into MDS format with metadata")
     parser.add_argument("--config_file", type=str, required=True, help="Config yaml file")
     parser.add_argument("--output_path", type=str, required=True, help="Output path for the data")
     parser.add_argument("--split", type=str, default="train", help="Split type (train/validation/test)")
-    parser.add_argument("--format", type=str, default="mds", choices=["mds", "txt"], help="Output format (mds/txt)")
+    parser.add_argument("--format", type=str, default="mds", choices=["mds", "txt", "jsonl"], help="Output format (mds/txt/jsonl)")
     parser.add_argument("--shard_size_limit", type=int, default=67108864, help="Number of records per shard")
     parser.add_argument("--buffer_size", type=int, default=1000000, help="Buffer size for shuffling")
+    parser.add_argument("--remove_duplicates", action='store_true', help="Remove duplicate records")
     parser.add_argument("--random_state", type=int, default=42, help="Random seed for sampling")
 
     args = parser.parse_args()
@@ -117,6 +132,7 @@ def main():
           format=args.format,
           shard_size_limit=args.shard_size_limit,
           buffer_size=args.buffer_size,
+          remove_duplicates=args.remove_duplicates,
           random_state=args.random_state)
 
 if __name__ == "__main__":

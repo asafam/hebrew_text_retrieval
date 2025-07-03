@@ -1,0 +1,55 @@
+- name: mafat
+  type: jsonl
+  files: 
+    - data/mafat/hebrew/sources
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.9
+    validation: 0.1
+
+- name: dolma
+  type: jsonl
+  files: 
+    - data/dolma/corpus_sampled_50B.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.9
+    validation: 0.1
+
+# - name: dolma.text
+#   type: hf
+#   args:
+#     path: allenai/dolma
+#     name: v1_7
+#     split: train
+#     streaming: True
+#     # data_dir: /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/dolma
+#     trust_remote_code: True
+#     num_proc: 24
+#   filter_criteria:
+#     - source: books
+#     - source: wikipedia
+#     - source: news
+#   split_ratio:
+#     train: 0.9
+#     validation: 0.1
+#   tokens_limit: 2_500_000_000
+
+# - name: dolma.code
+#   type: hf
+#   args:
+#     path: allenai/dolma
+#     name: v1_7
+#     split: train
+#     streaming: True
+#     # data_dir: /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/dolma
+#     trust_remote_code: True
+#     num_proc: 24
+#   split_ratio:
+#     train: 0.9
+#     validation: 0.1
+#   filter_criteria:
+#     - source: github
+#   tokens_limit: 2_500_000_000

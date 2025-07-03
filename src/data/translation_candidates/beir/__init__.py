@@ -1,6 +1,5 @@
 import os
 from datasets import load_dataset
-import tiktoken
 import nltk
 nltk.download('punkt')
 nltk.download('punkt_tab')
@@ -9,9 +8,10 @@ import random
 import importlib
 import inspect
 from translation.utils import count_tokens
+from data.translation_candidates import TranslationCandidatesDataBuilder
 
 
-class BaseBeIRDataBuilder():
+class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
     def build_data(self, 
                    dataset_name: str, 
                    model_name: str, 
@@ -73,7 +73,7 @@ class BaseBeIRDataBuilder():
         return queries, documents
     
     def is_match(self, dataset_name: str) -> bool:
-        raise NotImplementedError()
+        return dataset_name.startswith('BeIR/')
 
     def _split_document_by_segments(self, document: dict, model_name: str, max_tokens: int = 256):
         # Split document into sentences
