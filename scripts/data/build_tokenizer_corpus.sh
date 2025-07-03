@@ -25,7 +25,7 @@ echo "Force: $FORCE"
 
 
 # Run the Python script
-python src/data/preprocessing/build_tokenizer_corpus.py \
+python src/data/datasets/build_tokenizer_corpus.py \
     --jsonl_files_path "$JSON_FILES_PATH" \
     --limit $LIMIT \
     --output_file "$OUTPUT_FILE" \

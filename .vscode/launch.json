@@ -125,7 +125,7 @@
             "name": "prepare_dolma_dataset_train",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/data/preprocessing/prepare_dolma_dataset_train.py",
+            "program": "${workspaceFolder}/src/data/datasets/prepare_dolma_dataset_train.py",
             "args": [],
             "console": "integratedTerminal",
             "env": {
@@ -136,25 +136,50 @@
             "name": "build_dataset",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/src/data/preprocessing/build_datasets.py",
+            "program": "${workspaceFolder}/src/data/datasets/build_datasets.py",
             "args": [
                 "--config_file",
-                "config/data/datasets_train_corpus.yaml",
+                "config/data/datasets_retrieval_test_documents_corpus.yaml",
                 "--output_path",
-                "data/test",
+                "data/retrieval/documents/test_.jsonl",
                 "--split",
-                "train",
+                "test",
                 "--format",
-                "mds",
+                "jsonl",
                 "--shard_size_limit",
                 "67108864",
                 "--buffer_size",
-                "1000000"
+                "1000000",
+                // "--remove_duplicates"
             ],
             "console": "integratedTerminal",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/src",
             },
         },
+        {
+            "name": "eval_retrieval",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/model/eval/eval_retrieval.py",
+            "args": [
+                "--model_name_or_path",
+                "outputs/models/dual_encoder/dual_encoder_infonce_heq/ckpt_c20250603_1331_ep5-ba708253/checkpoint-4000",
+                "--tokenizer_name_or_path",
+                "/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0",
+                "--queries_path",
+                "data/retrieval/queries/test.jsonl",
+                "--documents_path",
+                "data/retrieval/documents/test.jsonl",
+                "--output_file",
+                "outputs/eval/dual_encoder/dual_encoder_infonce_heq/ckpt_c20250603_1331_ep5-ba708253/checkpoint-4000/results.txt",
+                "--batch_size",
+                "1024",
+            ],
+            "console": "integratedTerminal",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src",
+            },
+        }
     ]
 }

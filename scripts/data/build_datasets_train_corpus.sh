@@ -16,7 +16,7 @@ SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000
 SPLIT="train"
 
-echo "Running the Python script: jsonl_to_mds.py"
+echo "Running the Python script: build_datasets.py"
 echo "Config file path: $CONFIG_FILE"
 echo "Output directory: $OUTPUT_PATH"
 echo "Split: $SPLIT"
@@ -25,7 +25,7 @@ echo "Shard size limit: $SHARD_SIZE_LIMIT"
 echo "Buffer size: $BUFFER_SIZE"
 
 # Run the Python script
-python src/data/preprocessing/build_datasets.py \
+python src/data/datasets/build_datasets.py \
     --config_file "$CONFIG_FILE" \
     --output_path "$OUTPUT_PATH" \
     --split "$SPLIT" \

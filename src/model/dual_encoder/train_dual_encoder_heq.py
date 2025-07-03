@@ -1,16 +1,22 @@
 import argparse
+import os
+import shutil
+from dotenv import load_dotenv
+from huggingface_hub import login
 from datasets import Dataset
 from transformers import AutoTokenizer, AutoModel, Trainer, TrainingArguments, AutoConfig, PreTrainedModel
 import torch
 from torch import nn
 import torch.nn.functional as F
+from pathlib import Path
 from data.heq.heq_data import HeQDatasetBuilder, HeQTaskName
-from model.dual_encoder.models import InfoNCEDualEncoder
+from model.dual_encoder.models import InfoNCEDualEncoder, InfoNCEDualEncoderConfig
 
 def get_dataset():
     heq_dataset_builder = HeQDatasetBuilder(task=HeQTaskName.QUESTION_DOC, decorate_with_task_tokens=False)
     heq_dataset = heq_dataset_builder.build_dataset(filter_empty_answers=True)
     return heq_dataset
+
 
 def preprocess(
         example,
@@ -35,13 +41,15 @@ def preprocess(
         "d_attention_mask": d['attention_mask'],
     }
 
+
 def collate_fn(batch):
     return {
-        "q_input_ids": torch.tensor([item["q_input_ids"] for item in batch]),
-        "q_attention_mask": torch.tensor([item["q_attention_mask"] for item in batch]),
-        "d_input_ids": torch.tensor([item["d_input_ids"] for item in batch]),
-        "d_attention_mask": torch.tensor([item["d_attention_mask"] for item in batch]),
+        "query_input_ids": torch.tensor([item["q_input_ids"] for item in batch]),
+        "query_attention_mask": torch.tensor([item["q_attention_mask"] for item in batch]),
+        "doc_input_ids": torch.tensor([item["d_input_ids"] for item in batch]),
+        "doc_attention_mask": torch.tensor([item["d_attention_mask"] for item in batch]),
     }
+
 
 def main(
     query_model_name: str,
@@ -55,16 +63,41 @@ def main(
     save_steps=50,
     eval_strategy="steps",
     eval_steps=100,
-    max_length=1024
+    max_length=1024,
+    remove_to_overwrite: bool = False
 ):
+    if os.path.exists(output_dir):
+        print(f"Output directory {output_dir} already exists. Do you wish to overwrite it? (Y/n)")
+        response = input().strip().lower()
+        if response == 'n':
+            print("Exiting without training.")
+        else:
+            print(f"Overwriting output directory {output_dir}.")
+            if remove_to_overwrite:
+                shutil.rmtree(output_dir)
+                
+    # Load .env file
+    load_dotenv()
+
+    # Access the token
+    hf_token = os.getenv("HF_TOKEN")
+
+    # Authenticate with Hugging Face
+    login(hf_token)
+
     tokenizer_q = AutoTokenizer.from_pretrained(query_model_name)
     tokenizer_d = AutoTokenizer.from_pretrained(doc_model_name)
     
     heq_dataset = get_dataset()
     processed = heq_dataset.map(lambda sample: preprocess(sample, tokenizer_q, tokenizer_d, max_length=max_length))
 
-    config = AutoConfig.from_pretrained(query_model_name)
-    model = InfoNCEDualEncoder(config, query_model_name, doc_model_name, pooling='cls')
+    config = InfoNCEDualEncoderConfig(query_model_name=query_model_name, 
+                                      doc_model_name=doc_model_name, 
+                                      query_tokenizer_path=tokenizer_q.name_or_path,
+                                      doc_tokenizer_path=tokenizer_d.name_or_path,
+                                      pooling='cls', 
+                                      temperature=0.05)
+    model = InfoNCEDualEncoder(config)
 
     training_args = TrainingArguments(
         output_dir=output_dir,
@@ -87,6 +120,18 @@ def main(
     )
 
     trainer.train()
+
+    # Save the model, tokenizer, and config
+    model_dir = os.path.join(output_dir, "model")
+    tokenizer_q_dir = os.path.join(model_dir, "tokenizer_query")
+    tokenizer_d_dir = os.path.join(model_dir, "tokenizer_doc")
+    Path(model_dir).mkdir(parents=True, exist_ok=True)
+    Path(tokenizer_q_dir).mkdir(parents=True, exist_ok=True)
+    Path(tokenizer_d_dir).mkdir(parents=True, exist_ok=True)
+    trainer.save_model(model_dir)
+    tokenizer_q.save_pretrained(tokenizer_q_dir)
+    tokenizer_d.save_pretrained(tokenizer_d_dir)
+    config.save_pretrained(model_dir)
 
 if __name__ == "__main__":
     argparse.ArgumentParser(description="Train a dual encoder model with InfoNCE loss on HeQ dataset.")

@@ -62,7 +62,12 @@ def main(
         tokenizer_name_or_path=model_name_or_path,
         max_seq_length=max_seq_length,
     )
-    pooling = models.Pooling(bert.get_word_embedding_dimension())
+    pooling = models.Pooling(
+        bert.get_word_embedding_dimension(),
+        pooling_mode_cls_token=True,
+        pooling_mode_mean_tokens=False,
+        pooling_mode_max_tokens=False
+    )
     sbert_model = SentenceTransformer(modules=[bert, pooling])
 
     # Loss function

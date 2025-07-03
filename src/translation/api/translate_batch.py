@@ -75,7 +75,9 @@ def run_translation_pipeline(source_file_path: str,
                              force: bool = False,
                              **kwargs):
     # Determine the output file path
-    translation_output_file_path = get_translation_output_file(source_file_path, model_name, **kwargs)
+    translation_output_file_path = get_output_file(source_file_path, 
+                                                   model_name.replace("/", "_"),
+                                                   **kwargs)
 
     # Load the data
     file_path = translation_output_file_path if os.path.exists(translation_output_file_path) else source_file_path
