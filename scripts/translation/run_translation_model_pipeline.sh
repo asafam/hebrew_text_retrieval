@@ -57,6 +57,6 @@ python src/translation/model/run_translation_pipeline.py \
   --limit $LIMIT \
   ${USE_CACHED_PREFIX:+--use_cached_prefix} \
   ${FORCE:+--force} \
-  --english_key "$ENGLISH_KEY" \
-  --hebrew_key "$HEBREW_KEY" \
+  --text_key "$ENGLISH_KEY" \
+  --translation_key "$HEBREW_KEY" \
   --context_key "$CONTEXT_KEY"

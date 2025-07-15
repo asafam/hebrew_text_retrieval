@@ -56,6 +56,6 @@ python src/translation/api/run_translation_batch_pipeline.py \
   --model_name "$MODEL_NAME" \
   --limit $LIMIT \
   ${FORCE:+--force} \
-  --english_key "$ENGLISH_KEY" \
-  --hebrew_key "$HEBREW_KEY" \
+  --text_key "$ENGLISH_KEY" \
+  --translation_key "$HEBREW_KEY" \
   --context_key "$CONTEXT_KEY"

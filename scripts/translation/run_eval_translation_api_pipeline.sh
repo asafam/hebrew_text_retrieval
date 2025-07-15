@@ -54,8 +54,8 @@ python src/translation/api/run_evaluate_translations.py \
     --output_dir "$OUTPUT_DIR" \
     --model_name "$MODEL_NAME" \
     --limit $LIMIT \
-    --english_key "$ENGLISH_KEY" \
-    --hebrew_key "$HEBREW_KEY" \
+    --text_key "$ENGLISH_KEY" \
+    --translation_key "$HEBREW_KEY" \
     ${FORCE:+--force}
     ${PARALLE:+--parallel}
     

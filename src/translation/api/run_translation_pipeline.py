@@ -14,11 +14,13 @@ def main():
     parser.add_argument('--prompt_file_name', type=str, required=True, help="Translation prompt file name.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--limit', type=int, default=0, help="Limit the number of texts to translate.")
-    parser.add_argument('--english_key', type=str, default="English", help="Key for the English translation in the prompt file.")
-    parser.add_argument('--hebrew_key', type=str, default="Hebrew", help="Key for the Hebrew translation in the prompt file.")
-    parser.add_argument('--context_key', type=str, default="Context", help="Key for the English context translation in the prompt file.")
-    parser.add_argument('--hebrew_key_query', type=str, default="Hebrew Query", help="Key for the Hebrew query translation in the prompt file.")
-    parser.add_argument('--hebrew_key_document', type=str, default="Hebrew Document", help="Key for the Hebrew document translation in the prompt file.")
+    parser.add_argument('--source_lang', type=str, default="English", help="Source language for translation.")
+    parser.add_argument('--target_lang', type=str, default="Hebrew", help="Target language for translation.")
+    parser.add_argument('--text_key', type=str, default="{source_lang}", help="Key for the text to translate in the prompt file.")
+    parser.add_argument('--translation_key', type=str, default="Hebrew", help="Key for the translation in the prompt file.")
+    parser.add_argument('--context_key', type=str, default="Context", help="Key for the {source_lang} context translation in the prompt file.")
+    parser.add_argument('--translation_query_key', type=str, default="Hebrew Query", help="Key for the Hebrew query translation in the prompt file.")
+    parser.add_argument('--translation_document_key', type=str, default="Hebrew Document", help="Key for the Hebrew document translation in the prompt file.")
     parser.add_argument('--response_format', type=str, default="Translation", choices=("Translation", "UnifiedTranslation", "UnifiedSingleSentenceTranslation"), help="Response format for the translation.")
     parser.add_argument('--sleep_time', type=int, default=0, help="Sleep time between requests to avoid rate limiting.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
@@ -34,11 +36,13 @@ def main():
             prompt_file_name=args.prompt_file_name,
             model_name=args.model_name,
             limit=args.limit,
-            english_key=args.english_key,
-            hebrew_key=args.hebrew_key,
+            source_lang=args.source_lang,
+            target_lang=args.target_lang,
+            text_key=args.text_key,
+            translation_key=args.translation_key,
             context_key=args.context_key,
-            hebrew_key_query=args.hebrew_key_query,
-            hebrew_key_document=args.hebrew_key_document,
+            translation_query_key=args.translation_query_key,
+            translation_document_key=args.translation_document_key,
             response_format=args.response_format,
             sleep_time=args.sleep_time,
             force=args.force,

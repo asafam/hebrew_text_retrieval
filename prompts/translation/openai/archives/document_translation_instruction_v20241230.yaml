@@ -1,7 +1,7 @@
 system_prompt: |
-  You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+  You are a precise and concise translation assistant. Your task is to translate sentences from English to {target_lang}, providing accurate translations without unnecessary explanations.
 user_prompt: |
-  Please translate a given document from English to Hebrew. You should provide an accurate translation that preserves the meaning of the document.
+  Please translate a given document from English to {target_lang}. You should provide an accurate translation that preserves the meaning of the document.
 
   <examples>
   <example>

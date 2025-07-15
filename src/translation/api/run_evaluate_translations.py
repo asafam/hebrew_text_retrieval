@@ -12,8 +12,8 @@ def main():
     parser.add_argument('--prompt_file_name', type=str, required=True, help="Translation prompt file name.")
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--limit', type=int, default=0, help="Limit the number of texts to translate.")
-    parser.add_argument('--english_key', type=str, default="Text", help="Key for the English translation in the prompt file.")
-    parser.add_argument('--hebrew_key', type=str, default="Translation", help="Key for the Hebrew translation in the prompt file.")
+    parser.add_argument('--text_key', type=str, default="Text", help="Key for the {source_lang} translation in the prompt file.")
+    parser.add_argument('--translation_key', type=str, default="Translation", help="Key for the Hebrew translation in the prompt file.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
     parser.add_argument('--parallel', action='store_true', help="Evaluate translations in parallel.")
 
@@ -28,8 +28,8 @@ def main():
             prompt_file_name=args.prompt_file_name,
             model_name=args.model_name,
             limit=args.limit,
-            english_key=args.english_key,
-            hebrew_key=args.hebrew_key,
+            text_key=args.text_key,
+            translation_key=args.translation_key,
             force=args.force,
             parallel=args.parallel
         )

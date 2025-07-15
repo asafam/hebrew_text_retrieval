@@ -1,27 +1,27 @@
 document:
   system_prompt: |
-    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to {target_lang}, providing accurate translations without unnecessary explanations.
 
   user_prompt_prefix: |
-    Translate the following English text into Hebrew.
-    Optimize the translation for how Hebrew speakers naturally search online. 
-    Ensure that keywords are retained in their most commonly used form in Hebrew.
+    Translate the following English text into {target_lang}.
+    Optimize the translation for how {target_lang} speakers naturally search online. 
+    Ensure that keywords are retained in their most commonly used form in {target_lang}.
 
   user_prompt_template: |
-    {english_key}: {segment_text}
-    {hebrew_key}:
+    {text_key}: {segment_text}
+    {translation_key}:
 
 query:
   system_prompt: |
-    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to {target_lang}, providing accurate translations without unnecessary explanations.
 
   user_prompt_prefix: |
-    Translate the following English text into Hebrew.
-    Use {context_key} only to resolve ambiguity in the translation of {english_key}. 
-    Optimize the translation for how Hebrew speakers naturally search online. 
-    Ensure that keywords are retained in their most commonly used form in Hebrew.
+    Translate the following English text into {target_lang}.
+    Use {context_key} only to resolve ambiguity in the translation of {text_key}. 
+    Optimize the translation for how {target_lang} speakers naturally search online. 
+    Ensure that keywords are retained in their most commonly used form in {target_lang}.
 
   user_prompt_template: |
     {context_key}: {context_text}
-    {english_key}: {text}
-    {hebrew_key}:
+    {text_key}: {text}
+    {translation_key}:

@@ -12,9 +12,9 @@ def main():
     parser.add_argument('--model_name', type=str, required=True, help="Name of the translation model.")
     parser.add_argument('--limit', type=int, default=0, help="Limit the number of texts to translate.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
-    parser.add_argument('--english_key', type=str, default="English", help="Key for the English translation in the prompt file.")
-    parser.add_argument('--hebrew_key', type=str, default="Hebrew", help="Key for the Hebrew translation in the prompt file.")
-    parser.add_argument('--context_key', type=str, default="Context", help="Key for the English context translation in the prompt file.")
+    parser.add_argument('--text_key', type=str, default="{source_lang}", help="Key for the {source_lang} translation in the prompt file.")
+    parser.add_argument('--translation_key', type=str, default="Hebrew", help="Key for the Hebrew translation in the prompt file.")
+    parser.add_argument('--context_key', type=str, default="Context", help="Key for the {source_lang} context translation in the prompt file.")
 
     args = parser.parse_args()
 
@@ -26,8 +26,8 @@ def main():
             model_name=args.model_name,
             limit=args.limit,
             force=args.force,
-            english_key=args.english_key,
-            hebrew_key=args.hebrew_key,
+            text_key=args.text_key,
+            translation_key=args.translation_key,
             context_key=args.context_key
         )
             

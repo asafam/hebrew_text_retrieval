@@ -100,8 +100,8 @@ def run_translation_pipeline(source_file_path: str,
     prompt_type = 'query' if source_file_path.endswith('queries.csv') else 'document'
     prompt = prompt_data[prompt_type]
     prompt_meta_fields = {
-        'english_key': kwargs.get('english_key', 'אנגלית'),
-        'hebrew_key': kwargs.get('hebrew_key', 'עברית'),
+        'text_key': kwargs.get('text_key', 'אנגלית'),
+        'translation_key': kwargs.get('translation_key', 'עברית'),
         'context_key': kwargs.get('context_key', 'הקשר'),
     }
     prompt_prefix = prompt['prompt_prefix'].format_map(SafeDict(prompt_meta_fields))

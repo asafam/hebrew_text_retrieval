@@ -1,22 +1,22 @@
 document:
   system_prompt: |
-    You are a precise and concise translation assistant. Your task is to translate texts from English to Hebrew, providing accurate translations without unnecessary explanations.
+    You are a precise and concise translation assistant. Your task is to translate texts from {source_lang} to {target_lang}, providing accurate translations without unnecessary explanations.
 
   user_prompt_prefix: |
-    Translate the following English text into Hebrew.
+    Translate the following {source_lang} text into {target_lang}.
 
   user_prompt_template: |
-    {english_key}: {segment_text}
-    {hebrew_key}:
+    {text_key}: {segment_text}
+    {translation_key}:
 
 query:
   system_prompt: |
-    You are a precise and concise translation assistant. Your task is to translate texts from English to Hebrew, providing accurate translations without unnecessary explanations.
+    You are a precise and concise translation assistant. Your task is to translate texts from {source_lang} to {target_lang}, providing accurate translations without unnecessary explanations.
 
   user_prompt_prefix: |
-    Translate the following English text into Hebrew.
+    Translate the following {source_lang} text into {target_lang}.
 
   user_prompt_template: |
     {context_key}: {context_text}
-    {english_key}: {text}
-    {hebrew_key}:
+    {text_key}: {text}
+    {translation_key}:

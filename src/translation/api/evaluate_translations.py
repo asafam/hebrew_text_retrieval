@@ -92,10 +92,10 @@ def run_evaluate_translations(
     critique_key = kwargs.get('critique_key', 'critique')
     score_key = kwargs.get('score_key', 'score')
     df = load_data(file_path=file_path, gold_file_path=gold_file_path, limit=limit, force=force, ignore_populated_column=critique_key, **kwargs)
-    english_key = kwargs.get('english_key', 'text')
-    hebrew_key = kwargs.get('hebrew_key', 'translation')
+    text_key = kwargs.get('text_key', 'text')
+    translation_key = kwargs.get('translation_key', 'translation')
     gold_key = kwargs.get('gold_key')
-    df['evaluated_translation'] = df.apply(lambda x: EvaluatedTranslation(x[english_key], x[hebrew_key], x[gold_key] if gold_key else None), axis=1)
+    df['evaluated_translation'] = df.apply(lambda x: EvaluatedTranslation(x[text_key], x[translation_key], x[gold_key] if gold_key else None), axis=1)
 
     # Get the ID columns
     id_columns = ['_id']

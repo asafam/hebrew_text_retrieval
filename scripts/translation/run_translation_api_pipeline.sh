@@ -40,8 +40,10 @@ LIMIT=0
 SLEEP_TIME=5
 FORCE=false 
 PARALLEL=true
-ENGLISH_KEY="Text"
-HEBREW_KEY="Translation"
+SOURCE_LANGUAGE="English"
+TARGET_LANGUAGE="Hebrew"
+TEXT_KEY="Text"
+TRANSLATION_KEY="Translation"
 
 # Print execution parameters
 echo "Running translation API with the following parameters:"
@@ -51,8 +53,10 @@ echo "Output directory: $OUTPUT_DIR"
 echo "Model name: $MODEL_NAME"
 echo "Limit: $LIMIT"
 echo "Sleep time between requests: $SLEEP_TIME seconds"
-echo "English key: $ENGLISH_KEY"
-echo "Hebrew key: $HEBREW_KEY"
+echo "Source language: $SOURCE_LANGUAGE"
+echo "Target language: $TARGET_LANGUAGE"
+echo "Text key: $TEXT_KEY"
+echo "Translation key: $TRANSLATION_KEY"
 echo "Force re-evaluation: ${FORCE:-false}"
 echo "Run in parallel: ${PARALLEL:-false}"
 
@@ -64,8 +68,10 @@ python src/translation/api/run_translation_pipeline.py \
     --model_name "$MODEL_NAME" \
     --limit $LIMIT \
     --sleep_time $SLEEP_TIME \
-    --english_key "$ENGLISH_KEY" \
-    --hebrew_key "$HEBREW_KEY" \
+    --source_lang "$SOURCE_LANGUAGE" \
+    --target_lang "$TARGET_LANGUAGE" \
+    --text_key "$TEXT_KEY" \
+    --translation_key "$TRANSLATION_KEY" \
     ${FORCE:+--force} \
     ${PARALLEL:+--parallel}
 echo "Done."

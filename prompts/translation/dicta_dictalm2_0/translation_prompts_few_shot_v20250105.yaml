@@ -1,45 +1,45 @@
 document:
   prompt_prefix: |
-    {english_key}: And during the evening they would sit, each man under his vine and under his fig tree, with his wife and children sitting with him, happy with their work and delighted in their sitting, and they would reminisce about the old days in the Diaspora, like people who in happy times recall days of sorry, and delight doubly in the good.
-    {hebrew_key}: לעתותי ערב כל אחד ואחד יושב לו איש תחת גפנו ואיש תחת תאנתו, כשאשתו ובניו ובנותיו יושבים עמו, שמחים על עבודת<STOP>
+    {text_key}: And during the evening they would sit, each man under his vine and under his fig tree, with his wife and children sitting with him, happy with their work and delighted in their sitting, and they would reminisce about the old days in the Diaspora, like people who in happy times recall days of sorry, and delight doubly in the good.
+    {translation_key}: לעתותי ערב כל אחד ואחד יושב לו איש תחת גפנו ואיש תחת תאנתו, כשאשתו ובניו ובנותיו יושבים עמו, שמחים על עבודת<STOP>
     
-    {english_key}: At the end of the year 1914, the sounds of the First World War started to sound. The superpowers of the world clashed in a frontal battle that was accompanied by blood, fire and smoke.
-    {hebrew_key}: בשלהי שנת 1914 החלו קולות המלחמה העולמית הראשונה להרעים. מעצמות תבל התנגשו בקרב חזיתי שלווה בדם ואש ותימרות עשן.<STOP>
+    {text_key}: At the end of the year 1914, the sounds of the First World War started to sound. The superpowers of the world clashed in a frontal battle that was accompanied by blood, fire and smoke.
+    {translation_key}: בשלהי שנת 1914 החלו קולות המלחמה העולמית הראשונה להרעים. מעצמות תבל התנגשו בקרב חזיתי שלווה בדם ואש ותימרות עשן.<STOP>
 
-    {english_key}: The commander who got the authorization declares delightedly that the explosion is dedicated to the residents of the kibbutz. He counts down until the loud explosion and the shock wave that comes afterward. The officer grabs me from behind by my shoulders, to keep from falling.  A humongous cloud of smoke rises in front of us. It gradually disappears, and the view to the kibbutz can be seen.
-    {hebrew_key}: המפקד שקיבל הרשאה מכריז חגיגית שהפיצוץ מוקדש לתושבי הקיבוץ. הוא סופר לאחור עד הפיצוץ המהדהד וגל ההדף שבעקבותיו. הקצין אוחז מאחור בכתפיי, מוודא יציבות. פטריית עשן עצומה מתאבכת מולנו. היא מתפזרת בהדרגה, והנוף לקיבוץ מתבהר.<STOP>
+    {text_key}: The commander who got the authorization declares delightedly that the explosion is dedicated to the residents of the kibbutz. He counts down until the loud explosion and the shock wave that comes afterward. The officer grabs me from behind by my shoulders, to keep from falling.  A humongous cloud of smoke rises in front of us. It gradually disappears, and the view to the kibbutz can be seen.
+    {translation_key}: המפקד שקיבל הרשאה מכריז חגיגית שהפיצוץ מוקדש לתושבי הקיבוץ. הוא סופר לאחור עד הפיצוץ המהדהד וגל ההדף שבעקבותיו. הקצין אוחז מאחור בכתפיי, מוודא יציבות. פטריית עשן עצומה מתאבכת מולנו. היא מתפזרת בהדרגה, והנוף לקיבוץ מתבהר.<STOP>
 
-    {english_key}: Over the last few years, the much praised musician wished to play his few melodies in his study, whose windows looked out to a beautiful view of chains of mountains, neverending forests, and fresh springs that burst forst between the green and shining fields.
-    {hebrew_key}: בשנים האחרונות אוה לו המנגן המהולל לנגן את נגינותיו הבודדות בחדר משכיתו, שחלונותיו נשקפים אל יפה־נוף של שלשלאות הרים, יערי עד ומעינות חיים הפורצים להם דרכם בין ירק חרוץ ומזהיר.<STOP>
+    {text_key}: Over the last few years, the much praised musician wished to play his few melodies in his study, whose windows looked out to a beautiful view of chains of mountains, neverending forests, and fresh springs that burst forst between the green and shining fields.
+    {translation_key}: בשנים האחרונות אוה לו המנגן המהולל לנגן את נגינותיו הבודדות בחדר משכיתו, שחלונותיו נשקפים אל יפה־נוף של שלשלאות הרים, יערי עד ומעינות חיים הפורצים להם דרכם בין ירק חרוץ ומזהיר.<STOP>
 
-    {english_key}: The previous mayor continues to serve as a public figure on a national level. She has plenty of public support. Every few minutes a local acquaintance approaches the table and praises her with loving words. Her cellphone is full of appreciative texts which she received.
-    {hebrew_key}: ראש העיר לשעבר ממשיכה לכהן כידוענית בקנה מידה ארצי. אהדה ציבורית לא חסרה לה. מדי כמה דקות ניגש לשולחן שלנו מכר מקומי ומרעיף עליה מילות חיבה. הטלפון הנייד שלה מכיל מסרוני תודה לבביים שקיבלה.<STOP>
+    {text_key}: The previous mayor continues to serve as a public figure on a national level. She has plenty of public support. Every few minutes a local acquaintance approaches the table and praises her with loving words. Her cellphone is full of appreciative texts which she received.
+    {translation_key}: ראש העיר לשעבר ממשיכה לכהן כידוענית בקנה מידה ארצי. אהדה ציבורית לא חסרה לה. מדי כמה דקות ניגש לשולחן שלנו מכר מקומי ומרעיף עליה מילות חיבה. הטלפון הנייד שלה מכיל מסרוני תודה לבביים שקיבלה.<STOP>
 
-    {english_key}: I saw that the afternoon sun had not yet come down from the tree in front of the house, and hadn"t sent her rays of light, to wash out the blank pages next to my pen.
-    {hebrew_key}: ראיתי ששמש אחר הצהריים טרם רכנה מבעד האילן שלפני הבית, ולא שלחה רצדי אור, לסנוור את הדפים הריקים שליד עטי.<STOP>
+    {text_key}: I saw that the afternoon sun had not yet come down from the tree in front of the house, and hadn"t sent her rays of light, to wash out the blank pages next to my pen.
+    {translation_key}: ראיתי ששמש אחר הצהריים טרם רכנה מבעד האילן שלפני הבית, ולא שלחה רצדי אור, לסנוור את הדפים הריקים שליד עטי.<STOP>
   prompt_template: |
-    {english_key}: {text}
-    {hebrew_key}:
+    {text_key}: {text}
+    {translation_key}:
 
 query:
   prompt_prefix: |
     {context_key}: The presence of communication amid scientific minds was equally important to the success of the Manhattan Project as scientific intellect was. The only cloud hanging over the impressive achievement of the atomic researchers and engineers is what their success truly meant; hundreds of thousands of innocent lives obliterated.
-    {english_key}: what was the immediate impact of the success of the manhattan project?
-    {hebrew_key}: מה הייתה ההשפעה המיידית להצלחת פרוייקט מנהטן?<STOP>
+    {text_key}: what was the immediate impact of the success of the manhattan project?
+    {translation_key}: מה הייתה ההשפעה המיידית להצלחת פרוייקט מנהטן?<STOP>
 
     {context_key}: One of the reasons children are more likely than adults to get ear infections is that their eustachian tubes are smaller and more horizontal than the tubes in most adults. If you have small eustachian tubes or you have tubes that haven't developed more of a slope, you're at a higher risk for developing an ear infection.
-    {english_key}: what causes ear infection in adults
-    {hebrew_key}: מה גורם לזיהום באוזן בקרב מבוגרים<STOP>
+    {text_key}: what causes ear infection in adults
+    {translation_key}: מה גורם לזיהום באוזן בקרב מבוגרים<STOP>
 
     {context_key}: Some of the uterine fibroid symptoms that may still persist after menopause include: 1 Pelvic pressure: You may continue to experience severe pain similar to cramps before a period. Urinary urgency: If the fibroids are pushing on the bladder, it can cause you to have to urinate frequently.
-    {english_key}: fibroid symptoms after menopause
-    {hebrew_key}: סימפטומים של שרירנים לאחר גיל המעבר<STOP>
+    {text_key}: fibroid symptoms after menopause
+    {translation_key}: סימפטומים של שרירנים לאחר גיל המעבר<STOP>
 
     {context_key}: The truth is nuclear power is dangerous, costly, and will create more problems that it could ever hope to solve. Here is the truth about nuclear power and seven reasons why nuclear power is bad for the environment and for the nation. http://www.examiner.com/environmental-news-in-national/7-reasons-why-nuclear-power-is-bad-for-the-environment-and-the-nation. Login to post comments.
-    {english_key}: reasons why nuclear power is bad
-    {hebrew_key}: סיבות מדוע כוח גרעיני הוא רע<STOP>
+    {text_key}: reasons why nuclear power is bad
+    {translation_key}: סיבות מדוע כוח גרעיני הוא רע<STOP>
 
   prompt_template: |
     {context_key}: {context_text}
-    {english_key}: {text}
-    {hebrew_key}:
+    {text_key}: {text}
+    {translation_key}:
