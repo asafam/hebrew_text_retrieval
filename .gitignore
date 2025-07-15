@@ -167,3 +167,4 @@ checkpoints
 /data/
 embeddings
 /outputs/
+wandb/
