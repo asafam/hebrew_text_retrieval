@@ -15,9 +15,9 @@ from translation.api.utils import *
 def translate(system_prompt: str,
               user_prompt: str,
               model_name: str,
-              temperature=0.7,
-              response_format=Translation,
-              fail_on_error=True):
+              temperature: float = 0.0,
+              response_format = Translation,
+              fail_on_error: bool = True):
     start_datetime = datetime.now()
 
     # Define the messages
@@ -67,21 +67,22 @@ def run_translation_pipeline(source_file_path: str,
                              output_dir: str,
                              prompt_file_name: str,
                              model_name: str,
+                             id_field: str = 'id',
                              limit: int = 0,
                              force: bool = False,
                              parallel: bool = False,
-                             sleep_time: int = 0,
+                             sleep_time: int = 5,
                              **kwargs):
     # Determine the output file path
     output_file_path = get_output_file(source_file_path, output_dir, **kwargs).replace('.csv', '_translated.csv')
-    print(f"Translation output file path: {output_file_path}")
+    print(f"Target translation output file path: {output_file_path}")
 
     # Load the data
     file_path = output_file_path if os.path.exists(output_file_path) else source_file_path
     df = load_data(file_path, limit, force=force, ignore_populated_column='translation')
 
     # Get the ID columns
-    id_columns = ['_id']
+    id_columns = [id_field]
     if 'segment_id' in df.columns:
         id_columns.append('segment_id')
 
@@ -100,16 +101,15 @@ def run_translation_pipeline(source_file_path: str,
     # Translate the batch data
     if parallel:
         df = translate_parallel(df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, 
-                                   num_workers=kwargs.get('num_workers', 0), 
-                                   sleep_time=sleep_time)
+                                   num_workers=kwargs.get('num_workers', 0), sleep_time=sleep_time)
     else:
-        df = translate_serial(df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, 
-                                    sleep_time=sleep_time)
+        df = translate_serial(df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path)
 
     return df
 
 
-def translate_serial(source_df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, sleep_time: int = 0):
+def translate_serial(source_df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path):
+    print(f"Translating {len(batch_data)} items serially...")
     # Translate a batch of texts
     translation_datetime = datetime.now()
     for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
@@ -143,14 +143,10 @@ def translate_serial(source_df, batch_data, model_name, response_format, prompt_
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         translated_df.to_csv(output_file_path, encoding='utf-8', index=False)
 
-        # Sleep between requests
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-
     return translated_df
 
 
-def translate_parallel(source_df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, num_workers: int = 0, sleep_time: int = 0):
+def translate_parallel(source_df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path, num_workers: int = 0, sleep_time: int = 5):
     """
     Translates a batch of data in parallel and saves results to a CSV file.
 
@@ -161,6 +157,8 @@ def translate_parallel(source_df, batch_data, model_name, response_format, promp
         prompt_file_name (str): Filename associated with the prompts.
         id_columns (list): List of columns to use as identifiers.
         output_file_path (str): Path to save the translated results.
+        num_workers (int): Number of parallel workers to use. Defaults to 0, which uses CPU count - 1.
+        sleep_time (int): Time to sleep between requests to avoid rate limiting. Defaults to 5 seconds.
     
     Returns:
         pd.DataFrame: DataFrame containing the merged translation results.
@@ -238,6 +236,6 @@ def translate_batch_item(args, **kwargs):
     }
 
     if sleep_time > 0:
-        time.sleep(kwargs['sleep_time'])
+        time.sleep(sleep_time)
 
     return translated_item

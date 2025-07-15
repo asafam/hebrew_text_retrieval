@@ -10,29 +10,37 @@ from torch import nn
 import torch.nn.functional as F
 from pathlib import Path
 from data.heq.heq_data import HeQDatasetBuilder, HeQTaskName
+from data.squad_v2 import SquadV2DatasetBuilder
 from model.dual_encoder.models import InfoNCEDualEncoder, InfoNCEDualEncoderConfig
 
-def get_dataset():
-    heq_dataset_builder = HeQDatasetBuilder(task=HeQTaskName.QUESTION_DOC, decorate_with_task_tokens=False)
-    heq_dataset = heq_dataset_builder.build_dataset(filter_empty_answers=True)
-    return heq_dataset
+def get_dataset(dataset_name: str, **kwargs):
+    if dataset_name.lower() == "heq":
+        dataset_builder = HeQDatasetBuilder(task=HeQTaskName.QUESTION_DOC, decorate_with_task_tokens=False)
+        dataset = dataset_builder.build_dataset(filter_empty_answers=True)
+        return dataset
+    elif dataset_name.lower() == "squad_v2":
+        dataset_builder = SquadV2DatasetBuilder(queries_base_path='data/squad_v2',
+                                                query_field=kwargs.get("query_field"), 
+                                                document_field=kwargs.get("document_field"))
+        dataset = dataset_builder.build_dataset()
+        return dataset
 
 
 def preprocess(
         example,
         tokenizer_q,
         tokenizer_d,
-        query='question', 
-        paragraph='context', 
+        query_field='query', 
+        document_field='context', 
         truncation=True, 
         padding="max_length", 
         max_length=1024
     ):
     q = tokenizer_q(
-        example[query], truncation=truncation, padding=padding, max_length=max_length
+        example[query_field], truncation=truncation, padding=padding, max_length=max_length
     )
     d = tokenizer_d(
-        example[paragraph], truncation=truncation, padding=padding, max_length=max_length
+        example[document_field], truncation=truncation, padding=padding, max_length=max_length
     )
     return {
         "q_input_ids": q['input_ids'],
@@ -52,9 +60,12 @@ def collate_fn(batch):
 
 
 def main(
+    dataset_name: str,
     query_model_name: str,
     doc_model_name: str,
     output_dir: str,
+    query_field: str = 'question',
+    document_field: str = 'context',
     num_train_epochs: int = 3,
     per_device_train_batch_size: int = 8,
     learning_rate=2e-5,
@@ -88,8 +99,13 @@ def main(
     tokenizer_q = AutoTokenizer.from_pretrained(query_model_name)
     tokenizer_d = AutoTokenizer.from_pretrained(doc_model_name)
     
-    heq_dataset = get_dataset()
-    processed = heq_dataset.map(lambda sample: preprocess(sample, tokenizer_q, tokenizer_d, max_length=max_length))
+    dataset = get_dataset(dataset_name, query_field=query_field, document_field=document_field)
+    processed = dataset.map(lambda sample: preprocess(sample, 
+                                                      tokenizer_q, 
+                                                      tokenizer_d, 
+                                                      query_field=query_field, 
+                                                      document_field=document_field, 
+                                                      max_length=max_length))
 
     config = InfoNCEDualEncoderConfig(query_model_name=query_model_name, 
                                       doc_model_name=doc_model_name, 
@@ -109,6 +125,8 @@ def main(
         save_steps=save_steps,
         eval_strategy=eval_strategy,
         eval_steps=eval_steps,
+        report_to="wandb",
+        run_name=f"dual_encoder_infonce_{dataset_name}_{query_model_name.replace('/', '-')}",
     )
 
     trainer = Trainer(
@@ -136,9 +154,12 @@ def main(
 if __name__ == "__main__":
     argparse.ArgumentParser(description="Train a dual encoder model with InfoNCE loss on HeQ dataset.")
     parser = argparse.ArgumentParser(description="Train a dual encoder model with InfoNCE loss on HeQ dataset.")
+    parser.add_argument("--dataset_name", type=str, default="heq", help="Name of the dataset to use (e.g., 'heq' or 'squad_v2')")
     parser.add_argument("--query_model_name", type=str, default="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250522_1841", help="Query model name or path")
     parser.add_argument("--doc_model_name", type=str, default="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250522_1841", help="Document model name or path (optional, defaults to query model if not provided)"),
     parser.add_argument("--output_dir", type=str, default="./outputs/models/dual_encoder/dual_encoder_infonce_heq", help="Output directory for model and logs")    
+    parser.add_argument("--query_field", type=str, default="query", help="Field name for query in the dataset")
+    parser.add_argument("--document_field", type=str, default="context", help="Field name for document in the dataset")
     parser.add_argument("--num_train_epochs", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--per_device_train_batch_size", type=int, default=8, help="Batch size per device during training")
     parser.add_argument("--learning_rate", type=float, default=2e-5, help="Learning rate for training")
@@ -151,9 +172,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     main(
+        dataset_name=args.dataset_name,
         query_model_name=args.query_model_name,
         doc_model_name=args.doc_model_name,
         output_dir=args.output_dir,
+        query_field=args.query_field,
+        document_field=args.document_field,
         num_train_epochs=args.num_train_epochs,
         per_device_train_batch_size=args.per_device_train_batch_size,
         learning_rate=args.learning_rate,

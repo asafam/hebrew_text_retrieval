@@ -11,6 +11,20 @@ from translation.utils import count_tokens
 from data.translation_candidates import TranslationCandidatesDataBuilder
 
 
+BeIR = {
+    'Misc': ['BeIR/msmarco'], 
+    'Fact checking': ['BeIR/fever', 'BeIR/climate-fever', 'BeIR/scifact'],
+    'Citation-Prediction': ['BeIR/scidocs'],
+    'Duplicate question retrieval': ['BeIR/quora'], # CQADupStack
+    'Argument retrieval': ['BeIR/arguana'], # Touche-2020
+    'News retrieval': [], # TREC-NEWS, Robust04
+    'Question answering': ['BeIR/nq', 'BeIR/hotpotqa'], # FiQA-2018
+    'Tweet retrieval': [], # Signal-1M
+    'Bio-medical IR': ['BeIR/trec-covid', 'BeIR/nfcorpus'], # BioASQ
+    'Entity retrieval': ['BeIR/dbpedia-entity'],
+}
+
+
 class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
     def build_data(self, 
                    dataset_name: str, 
@@ -117,44 +131,3 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
 
     def _get_document_tokens(self, document: dict):
         return self.tokenizer(document['text'])["input_ids"]
-
-
-def build_data(dataset_name: str, **kwargs):
-    builder = _get_builder(dataset_name)
-    dataset = builder.build_data(dataset_name=dataset_name, **kwargs)
-    return dataset
-
-
-def _get_builder(dataset_name: str) -> BaseBeIRDataBuilder:
-    folder_path = os.path.dirname(os.path.abspath(__file__))
-
-    # Get all Python files in the folder
-    files = [f for f in os.listdir(folder_path) if f.endswith('.py') and f != '__init__.py']
-
-    # List to hold instantiated classes
-    builders = []
-
-    # Loop through the files and load classes that inherit from BeIRDatasetLoader or extend it
-    for file in files:
-        module_path = os.path.join(folder_path, file)
-
-        # Dynamically load the module
-        spec = importlib.util.spec_from_file_location(file[:-3], module_path)  # Remove .py extension
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        # Iterate over all members of the module to find classes
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            # Check if the class is BeIRDatasetLoader or extends it
-            if issubclass(obj, BaseBeIRDataBuilder) and obj != BaseBeIRDataBuilder:
-                builder = obj()
-                builders.append(builder)
-
-    # Filter classes by whether they match the prompt_type
-    matching_builders = [l for l in builders if l.is_match(dataset_name)]
-
-    if not matching_builders:
-        return None
-
-    builder = matching_builders[0]
-    return builder

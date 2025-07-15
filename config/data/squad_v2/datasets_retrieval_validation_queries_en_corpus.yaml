@@ -1,0 +1,10 @@
+- name: squad_v2
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/squad_v2/validation/queries.jsonl
+  text_field: question_english
+  remove_duplicates: True
+  split_ratio:
+    train: 0.0
+    validation: 1.0
+    test: 0.0

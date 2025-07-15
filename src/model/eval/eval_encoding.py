@@ -15,6 +15,7 @@ def main(model_name_or_path,
          documents_path,
          output_file,
          batch_size=32,
+         max_length=None,
          text_field = "text"):
     tokenizer_name_or_path = tokenizer_name_or_path or model_name_or_path
     print(f"Loading tokenizer from {tokenizer_name_or_path}")
@@ -61,7 +62,7 @@ def main(model_name_or_path,
             return_tensors="pt",
             padding="max_length",
             truncation=True,
-            max_length=tokenizer.model_max_length
+            max_length=(max_length or tokenizer.model_max_length)
         ).to(device)
         input_ids = tokens["input_ids"]
         total_tokens += input_ids.numel()
@@ -111,11 +112,12 @@ if __name__ == "__main__":
     parser.add_argument("--documents_path", type=str, required=True, help="Path to the dataset.")
     parser.add_argument("--output_file", type=str, required=True, help="File to save the evaluation results.")
     parser.add_argument("--batch_size", type=int, default=32, help="Batch size for encoding.")
+    parser.add_argument("--max_length", type=int, default=None, help="Maximum length for tokenization. If None, uses tokenizer's max length.")
     args = parser.parse_args()
 
     main(model_name_or_path=args.model_name_or_path, 
          tokenizer_name_or_path =args.tokenizer_name_or_path,
          documents_path=args.documents_path,
          output_file=args.output_file,
-         batch_size=args.batch_size)  # You can adjust the batch size as needed
-p
+         batch_size=args.batch_size,
+         max_length=args.max_length)

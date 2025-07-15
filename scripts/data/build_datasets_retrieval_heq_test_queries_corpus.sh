@@ -9,8 +9,8 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CONFIG_FILE="config/data/datasets_retrieval_test_queries_corpus.yaml"
-OUTPUT_PATH="data/retrieval/queries/test.jsonl"
+CONFIG_FILE="config/data/heq/datasets_retrieval_test_queries_corpus.yaml"
+OUTPUT_PATH="data/retrieval/heq/test/queries.jsonl"
 FORMAT="jsonl"
 SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000

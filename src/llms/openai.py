@@ -3,14 +3,14 @@ import os
 
 class OpenAILLM():
     def __init__(self, 
-                 organization=os.environ['OPENAI_API_ORG'],
-                 api_key=os.environ['OPENAI_API_KEY'],
-                 project=os.environ['OPENAI_PROJECT'],
+                 organization,
+                 api_key,
+                 project,
                  base_url=None):
         args = dict(
-            organization=organization,
-            api_key=api_key,
-            project=project
+            organization=organization or os.environ['OPENAI_API_ORG'],
+            api_key=api_key or os.environ['OPENAI_API_KEY'],
+            project=project or os.environ['OPENAI_PROJECT']
         )
         if base_url:
             args['base_url'] = base_url

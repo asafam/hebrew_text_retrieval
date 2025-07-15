@@ -9,8 +9,8 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CONFIG_FILE="config/data/datasets_train_corpus.yaml"
-OUTPUT_PATH="data/hebrew_modernbert/v20250428"
+CONFIG_FILE="config/data/train/datasets_h50_e75_c25/datasets_train_corpus.yaml"
+OUTPUT_PATH="data/hebrew_modernbert/mixed_h50_e75_c25"
 FORMAT="mds"
 SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000
@@ -31,4 +31,5 @@ python src/data/datasets/build_datasets.py \
     --split "$SPLIT" \
     --format $FORMAT \
     --shard_size_limit $SHARD_SIZE_LIMIT \
-    --buffer_size $BUFFER_SIZE \
+    --buffer_size $BUFFER_SIZE
+echo "Dataset train corpus built successfully."

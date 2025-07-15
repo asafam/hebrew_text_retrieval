@@ -9,12 +9,12 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CONFIG_FILE="config/data/datasets_retrieval_test_documents_corpus.yaml"
-OUTPUT_PATH="data/retrieval/documents/test_v2.jsonl"
+CONFIG_FILE="config/data/squad_v2/datasets_retrieval_validation_queries_en_corpus.yaml"
+OUTPUT_PATH="data/retrieval/squad_v2/validation/queries.jsonl"
 FORMAT="jsonl"
 SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000
-SPLIT="test"
+SPLIT="validation"
 
 echo "Running the Python script: build_datasets.py"
 echo "Config file path: $CONFIG_FILE"
@@ -31,6 +31,5 @@ python src/data/datasets/build_datasets.py \
     --split "$SPLIT" \
     --format $FORMAT \
     --shard_size_limit $SHARD_SIZE_LIMIT \
-    --buffer_size $BUFFER_SIZE
-
-echo "Done."
+    --buffer_size $BUFFER_SIZE \
+    --remove_duplicates

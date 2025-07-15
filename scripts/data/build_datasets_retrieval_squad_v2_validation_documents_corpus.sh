@@ -1,6 +1,6 @@
 #!/bin/bash -i
 
-# Activate the htr conda environment
+# Activate the bert24 conda environment
 echo "Activating Conda environment: bert24"
 source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly initialized
 conda activate bert24
@@ -9,16 +9,16 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-CONFIG_FILE="config/data/train/datasets_h50_e75_c25/datasets_validation_corpus.yaml"
-OUTPUT_PATH="data/hebrew_modernbert/mixed_h50_e75_c25"
-FORMAT="mds"
+CONFIG_FILE="config/data/squad_v2/datasets_retrieval_validation_documents_he_corpus.yaml"
+OUTPUT_PATH="data/retrieval/squad_v2/validation/documents.jsonl"
+FORMAT="jsonl"
 SHARD_SIZE_LIMIT=67108864
 BUFFER_SIZE=1000000
 SPLIT="validation"
 
 echo "Running the Python script: build_datasets.py"
 echo "Config file path: $CONFIG_FILE"
-echo "Output directory: $OUTPUT_PATH"
+echo "Output directory: $OUTPUT_DIR"
 echo "Split: $SPLIT"
 echo "Format: $FORMAT"
 echo "Shard size limit: $SHARD_SIZE_LIMIT"
@@ -32,4 +32,5 @@ python src/data/datasets/build_datasets.py \
     --format $FORMAT \
     --shard_size_limit $SHARD_SIZE_LIMIT \
     --buffer_size $BUFFER_SIZE
-echo "Dataset validation corpus built successfully."
+
+echo "Done."

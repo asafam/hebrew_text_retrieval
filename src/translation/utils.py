@@ -16,14 +16,14 @@ def count_tokens(text, model_or_tokenizer_name="gpt-4"):
         return len(tokens["input_ids"][0]) if "input_ids" in tokens else 0
     
 
-def hash(text):
-    hash = hashlib.md5(text.encode('utf-8')).hexdigest()
-    return hash
+def hash_text(text):
+    hashed_text = hashlib.md5(text.encode('utf-8')).hexdigest()
+    return hashed_text
 
 
-def split_document_by_segments(document: dict, model_name_or_path: str, context_field: str = "text", max_tokens: int = 256):
+def split_document_by_segments(document: dict, model_name_or_path: str, text_field: str = "text", max_tokens: int = 256):
         # Split document into sentences
-        sentences = sent_tokenize(document[context_field])
+        sentences = sent_tokenize(document[text_field])
 
         # Split into segments based on max tokens
         segments = []
@@ -54,7 +54,6 @@ def split_document_by_segments(document: dict, model_name_or_path: str, context_
         for idx, segment in enumerate(segments):
             document_segments.append({
                 **document,
-                'text': document['text'],
                 'segment_id': idx,
                 'segment_text': segment
             })

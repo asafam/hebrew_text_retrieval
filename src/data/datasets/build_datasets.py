@@ -74,6 +74,8 @@ def build(
                         exclude_jsonl_files=config.get("exclude_files", []),
                         split=split,
                         split_ratio=config.get("split_ratio", {}).get("validation", 0.1),
+                        text_field=config.get("text_field", "text"),
+                        guid_field=config.get("guid_field", None),
                         limit=config.get("limit", 0),
                         random_state=random_state
                     )

@@ -14,8 +14,10 @@ source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly
 conda activate htr
 
 # Load environment variables from .env file
+echo "Loading environment variables from .env file"
 if [ -f .env ]; then
     source .env
+    echo "Environment variables loaded successfully."
 else
     echo ".env file not found!"
     exit 1
@@ -23,18 +25,19 @@ fi
 
 # Define environment variables
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=3
+
 
 # This script runs the translate_queries Python script with the specified arguments.
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=(
-    "/Users/asaf/Workspace/biu/hebrew_text_retrieval/outputs/translation/BeIR/long_documents/long_docs_segmented_512.csv"
+   "outputs/translation/rajpurkar_squad_v2/train/documents.csv" "outputs/translation/rajpurkar_squad_v2/train/queries.csv"
 ) 
 PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_zeroshot_v20250220.yaml"
-OUTPUT_DIR="outputs/translation/BeIR/long_documents/gemini-2.0-flash-lite"
+OUTPUT_DIR="outputs/translation/rajpurkar_squad_v2/train/gemini-2.0-flash-lite"
 MODEL_NAME="gemini-2.0-flash-lite" # "gpt-4o-mini-2024-07-18"  
 LIMIT=0
+SLEEP_TIME=5
 FORCE=false 
 PARALLEL=true
 ENGLISH_KEY="Text"
@@ -47,6 +50,7 @@ echo "Prompt file name: $PROMPT_FILE_NAME"
 echo "Output directory: $OUTPUT_DIR"
 echo "Model name: $MODEL_NAME"
 echo "Limit: $LIMIT"
+echo "Sleep time between requests: $SLEEP_TIME seconds"
 echo "English key: $ENGLISH_KEY"
 echo "Hebrew key: $HEBREW_KEY"
 echo "Force re-evaluation: ${FORCE:-false}"
@@ -59,8 +63,10 @@ python src/translation/api/run_translation_pipeline.py \
     --output_dir "$OUTPUT_DIR" \
     --model_name "$MODEL_NAME" \
     --limit $LIMIT \
+    --sleep_time $SLEEP_TIME \
     --english_key "$ENGLISH_KEY" \
     --hebrew_key "$HEBREW_KEY" \
-    ${FORCE:+--force}
-    ${PARALLE:+--parallel}
+    ${FORCE:+--force} \
+    ${PARALLEL:+--parallel}
+echo "Done."
     

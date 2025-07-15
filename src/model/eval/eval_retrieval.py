@@ -174,7 +174,12 @@ def main(model_name_or_path: str,
          output_file: str,
          documents_embeddings_file: str = None,
          batch_size: int = 1024,
-         max_length: int = 512):
+         max_length: int = 512,
+         query_text_field: str = "text",
+         query_context_field: str = "context",
+         document_text_field: str = "text",
+         document_source_field: str = "_source",
+         main_source: str = "heq"):
     # Load datasets
     data_files = {
         "queries": {
@@ -188,24 +193,26 @@ def main(model_name_or_path: str,
     queries_dataset = load_dataset("json", data_files=data_files["queries"], split="test")
     documents_dataset = load_dataset("json", data_files=data_files["documents"], split="test")
 
-    questions = [item["question"] for item in tqdm(queries_dataset, desc="Loading queries")]
-    gold = [item["context"] for item in tqdm(queries_dataset, desc="Loading gold documents")]  # list of lists
+    questions = [item[query_text_field] for item in tqdm(queries_dataset, desc="Loading queries")]
+    gold = [item[query_context_field] for item in tqdm(queries_dataset, desc="Loading gold documents")]  # list of lists
 
     unique_contexts = set()
     deduped_contexts = []
     contexts = [item for item in tqdm(documents_dataset, desc="Loading documents")]
     # Deduplicate contexts
-    contexts.sort(key=lambda x: 0 if x["_source"] == "heq" else 1)
+    contexts.sort(key=lambda x: 0 if x[document_source_field] == main_source else 1)
     for i, context in tqdm(enumerate(contexts), desc="Deduplicating contexts"):
         if context["guid"] not in unique_contexts:
             unique_contexts.add(context["guid"])
             deduped_contexts.append(context)
-    contexts = [c["text"] for c in deduped_contexts]
+    contexts = [c[document_text_field] for c in deduped_contexts]
     print(len(deduped_contexts), "unique contexts found.")
 
     # Find how many gold contexts are in the documents
     found_gold_contexts = [c for c in set(gold) if c in contexts]
     print(f"Found {len(found_gold_contexts)} gold contexts in the documents ({len(set(gold))}).")
+    assert len(found_gold_contexts) == len(set(gold)), \
+        "Not all gold contexts were found in the documents. Please check your data."
 
     # Encode queries and documents
     q_emb, d_emb = encode(model_name_or_path=model_name_or_path,
@@ -246,6 +253,13 @@ if __name__ == "__main__":
                         help="Path to save or load document embeddings. If None, embeddings will be re-encoded.")
     parser.add_argument("--batch_size", type=int, default=1024, help="Batch size for encoding.")
     parser.add_argument("--max_length", type=int, default=512, help="Maximum length for tokenization.")
+    parser.add_argument("--query_text_field", type=str, default="text", help="Field name for query text.")
+    parser.add_argument("--query_context_field", type=str, default="context", help="Field name for query context.")
+    parser.add_argument("--document_text_field", type=str, default="text", help="Field name for document text.")
+    parser.add_argument("--document_source_field", type=str, default="_source",
+                        help="Field name for document source (to deduplicate).")
+    parser.add_argument("--main_source", type=str, default="heq",
+                        help="Main source to prioritize when deduplicating documents.")
 
     args = parser.parse_args()
 
@@ -256,4 +270,9 @@ if __name__ == "__main__":
          output_file=args.output_file,
          documents_embeddings_file=args.documents_embeddings_file,
          batch_size=args.batch_size,
-         max_length=args.max_length)
+         max_length=args.max_length,
+         query_text_field=args.query_text_field,
+         query_context_field=args.query_context_field,
+         document_text_field=args.document_text_field,
+         document_source_field=args.document_source_field,
+         main_source=args.main_source)

@@ -6,6 +6,6 @@ class GeminiLLM(OpenAILLM):
         super().__init__(
             organization=None,
             api_key=os.environ['GEMINI_API_KEY'],
-            project=os.environ['GEMINI_PROJECT'],
+            project=os.environ['GEMINI_PROJECT_ID'],
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )

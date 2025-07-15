@@ -1,7 +1,10 @@
 import argparse
 from tqdm import tqdm
+from dotenv import load_dotenv
 from translation.api.translate import *
 
+# Automatically load .env from current directory
+load_dotenv()
 
 def main():
     parser = argparse.ArgumentParser(description="Translate queries and documents using a specified model.")
@@ -17,6 +20,7 @@ def main():
     parser.add_argument('--hebrew_key_query', type=str, default="Hebrew Query", help="Key for the Hebrew query translation in the prompt file.")
     parser.add_argument('--hebrew_key_document', type=str, default="Hebrew Document", help="Key for the Hebrew document translation in the prompt file.")
     parser.add_argument('--response_format', type=str, default="Translation", choices=("Translation", "UnifiedTranslation", "UnifiedSingleSentenceTranslation"), help="Response format for the translation.")
+    parser.add_argument('--sleep_time', type=int, default=0, help="Sleep time between requests to avoid rate limiting.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
     parser.add_argument('--parallel', action='store_true', help="Translate in parallel.")
 
@@ -36,6 +40,7 @@ def main():
             hebrew_key_query=args.hebrew_key_query,
             hebrew_key_document=args.hebrew_key_document,
             response_format=args.response_format,
+            sleep_time=args.sleep_time,
             force=args.force,
             parallel=args.parallel
         )

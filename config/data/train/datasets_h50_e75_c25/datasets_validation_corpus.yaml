@@ -8,10 +8,20 @@
     train: 0.9
     validation: 0.1
 
-- name: dolma
+- name: dolma_english
   type: jsonl
   files: 
-    - data/dolma/corpus_sampled_50B.jsonl
+    - data/dolma/corpus_sampled_eng_75B.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.9
+    validation: 0.1
+
+- name: dolma_code
+  type: jsonl
+  files: 
+    - data/dolma/corpus_sampled_code_25B.jsonl
   exclude_files:
     - .DS_Store
   split_ratio:

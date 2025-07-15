@@ -1,6 +1,7 @@
 import os
 import importlib
 import inspect
+import glob
 
 class TranslationCandidatesDataBuilder:
     def build_data(self, 
@@ -30,7 +31,8 @@ def _get_builder(dataset_name: str) -> TranslationCandidatesDataBuilder:
     folder_path = os.path.dirname(os.path.abspath(__file__))
 
     # Get all Python files in the folder
-    files = [f for f in os.listdir(folder_path) if f.endswith('.py') and f != '__init__.py']
+    print(f"Looking for Builder Python files in {folder_path}")
+    files = [f for f in glob.glob(f"{folder_path}/**/*.py")]
 
     # List to hold instantiated classes
     builders = []

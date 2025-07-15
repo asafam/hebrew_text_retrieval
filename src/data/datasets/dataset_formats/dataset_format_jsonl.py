@@ -20,6 +20,7 @@ class DatasetFormatJSONL:
             split: str = "train",
             split_ratio: float = 0.1,
             text_field: str = "text",
+            guid_field: Optional[str] = None,
             limit: int  = 0,
             encoding: str = "utf-8-sig",
             random_state: int = 42
@@ -70,9 +71,9 @@ class DatasetFormatJSONL:
 
                     record = {
                         **{key.lower(): value for key, value in data.items()},
-                        "guid": hash_text(data[text_field]),
+                        "guid": data[guid_field] if guid_field else hash_text(data[text_field]),
                         "text": data[text_field],
-                        "_source": data["source"] if "source" in data else os.path.basename(file_path),
+                        "_source": data["_source"] if "_source" in data else f"{self.name}_{os.path.basename(file_path)}",
                         "_file": os.path.basename(file_path),
                         "_row_number": idx,
                     }

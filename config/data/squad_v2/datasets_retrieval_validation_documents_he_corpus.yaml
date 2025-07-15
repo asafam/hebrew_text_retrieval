@@ -1,0 +1,23 @@
+- name: squad_v2
+  type: jsonl
+  files: 
+    - data/squad_v2/validation/documents.jsonl
+  text_field: context_hebrew
+  # guid_field: context_hash
+  remove_duplicates: True
+  split_ratio:
+    train: 0.0
+    validation: 1.0
+    test: 0.0
+    
+- name: wikipedia_hebrew
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29-2023.forgpt.jsonl
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29.forgpt.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 1.0
+    test: 0.0

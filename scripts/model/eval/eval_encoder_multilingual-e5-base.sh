@@ -14,6 +14,7 @@ TOKENIZER_PATH="intfloat/multilingual-e5-base"
 DOCUMENTS_PATH="data/retrieval/documents/test_v2.jsonl"
 OUTPUT_FILE="outputs/eval/encoder/heq_test_docs/intfloat_multilingual-e5-base/results.json"
 BATCH_SIZE=128
+MAX_LENGTH=512
 
 # Print the variables
 echo "Running the Python script: eval_encoding.py"
@@ -22,6 +23,7 @@ echo "Tokenizer path: $TOKENIZER_PATH"
 echo "Documents path: $DOCUMENTS_PATH"
 echo "Output file: $OUTPUT_FILE"
 echo "Batch size: $BATCH_SIZE"
+echo "Max length: $MAX_LENGTH"
 
 # Run the Python script
 python src/model/eval/eval_encoding.py \
@@ -29,6 +31,7 @@ python src/model/eval/eval_encoding.py \
     --tokenizer_name_or_path "$TOKENIZER_PATH" \
     --documents_path "$DOCUMENTS_PATH" \
     --output_file "$OUTPUT_FILE" \
-    --batch_size "$BATCH_SIZE"
+    --batch_size "$BATCH_SIZE" \
+    --max_length "$MAX_LENGTH"
 
 echo "Done."

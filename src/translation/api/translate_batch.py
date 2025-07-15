@@ -14,7 +14,7 @@ JOB_TRACKING_FILE_MD = "batch_jobs.json"
 def translate(system_prompts: List[str],
               user_prompts: List[str],
               model_name: str,
-              temperature=0.7,
+              temperature=0.0,
               response_format=Translation):
     # Load the OpenAI client
     client = get_openai_client()
