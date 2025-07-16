@@ -25,7 +25,7 @@ class DatasetName(Enum):
 
 
 class BaseDatasetBuilder():
-    def __init__(self, decorate_with_task_tokens: bool = True,):
+    def __init__(self, decorate_with_task_tokens: bool = False):
         self.decorate_with_task_tokens = decorate_with_task_tokens
         
     def build_dataset(self, **kwargs):

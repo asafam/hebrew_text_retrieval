@@ -41,13 +41,13 @@
             }
         },
         {
-            "name": "Run Generate Translation Candidates (SQuAD v2)",
+            "name": "Run Generate Translation Candidates",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/src/translation/build_translation_candidates.py",
             "args": [
                 "--dataset_names",
-                "rajpurkar/squad_v2",
+                "heq",
                 "--num_samples",
                 "0",
                 "--max_document_segment_tokens",
@@ -57,7 +57,7 @@
                 "--output_path",
                 "./outputs/translation",
                 "--split",
-                "validation",
+                "train",
                 "--random_state",
                 "42"
             ],

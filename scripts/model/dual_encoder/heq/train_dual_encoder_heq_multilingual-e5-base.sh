@@ -12,6 +12,8 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 DATASET_NAME="heq"
 QUERY_MODEL_NAME="intfloat/multilingual-e5-base"
 DOC_MODEL_NAME="intfloat/multilingual-e5-base"
+QUERY_FIELD="question_hebrew"
+DOCUMENT_FIELD="context_english"
 MAX_LENGTH=512
 NUM_EPOCHS=10
 OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/intfloat_multilingual-e5-base"
@@ -21,6 +23,8 @@ echo "Running the Python script: train_dual_encoder.py"
 echo "Dataset name: $DATASET_NAME"
 echo "Query model: $QUERY_MODEL_NAME"
 echo "Document model: $DOC_MODEL_NAME"
+echo "Query field: $QUERY_FIELD"
+echo "Document field: $DOCUMENT_FIELD"
 echo "Number of epochs: $NUM_EPOCHS"
 echo "Output dir: $OUTPUT_DIR"
 
@@ -29,6 +33,8 @@ python src/model/dual_encoder/train_dual_encoder.py \
     --dataset_name "$DATASET_NAME" \
     --query_model_name "$QUERY_MODEL_NAME" \
     --doc_model_name "$DOC_MODEL_NAME" \
+    --query_field "$QUERY_FIELD" \
+    --document_field "$DOCUMENT_FIELD" \
     --max_length "$MAX_LENGTH" \
     --num_train_epochs "$NUM_EPOCHS" \
     --output_dir "$OUTPUT_DIR"

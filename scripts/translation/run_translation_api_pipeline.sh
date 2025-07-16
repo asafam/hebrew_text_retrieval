@@ -31,17 +31,17 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables for input and output
 SOURCE_FILE_PATHS=(
-   "outputs/translation/rajpurkar_squad_v2/train/documents.csv" "outputs/translation/rajpurkar_squad_v2/train/queries.csv"
+   "outputs/translation/heq/validation/queries.csv" "outputs/translation/heq/validation/documents.csv"
 ) 
 PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_zeroshot_v20250220.yaml"
-OUTPUT_DIR="outputs/translation/rajpurkar_squad_v2/train/gemini-2.0-flash-lite"
+OUTPUT_DIR="outputs/translation/heq/validation/gemini-2.0-flash-lite"
 MODEL_NAME="gemini-2.0-flash-lite" # "gpt-4o-mini-2024-07-18"  
 LIMIT=0
 SLEEP_TIME=5
 FORCE=false 
 PARALLEL=true
-SOURCE_LANGUAGE="English"
-TARGET_LANGUAGE="Hebrew"
+SOURCE_LANGUAGE="Hebrew"
+TARGET_LANGUAGE="English"
 TEXT_KEY="Text"
 TRANSLATION_KEY="Translation"
 
@@ -72,7 +72,7 @@ python src/translation/api/run_translation_pipeline.py \
     --target_lang "$TARGET_LANGUAGE" \
     --text_key "$TEXT_KEY" \
     --translation_key "$TRANSLATION_KEY" \
-    ${FORCE:+--force} \
-    ${PARALLEL:+--parallel}
+    ${FORCE:+--force} ${PARALLEL:+--parallel}
+    
 echo "Done."
     

@@ -9,12 +9,12 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-DATASET_NAME="rajpurkar/squad_v2"
+DATASET_NAME="heq"
 MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
 NUM_SAMPLES=0
 MAX_DOCUMENT_SEGMENT_TOKENS=2048
 OUTPUT_PATH="./outputs/translation"
-SPLIT="train"
+SPLIT="test"
 RANDOM_STATE=42
 
 # Print the variables

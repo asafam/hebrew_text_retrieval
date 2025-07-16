@@ -78,7 +78,14 @@ def run_translation_pipeline(source_file_path: str,
     print(f"Target translation output file path: {output_file_path}")
 
     # Load the data
-    file_path = output_file_path if os.path.exists(output_file_path) else source_file_path
+    if not force and os.path.exists(output_file_path):
+        print(f"Output file {output_file_path} already exists. Do you wish to continue? (Y/n)")
+        if input().strip().lower() == 'n':
+            print("Exiting without translation.")
+            return None
+        file_path = output_file_path 
+    else: 
+        file_path = source_file_path
     df = load_data(file_path, limit, force=force, ignore_populated_column='translation')
 
     # Get the ID columns

@@ -1,5 +1,6 @@
 import argparse
 import os
+from glob import glob
 import shutil
 from dotenv import load_dotenv
 from huggingface_hub import login
@@ -9,7 +10,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from pathlib import Path
-from data.heq.heq_data import HeQDatasetBuilder, HeQTaskName
+from data.heq import HeQDatasetBuilder, HeQTaskName
 from data.squad_v2 import SquadV2DatasetBuilder
 from model.dual_encoder.models import InfoNCEDualEncoder, InfoNCEDualEncoderConfig
 
@@ -57,6 +58,12 @@ def collate_fn(batch):
         "doc_input_ids": torch.tensor([item["d_input_ids"] for item in batch]),
         "doc_attention_mask": torch.tensor([item["d_attention_mask"] for item in batch]),
     }
+
+
+def get_latest_checkpoint(output_dir):
+        checkpoints = sorted(glob(os.path.join(output_dir, "checkpoint-*")), 
+                            key=lambda x: int(x.split("-")[-1]) if x.split("-")[-1].isdigit() else -1)
+        return checkpoints[-1] if checkpoints else None
 
 
 def main(
@@ -137,7 +144,15 @@ def main(
         data_collator=collate_fn,
     )
 
-    trainer.train()
+    # Find latest checkpoint in output_dir (if any)
+    latest_checkpoint = get_latest_checkpoint(output_dir)
+
+    if latest_checkpoint is not None:
+        print(f"Resuming training from checkpoint: {latest_checkpoint}")
+        trainer.train(resume_from_checkpoint=latest_checkpoint)
+    else:
+        print("No checkpoint found, starting fresh training.")
+        trainer.train()
 
     # Save the model, tokenizer, and config
     model_dir = os.path.join(output_dir, "model")
