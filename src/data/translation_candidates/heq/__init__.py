@@ -83,7 +83,7 @@ class HeQDataBuilder(TranslationCandidatesDataBuilder):
         return queries, documents
     
     def is_match(self, dataset_name: str) -> bool:
-        return dataset_name.lower() in ["heq"]
+        return dataset_name.lower() == "nnlp-il/heq"
 
     def _get_document_tokens(self, document: dict):
         return self.tokenizer(document['text'])["input_ids"]
@@ -91,4 +91,3 @@ class HeQDataBuilder(TranslationCandidatesDataBuilder):
     def _hash_text(self, example, text_field, hash_field="hash"):
         example[hash_field] = hash_text(example[text_field])
         return example
-

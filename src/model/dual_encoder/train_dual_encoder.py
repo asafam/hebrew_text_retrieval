@@ -10,13 +10,20 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from pathlib import Path
-from data.heq import HeQDatasetBuilder, HeQTaskName
+from data.heq import HeQDatasetBuilder, HeQTranslatedDatasetBuilder
 from data.squad_v2 import SquadV2DatasetBuilder
 from model.dual_encoder.models import InfoNCEDualEncoder, InfoNCEDualEncoderConfig
 
 def get_dataset(dataset_name: str, **kwargs):
     if dataset_name.lower() == "heq":
-        dataset_builder = HeQDatasetBuilder(task=HeQTaskName.QUESTION_DOC, decorate_with_task_tokens=False)
+        dataset_builder = HeQDatasetBuilder(query_field=kwargs.get("query_field"), 
+                                            document_field=kwargs.get("document_field"))
+        dataset = dataset_builder.build_dataset(filter_empty_answers=True)
+        return dataset
+    elif dataset_name.lower() == "heq_translated":
+        dataset_builder = HeQTranslatedDatasetBuilder(queries_base_path='data/heq_translated',
+                                                      query_field=kwargs.get("query_field"), 
+                                                      document_field=kwargs.get("document_field"))
         dataset = dataset_builder.build_dataset(filter_empty_answers=True)
         return dataset
     elif dataset_name.lower() == "squad_v2":

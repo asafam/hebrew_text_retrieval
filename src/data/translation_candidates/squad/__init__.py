@@ -21,7 +21,6 @@ class SQuADDataBuilder(TranslationCandidatesDataBuilder):
                    id_field: str = 'id',
                    query_field: str = 'question',
                    context_field: str = 'context',
-
                    max_tokens: int = 2048, 
                    random_state: int = 42):
         print(f"Building data for dataset: {dataset_name}, split: {split}, n: {n}, max_tokens: {max_tokens}")
@@ -81,12 +80,8 @@ class SQuADDataBuilder(TranslationCandidatesDataBuilder):
         return queries, documents
     
     def is_match(self, dataset_name: str) -> bool:
-        return dataset_name.lower() in ["rajpurkar/squad_v2"]
+        return dataset_name.lower() == "rajpurkar/squad_v2"
 
     def _get_document_tokens(self, document: dict):
         return self.tokenizer(document['text'])["input_ids"]
-    
-    def _hash_text(self, example, text_field, hash_field="hash"):
-        example[hash_field] = hash_text(example[text_field])
-        return example
 

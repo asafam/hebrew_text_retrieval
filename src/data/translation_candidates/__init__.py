@@ -3,6 +3,8 @@ import importlib
 import inspect
 import glob
 
+from data.datasets.utils import hash_text
+
 class TranslationCandidatesDataBuilder:
     def build_data(self, 
                    dataset_name: str, 
@@ -19,6 +21,10 @@ class TranslationCandidatesDataBuilder:
     
     def is_match(self, dataset_name: str) -> bool:
         raise NotImplementedError("This method should be implemented in subclasses.")
+    
+    def hash_text(self, example, text_field, hash_field="hash"):
+        example[hash_field] = hash_text(example[text_field])
+        return example
     
 
 def build_data(dataset_name: str, **kwargs):

@@ -9,14 +9,14 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-DATASET_NAME="squad_v2"  # This should be 'heq' for the HEQ dataset
+DATASET_NAME="heq_translated"  # This should be 'heq' for the HEQ dataset
 QUERY_MODEL_NAME="onlplab/alephbert-base"
 DOC_MODEL_NAME="onlplab/alephbert-base"
 QUERY_FIELD="question_hebrew"
 DOCUMENT_FIELD="context_english"
 MAX_LENGTH=512
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/dual_encoder_infonce_heq/onlplab_alephbert-base"
+OUTPUT_DIR="./outputs/models/dual_encoder/heq_q_he_d_en/onlplab_alephbert-base"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder.py"
