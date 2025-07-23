@@ -37,9 +37,19 @@ def encode(model_name_or_path: str,
            documents_embeddings_file: str = None,
            force_reencode: bool = False):
     # Load model
-    print("Loading model...")
-    config = InfoNCEDualEncoderConfig.from_pretrained(model_name_or_path)
-    model = InfoNCEDualEncoder.from_pretrained(model_name_or_path, config=config)
+    if os.path.isdir(model_name_or_path):
+        print("Loading model from checkpoint...")
+        config = InfoNCEDualEncoderConfig.from_pretrained(model_name_or_path)
+        model = InfoNCEDualEncoder.from_pretrained(model_name_or_path, config=config)
+    else:
+        print("Loading model from config...")
+        config = InfoNCEDualEncoderConfig(query_model_name=model_name_or_path, 
+                                      doc_model_name=model_name_or_path, 
+                                      query_tokenizer_path=tokenizer_q.name_or_path,
+                                      doc_tokenizer_path=tokenizer_d.name_or_path,
+                                      pooling='cls', 
+                                      temperature=0.05)
+        model = InfoNCEDualEncoder(config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
