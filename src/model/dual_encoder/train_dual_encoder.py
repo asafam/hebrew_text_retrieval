@@ -89,12 +89,13 @@ def main(
     eval_strategy="steps",
     eval_steps=100,
     max_length=1024,
-    remove_to_overwrite: bool = False
+    remove_to_overwrite: bool = False,
+    quiet: bool = True
 ):
     if os.path.exists(output_dir):
         print(f"Output directory {output_dir} already exists. Do you wish to overwrite it? (Y/n)")
         response = input().strip().lower()
-        if response == 'n':
+        if response == 'n' or not quiet:
             print("Exiting without training.")
         else:
             print(f"Overwriting output directory {output_dir}.")
@@ -106,9 +107,10 @@ def main(
 
     # Access the token
     hf_token = os.getenv("HF_TOKEN")
+    print(f"Using Hugging Face token: {hf_token}")
 
     # Authenticate with Hugging Face
-    login(hf_token)
+    # login(hf_token)
 
     tokenizer_q = AutoTokenizer.from_pretrained(query_model_name)
     tokenizer_d = AutoTokenizer.from_pretrained(doc_model_name)

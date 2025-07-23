@@ -167,5 +167,5 @@ checkpoints
 /data/
 embeddings
 /outputs/
-wandb/*.pkl
+wandb/
 *.wandb
