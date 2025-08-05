@@ -9,16 +9,15 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-MODEL_PATH="intfloat/multilingual-e5-base"
-TOKENIZER_PATH="intfloat/multilingual-e5-base"
-QUERIES_PATH="data/retrieval/squad_v2/validation/queries.jsonl"
-DOCUMENTS_PATH="data/retrieval/squad_v2/validation/documents.jsonl"
+MODEL_PATH="onlplab/alephbert-base"
+TOKENIZER_PATH="onlplab/alephbert-base"
+QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
+DOCUMENTS_PATH="data/retrieval/heq/test/documents_long_context_1024_random.jsonl"
 BATCH_SIZE=1024
 MAX_LENGTH=512
-DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-base/model_untrained/doc_embeddings.pt"
-OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-base/model_untrained/results.txt"
-QUERY_CONTEXT_FIELD="context_hebrew"
-MAIN_SOURCE="rajpurkar_squad_v2"
+DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/doc_embeddings.pt"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/results.txt"
+DOCUMENT_TEXT_FIELD="long_context"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"
@@ -30,9 +29,7 @@ echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
 echo "Documents embeddings file: $DOCUMENTS_EMBEDDING_FILE"
 echo "Output file: $OUTPUT_FILE"
-echo "Query context field: $QUERY_CONTEXT_FIELD"
-echo "Main source: $MAIN_SOURCE"
-
+echo "Document text field: $DOCUMENT_TEXT_FIELD"
 
 # Run the Python script
 python src/model/eval/eval_retrieval.py \
@@ -44,7 +41,6 @@ python src/model/eval/eval_retrieval.py \
     --max_length "$MAX_LENGTH" \
     --documents_embeddings_file "$DOCUMENTS_EMBEDDING_FILE" \
     --output_file "$OUTPUT_FILE" \
-    --query_context_field "$QUERY_CONTEXT_FIELD" \
-    --main_source "$MAIN_SOURCE"
+    --document_text_field "$DOCUMENT_TEXT_FIELD"
 
 echo "Done."

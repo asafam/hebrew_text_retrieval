@@ -1,0 +1,34 @@
+- name: heq_translated
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/heq_translated/test/documents.jsonl
+  text_field: context_hebrew
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 1.0
+    
+- name: wikipedia_hebrew
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29-2023.forgpt.jsonl
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29.forgpt.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 1.0
+
+- name: geektime
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/mafat/hebrew/sources/GeektimeCorpus-Combined-Deduped.forgpt.jsonl
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 1.0

@@ -43,12 +43,12 @@ def encode(model_name_or_path: str,
         model = InfoNCEDualEncoder.from_pretrained(model_name_or_path, config=config)
     else:
         print("Loading model from config...")
-        config = InfoNCEDualEncoderConfig(query_model_name=model_name_or_path, 
-                                      doc_model_name=model_name_or_path, 
-                                      query_tokenizer_path=tokenizer_q.name_or_path,
-                                      doc_tokenizer_path=tokenizer_d.name_or_path,
-                                      pooling='cls', 
-                                      temperature=0.05)
+        config = InfoNCEDualEncoderConfig(query_model_name=model_name_or_path,
+                                          doc_model_name=model_name_or_path, 
+                                          query_tokenizer_path=tokenizer_name_or_path,
+                                          doc_tokenizer_path=tokenizer_name_or_path,
+                                          pooling='cls',
+                                          temperature=0.05)
         model = InfoNCEDualEncoder(config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
@@ -57,15 +57,16 @@ def encode(model_name_or_path: str,
     tokenizer_q = AutoTokenizer.from_pretrained(tokenizer_name_or_path)  # or your actual model name
     tokenizer_d = AutoTokenizer.from_pretrained(tokenizer_name_or_path)
 
-    print("Tokenizing queries...")
+    print(f"Tokenizing {len(queries):,} queries...")
     q_batch = tokenizer_q(queries, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
-    print("Tokenizing documents...")
-    d_batch = tokenizer_d(documents, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
-
     # Encode queries and documents in batches
     print("Encoding queries...")
     q_emb = batched_encode(model, model.query_encoder, q_batch['input_ids'], q_batch['attention_mask'], device=device, batch_size=batch_size)
 
+
+    print(f"Tokenizing {len(documents):,} documents...")
+    d_batch = tokenizer_d(documents, padding=True, truncation=True, max_length=max_length, return_tensors="pt")
+    
     print("Encoding documents...")
     if force_reencode or not documents_embeddings_file or not os.path.exists(documents_embeddings_file):
         d_emb = batched_encode(model, model.doc_encoder, d_batch['input_ids'], d_batch['attention_mask'], device=device, batch_size=batch_size)
@@ -83,7 +84,11 @@ def encode(model_name_or_path: str,
 def measure_performance(q_emb: torch.Tensor,
                         d_emb: torch.Tensor,
                         documents: list,
-                        gold_context_lists: list):
+                        gold: list,
+                        query_context_id_field: str = "context_guid",
+                        document_id_field: str = "guid"):
+    assert q_emb.shape[0] == len(gold), "Number of queries in embeddings and gold data must match."
+    
     sim_matrix = torch.matmul(q_emb, d_emb.t())
     sim_scores = sim_matrix.cpu().numpy()
     
@@ -94,17 +99,19 @@ def measure_performance(q_emb: torch.Tensor,
     ndcg_scores = []
     missing_count = 0
 
-    for i, gold_list in enumerate(gold_context_lists):
+    gold_context_ids_lists = [item[query_context_id_field] for item in gold]
+    for i, gold_ids_list in tqdm(enumerate(gold_context_ids_lists), desc="Measuring performance"):
         scores = sim_scores[i]
         ranked_doc_indices = np.argsort(scores)[::-1]
 
         # Match each gold to its index in corpus
         gold_indices = []
-        if type(gold_list) is not list:
-            gold_list = [gold_list]
-        for gold in gold_list:
+        if type(gold_ids_list) is not list:
+            gold_ids_list = [gold_ids_list]
+        for gold_id in gold_ids_list:
             try:
-                idx = documents.index(gold)
+                # find the index of the gold context in the documents list
+                idx = next((i for i, doc in enumerate(documents) if doc[document_id_field] == gold_id), None)
                 gold_indices.append(idx)
             except ValueError:
                 continue  # this gold not found
@@ -187,6 +194,7 @@ def main(model_name_or_path: str,
          max_length: int = 512,
          query_text_field: str = "text",
          query_context_field: str = "context",
+         query_context_id_field: str = "context_guid",
          document_text_field: str = "text",
          document_source_field: str = "_source",
          main_source: str = "heq"):
@@ -204,7 +212,10 @@ def main(model_name_or_path: str,
     documents_dataset = load_dataset("json", data_files=data_files["documents"], split="test")
 
     questions = [item[query_text_field] for item in tqdm(queries_dataset, desc="Loading queries")]
-    gold = [item[query_context_field] for item in tqdm(queries_dataset, desc="Loading gold documents")]  # list of lists
+    gold = [{
+        query_context_id_field: item[query_context_id_field],
+        query_context_field: item[query_context_field]
+    } for item in tqdm(queries_dataset, desc="Loading gold contexts")] # list of lists
 
     unique_contexts = set()
     deduped_contexts = []
@@ -215,20 +226,25 @@ def main(model_name_or_path: str,
         if context["guid"] not in unique_contexts:
             unique_contexts.add(context["guid"])
             deduped_contexts.append(context)
-    contexts = [c[document_text_field] for c in deduped_contexts]
-    print(len(deduped_contexts), "unique contexts found.")
+    contexts = [{
+        document_text_field: c[document_text_field],
+        "guid": c["guid"]
+    } for c in deduped_contexts]
+    print(f"Found {len(deduped_contexts)} unique contexts.")
 
     # Find how many gold contexts are in the documents
-    found_gold_contexts = [c for c in set(gold) if c in contexts]
-    print(f"Found {len(found_gold_contexts)} gold contexts in the documents ({len(set(gold))}).")
-    assert len(found_gold_contexts) == len(set(gold)), \
+    gold_contexts = [c[query_context_id_field] for c in gold]
+    contexts_ids = [c["guid"] for c in contexts]
+    found_gold_contexts = [c for c in set(gold_contexts) if c in contexts_ids]
+    print(f"Found {len(found_gold_contexts)} gold contexts in the documents ({len(set(gold_contexts))}).")
+    assert len(found_gold_contexts) == len(set(gold_contexts)), \
         "Not all gold contexts were found in the documents. Please check your data."
 
     # Encode queries and documents
     q_emb, d_emb = encode(model_name_or_path=model_name_or_path,
                           tokenizer_name_or_path=tokenizer_name_or_path,
                           queries=questions,
-                          documents=contexts,
+                          documents=[c[document_text_field] for c in contexts],
                           max_length=max_length,
                           documents_embeddings_file=documents_embeddings_file,
                           batch_size=batch_size)
@@ -239,8 +255,10 @@ def main(model_name_or_path: str,
     # Measure performance
     metrics = measure_performance(q_emb,
                                   d_emb,
-                                  contexts,
-                                  gold)
+                                  documents=contexts,
+                                  gold=gold,
+                                  query_context_id_field=query_context_id_field,
+                                  document_id_field=document_text_field)
     
     # Save evaluation results
     Path(output_file).parent.mkdir(parents=True, exist_ok=True)
@@ -251,6 +269,7 @@ def main(model_name_or_path: str,
 
 
 if __name__ == "__main__":
+    print("(eval_retrieval.py) Running evaluation script...")
     import argparse
 
     parser = argparse.ArgumentParser(description="Evaluate retrieval model performance.")
@@ -265,6 +284,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_length", type=int, default=512, help="Maximum length for tokenization.")
     parser.add_argument("--query_text_field", type=str, default="text", help="Field name for query text.")
     parser.add_argument("--query_context_field", type=str, default="context", help="Field name for query context.")
+    parser.add_argument("--query_context_id_field", type=str, default="context_id", help="Field name for query context id.")
     parser.add_argument("--document_text_field", type=str, default="text", help="Field name for document text.")
     parser.add_argument("--document_source_field", type=str, default="_source",
                         help="Field name for document source (to deduplicate).")

@@ -68,9 +68,16 @@ def collate_fn(batch):
 
 
 def get_latest_checkpoint(output_dir):
-        checkpoints = sorted(glob(os.path.join(output_dir, "checkpoint-*")), 
-                            key=lambda x: int(x.split("-")[-1]) if x.split("-")[-1].isdigit() else -1)
-        return checkpoints[-1] if checkpoints else None
+    # Find all checkpoint folders
+    checkpoint_dirs = sorted(
+        glob(os.path.join(output_dir, "checkpoint-*")),
+        key=lambda x: int(x.split("-")[-1]) if x.split("-")[-1].isdigit() else -1
+    )
+    # Keep only those with trainer_state.json present
+    valid_checkpoints = [
+        c for c in checkpoint_dirs if os.path.isfile(os.path.join(c, "trainer_state.json"))
+    ]
+    return valid_checkpoints[-1] if valid_checkpoints else None
 
 
 def main(
@@ -90,17 +97,18 @@ def main(
     eval_steps=100,
     max_length=1024,
     remove_to_overwrite: bool = False,
-    quiet: bool = True
+    force: bool = True
 ):
     if os.path.exists(output_dir):
         print(f"Output directory {output_dir} already exists. Do you wish to overwrite it? (Y/n)")
-        response = input().strip().lower()
-        if response == 'n' or not quiet:
-            print("Exiting without training.")
-        else:
+        response = input().strip().lower() if not force else 'y'
+
+        if response == 'y':
             print(f"Overwriting output directory {output_dir}.")
             if remove_to_overwrite:
                 shutil.rmtree(output_dir)
+        else:
+            print("Exiting without training.")
                 
     # Load .env file
     load_dotenv()
@@ -193,6 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_strategy", type=str, default="steps", help="Evaluation strategy to use")
     parser.add_argument("--eval_steps", type=int, default=100, help="Run evaluation every X steps")
     parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length for tokenization")
+    parser.add_argument("--force", action='store_true', help="Remove output directory if it exists before training")
     args = parser.parse_args()
     
     main(
@@ -210,5 +219,6 @@ if __name__ == "__main__":
         save_steps=args.save_steps,
         eval_strategy=args.eval_strategy,
         eval_steps=args.eval_steps,
-        max_length=args.max_length
+        max_length=args.max_length,
+        force=args.force,
     )

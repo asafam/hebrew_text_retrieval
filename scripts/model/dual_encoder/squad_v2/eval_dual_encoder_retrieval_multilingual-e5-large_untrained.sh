@@ -15,8 +15,8 @@ QUERIES_PATH="data/retrieval/squad_v2/validation/queries.jsonl"
 DOCUMENTS_PATH="data/retrieval/squad_v2/validation/documents.jsonl"
 BATCH_SIZE=1024
 MAX_LENGTH=512
-DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-large_untrained/model/doc_embeddings.pt"
-OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-large_untrained/model/results.txt"
+DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-large/model_untrained/doc_embeddings.pt"
+OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/intfloat_multilingual-e5-large/model_untrained/results.txt"
 QUERY_CONTEXT_FIELD="context_hebrew"
 MAIN_SOURCE="rajpurkar_squad_v2"
 

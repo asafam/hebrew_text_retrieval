@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Load .env file from current working directory
+if [ -f ".env" ]; then
+    export $(grep -E '^EMAIL=' ".env" | xargs)
+else
+    echo "❌ Error: .env file not found in current directory"
+    exit 1
+fi
+
+if [[ -z "$EMAIL" ]]; then
+    echo "❌ Error: EMAIL variable not set in .env"
+    exit 1
+fi
+
 # Default values
 PARTITION="A100-4h"
 GPUS=1
@@ -9,6 +22,7 @@ CPUS=4
 # Required values (initially empty)
 JOB_NAME=""
 SCRIPT=""
+SCRIPT_ARGS=()
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -19,6 +33,7 @@ while [[ $# -gt 0 ]]; do
     --cpus) CPUS="$2"; shift 2 ;;
     --job-name) JOB_NAME="$2"; shift 2 ;;
     --script) SCRIPT="$2"; shift 2 ;;
+    --) shift; SCRIPT_ARGS=("$@"); break ;;   # Everything after -- is for the script
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -47,8 +62,8 @@ cat <<EOF | sbatch
 #SBATCH --gres=gpu:${GPUS}
 #SBATCH --mem=${MEM}
 #SBATCH --cpus-per-task=${CPUS}
-#SBATCH --mail-user=your.email@example.com
+#SBATCH --mail-user=${EMAIL}
 #SBATCH --mail-type=END,FAIL
 
-bash ${SCRIPT}
+bash ${SCRIPT} ${SCRIPT_ARGS[@]}
 EOF

@@ -1,0 +1,12 @@
+- name: heq_translated
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/heq_translated/test/queries.jsonl
+  text_field: question_english
+  text_field: context_hebrew
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 1.0
