@@ -7,7 +7,6 @@ conda activate htr
 
 # Add src folder to PYTHONPATH
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=2
 
 # Define variables
 MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
@@ -16,8 +15,9 @@ QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
 DOCUMENTS_PATH="data/retrieval/heq/test/documents_long_context_1024_random.jsonl"
 BATCH_SIZE=64
 MAX_LENGTH=1024
-DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/doc_embeddings.pt"
-OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/results.txt"
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/doc_embeddings_1024.pt"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/results_1024.txt"
+DOCUMENT_TEXT_FIELD="long_context"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"
@@ -27,8 +27,9 @@ echo "Queries path: $QUERIES_PATH"
 echo "Documents path: $DOCUMENTS_PATH"
 echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
-echo "Documents embeddings file: $DOCUMENTS_EMBEDDING_FILE"
+echo "Embeddings files path: $EMBEDDING_FILES_PATH"
 echo "Output file: $OUTPUT_FILE"
+echo "Document text field: $DOCUMENT_TEXT_FIELD"
 
 # Run the Python script
 python src/model/eval/eval_retrieval.py \
@@ -38,7 +39,8 @@ python src/model/eval/eval_retrieval.py \
     --documents_path "$DOCUMENTS_PATH" \
     --batch_size "$BATCH_SIZE" \
     --max_length "$MAX_LENGTH" \
-    --documents_embeddings_file "$DOCUMENTS_EMBEDDING_FILE" \
-    --output_file "$OUTPUT_FILE"
+    --embeddings_files_path "$EMBEDDING_FILES_PATH" \
+    --output_file "$OUTPUT_FILE" \
+    --document_text_field "$DOCUMENT_TEXT_FIELD"
 
 echo "Done."

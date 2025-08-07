@@ -7,7 +7,6 @@ conda activate htr
 
 # Add src folder to PYTHONPATH
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=2
 
 # Define variables
 MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250603_1331/ep5-ba708253-rank0"

@@ -9,14 +9,14 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-MODEL_PATH="intfloat/multilingual-e5-large"
-TOKENIZER_PATH="intfloat/multilingual-e5-large"
-QUERIES_PATH="data/retrieval/queries/test.jsonl"
-DOCUMENTS_PATH="data/retrieval/documents/test.jsonl"
-BATCH_SIZE=1024
+MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_v2"
+TOKENIZER_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_v2"
+QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
+DOCUMENTS_PATH="data/retrieval/heq/test/documents.jsonl"
+BATCH_SIZE=128
 MAX_LENGTH=512
-DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_heq/intfloat_multilingual-e5-large/model_untrained/doc_embeddings.pt"
-OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_heq/intfloat_multilingual-e5-large/model_untrained/results.txt"
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_v2/model_untrained"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_v2/model_untrained/results.txt"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"
@@ -26,7 +26,7 @@ echo "Queries path: $QUERIES_PATH"
 echo "Documents path: $DOCUMENTS_PATH"
 echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
-echo "Documents embeddings file: $DOCUMENTS_EMBEDDING_FILE"
+echo "Embeddings files path: $EMBEDDING_FILES_PATH"
 echo "Output file: $OUTPUT_FILE"
 
 # Run the Python script
@@ -37,7 +37,7 @@ python src/model/eval/eval_retrieval.py \
     --documents_path "$DOCUMENTS_PATH" \
     --batch_size "$BATCH_SIZE" \
     --max_length "$MAX_LENGTH" \
-    --documents_embeddings_file "$DOCUMENTS_EMBEDDING_FILE" \
+    --embeddings_files_path "$EMBEDDING_FILES_PATH" \
     --output_file "$OUTPUT_FILE"
 
 echo "Done."

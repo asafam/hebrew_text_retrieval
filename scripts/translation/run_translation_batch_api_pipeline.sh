@@ -23,7 +23,6 @@ fi
 
 # Define environment variables
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=3
 
 # This script runs the translate_queries Python script with the specified arguments.
 

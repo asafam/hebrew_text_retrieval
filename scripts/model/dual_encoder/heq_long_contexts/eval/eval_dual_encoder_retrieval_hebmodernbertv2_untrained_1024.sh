@@ -9,16 +9,15 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-MODEL_PATH="outputs/models/dual_encoder/dual_encoder_infonce_squad_v2/dicta-il_dictabert/model"
-TOKENIZER_PATH="dicta-il/dictabert"
-QUERIES_PATH="data/retrieval/squad_v2/validation/queries.jsonl"
-DOCUMENTS_PATH="data/retrieval/squad_v2/validation/documents.jsonl"
-BATCH_SIZE=1024
-MAX_LENGTH=512
-EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/dicta-il_dictabert/model"
-OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_squad_v2_q_en_d_he/dicta-il_dictabert/model/results.txt"
-QUERY_CONTEXT_FIELD="context_hebrew"
-MAIN_SOURCE="rajpurkar_squad_v2"
+MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_v2"
+TOKENIZER_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_v2"
+QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
+DOCUMENTS_PATH="data/retrieval/heq/test/documents_long_context_1024_random.jsonl"
+BATCH_SIZE=64
+MAX_LENGTH=1024
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/doc_embeddings_1024.pt"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/hebmodernbert/model_untrained/results_1024.txt"
+DOCUMENT_TEXT_FIELD="long_context"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"
@@ -30,9 +29,7 @@ echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
 echo "Embeddings files path: $EMBEDDING_FILES_PATH"
 echo "Output file: $OUTPUT_FILE"
-echo "Query context field: $QUERY_CONTEXT_FIELD"
-echo "Main source: $MAIN_SOURCE"
-
+echo "Document text field: $DOCUMENT_TEXT_FIELD"
 
 # Run the Python script
 python src/model/eval/eval_retrieval.py \
@@ -44,7 +41,6 @@ python src/model/eval/eval_retrieval.py \
     --max_length "$MAX_LENGTH" \
     --embeddings_files_path "$EMBEDDING_FILES_PATH" \
     --output_file "$OUTPUT_FILE" \
-    --query_context_field "$QUERY_CONTEXT_FIELD" \
-    --main_source "$MAIN_SOURCE"
+    --document_text_field "$DOCUMENT_TEXT_FIELD"
 
 echo "Done."

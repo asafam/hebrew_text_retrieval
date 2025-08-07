@@ -12,11 +12,11 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 MODEL_PATH="onlplab/alephbert-base"
 TOKENIZER_PATH="onlplab/alephbert-base"
 QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
-DOCUMENTS_PATH="data/retrieval/heq/test/documents_long_context_1024_random.jsonl"
+DOCUMENTS_PATH="data/retrieval/heq/test/documents_long_context_512_random.jsonl"
 BATCH_SIZE=1024
 MAX_LENGTH=512
-DOCUMENTS_EMBEDDING_FILE="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/doc_embeddings.pt"
-OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/results.txt"
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/doc_embeddings_512.pt"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq_long_contexts/onlplab_alephbert-base/model_untrained/results_512.txt"
 DOCUMENT_TEXT_FIELD="long_context"
 
 # Print the variables
@@ -27,7 +27,7 @@ echo "Queries path: $QUERIES_PATH"
 echo "Documents path: $DOCUMENTS_PATH"
 echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
-echo "Documents embeddings file: $DOCUMENTS_EMBEDDING_FILE"
+echo "Embeddings files path: $EMBEDDING_FILES_PATH"
 echo "Output file: $OUTPUT_FILE"
 echo "Document text field: $DOCUMENT_TEXT_FIELD"
 
@@ -39,7 +39,7 @@ python src/model/eval/eval_retrieval.py \
     --documents_path "$DOCUMENTS_PATH" \
     --batch_size "$BATCH_SIZE" \
     --max_length "$MAX_LENGTH" \
-    --documents_embeddings_file "$DOCUMENTS_EMBEDDING_FILE" \
+    --embeddings_files_path "$EMBEDDING_FILES_PATH" \
     --output_file "$OUTPUT_FILE" \
     --document_text_field "$DOCUMENT_TEXT_FIELD"
 

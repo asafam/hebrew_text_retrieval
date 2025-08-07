@@ -11,7 +11,7 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 # Define parameters
 DOCUMENTS_FILE_PATH="data/retrieval/heq/test/documents.jsonl"
 TOKENIZER="intfloat/multilingual-e5-base"
-CONTEXT_WINDOW=1024
+CONTEXT_WINDOW=512
 GT_LOCATION="random"
 DOCUMENT_FIELD="text"
 OUTPUT_FIELD="long_context"

@@ -15,7 +15,6 @@ conda activate htr
 
 # Add src folder to PYTHONPATH
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-export CUDA_VISIBLE_DEVICES=4
 
 # This script runs the translate_queries Python script with the specified arguments.
 
