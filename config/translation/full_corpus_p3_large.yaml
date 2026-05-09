@@ -1,0 +1,58 @@
+# Full Corpus Translation — Phase 3: Large datasets
+# Datasets with corpus size > 4M documents.
+# NOTE: FEVER and Climate-FEVER share the same Wikipedia corpus (~5.4M passages).
+#       The pipeline translates each corpus independently — if deduplication is
+#       desired, translate only BeIR/fever and reuse its output for climate-fever.
+# Run with:
+#   python src/translation/api/run_beir_translation_pipeline.py \
+#       --config config/translation/full_corpus_p3_large.yaml
+
+run_id: "full_corpus_p3_large"
+
+model:
+  name: "gpt-5.4-mini"
+  temperature: 0.7
+
+prompt:
+  file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+  response_format: "Translation"
+  english_key: "Text"
+  hebrew_key: "Translation"
+  context_key: "Context"
+  hebrew_key_query: "Hebrew Query"
+  hebrew_key_document: "Hebrew Document"
+
+datasets:
+  names:
+    - "BeIR/hotpotqa"         # 5,233,329 docs
+    - "BeIR/dbpedia-entity"   # 4,635,922 docs
+    - "BeIR/fever"            # 5,416,568 docs (Wikipedia; shared with climate-fever)
+    - "BeIR/climate-fever"    # 5,416,593 docs (same Wikipedia corpus)
+    - "BeIR/msmarco"          # 8,841,823 docs
+  num_samples: 0
+  max_document_segment_tokens: 512
+  tokenizer_model: "gpt-4o-mini-2024-07-18"
+  translate_titles: true
+  random_seed: 42
+
+execution:
+  mode: "auto"
+  num_workers: 8
+  sleep_time: 0
+  limit: 0
+  force_candidates: false
+  force_translation: false
+  force_export: false
+
+paths:
+  candidates_base: "outputs/translation/BeIR/full_corpus"
+  runs_base: "outputs/beir_translation/full_corpus"
+
+batch:
+  poll_interval_seconds: 3600
+  max_wait_hours: 72          # Large jobs may take longer
+  job_tracking_dir: "jobs/full_corpus"
+
+export:
+  segment_separator: " "
+  include_context: false

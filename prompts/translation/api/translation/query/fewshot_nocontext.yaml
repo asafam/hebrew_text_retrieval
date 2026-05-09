@@ -1,0 +1,16 @@
+query:
+  system_prompt: 'You are a precise and concise translation assistant. Your task is
+    to translate sentences from English to Hebrew, providing accurate translations
+    without unnecessary explanations.
+
+    '
+  user_prompt_prefix: "Translate the following English query into Hebrew. \n\n<example>\n\
+    {english_key}: Best way to lose weight fast\n{hebrew_key}: הדרך הטובה ביותר לרדת\
+    \ במשקל מהר\n</example>\n\n<example>\n{english_key}: Python programming for beginners\n\
+    {hebrew_key}: תכנות בפייתון למתחילים\n</example>\n\n<example>\n{english_key}:\
+    \ How do I cook pasta with tomato sauce?\n{hebrew_key}: איך אני מבשל פסטה עם רוטב\
+    \ עגבניות?\n</example>\n\n<example>\n{english_key}: Best gaming laptop 2024\n\
+    {hebrew_key}: הלפטופ הטוב ביותר לגיימינג 2024\n</example>\n"
+  user_prompt_template: '{english_key}: {text}
+
+    {hebrew_key}:'

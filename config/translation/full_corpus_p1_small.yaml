@@ -1,0 +1,56 @@
+# Full Corpus Translation — Phase 1: Small datasets
+# Datasets with corpus size < 600K documents.
+# Run with:
+#   python src/translation/api/run_beir_translation_pipeline.py \
+#       --config config/translation/full_corpus_p1_small.yaml
+
+run_id: "full_corpus_p1_small"
+
+model:
+  name: "gpt-5.4-mini"
+  temperature: 0.7
+
+prompt:
+  file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+  response_format: "Translation"
+  english_key: "Text"
+  hebrew_key: "Translation"
+  context_key: "Context"
+  hebrew_key_query: "Hebrew Query"
+  hebrew_key_document: "Hebrew Document"
+
+datasets:
+  names:
+    - "BeIR/nfcorpus"        # 3,633 docs
+    - "BeIR/scifact"          # 5,183 docs
+    - "BeIR/arguana"          # 8,674 docs
+    - "BeIR/scidocs"          # 25,657 docs
+    - "BeIR/trec-covid"       # 171,332 docs
+    - "BeIR/quora"            # 522,931 docs
+  num_samples: 0              # 0 = all records
+  max_document_segment_tokens: 512
+  tokenizer_model: "gpt-4o-mini-2024-07-18"
+  translate_titles: true
+  random_seed: 42
+
+execution:
+  mode: "auto"                # auto → batch API for gpt-* models
+  num_workers: 8
+  sleep_time: 0
+  limit: 0                    # 0 = no limit
+  force_candidates: false
+  force_translation: false
+  force_export: false
+
+paths:
+  candidates_base: "outputs/translation/BeIR/full_corpus"
+  runs_base: "outputs/beir_translation/full_corpus"
+
+batch:
+  poll_interval_seconds: 3600
+  max_wait_hours: 48
+  job_tracking_dir: "jobs/full_corpus"
+
+export:
+  segment_separator: " "
+  include_context: false

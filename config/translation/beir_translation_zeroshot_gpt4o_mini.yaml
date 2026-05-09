@@ -1,0 +1,61 @@
+# BeIR Translation Pipeline Configuration
+# Run with: python src/translation/api/run_beir_translation_pipeline.py --config config/translation/beir_translation_zeroshot_gpt4o_mini.yaml
+
+# Optional: leave empty to auto-generate as {model_slug}_{prompt_slug}_{YYYYMMDD_HHMMSS}
+run_id: ""
+
+model:
+  name: "gpt-4o-mini-2024-07-18"
+  temperature: 0.7
+
+prompt:
+  file: "prompts/translation/api/translation/translation_prompts_zeroshot_v20250220.yaml"
+  response_format: "Translation"       # Translation | UnifiedTranslation | UnifiedSingleSentenceTranslation
+  english_key: "Text"
+  hebrew_key: "Translation"
+  context_key: "Context"
+  hebrew_key_query: "Hebrew Query"
+  hebrew_key_document: "Hebrew Document"
+
+datasets:
+  names:
+    - "BeIR/nfcorpus"
+    - "BeIR/msmarco"
+    - "BeIR/nq"
+    - "BeIR/hotpotqa"
+    - "BeIR/fever"
+    - "BeIR/climate-fever"
+    - "BeIR/scifact"
+    - "BeIR/scidocs"
+    - "BeIR/quora"
+    - "BeIR/arguana"
+    - "BeIR/trec-covid"
+    - "BeIR/dbpedia-entity"
+  num_samples: 0                         # 0 = use all documents/queries
+  max_document_segment_tokens: 512       # Max tokens per document segment
+  tokenizer_model: "gpt-4o-mini-2024-07-18"
+  translate_titles: true                 # Translate non-empty document titles
+  random_seed: 42
+
+execution:
+  mode: "auto"          # auto | parallel | serial | batch
+                        #   auto: uses batch API if model matches .*gpt.*, else parallel
+  num_workers: 8        # Number of parallel workers (0 = cpu_count - 1)
+  sleep_time: 0         # Seconds to sleep between requests (serial mode only)
+  limit: 0              # 0 = no limit; set to small number (e.g. 5) for testing
+  force_candidates: false    # Re-build candidate CSVs even if they exist
+  force_translation: false   # Re-translate even if translated CSV is complete
+  force_export: false        # Re-export BeIR JSONL even if it already exists
+
+paths:
+  candidates_base: "outputs/translation/BeIR"    # Shared candidate CSVs (model-independent)
+  runs_base: "outputs/beir_translation"          # Per-run translation outputs
+
+batch:
+  poll_interval_seconds: 3600   # How often to poll OpenAI for batch job status (1 hour; polling is free)
+  max_wait_hours: 24             # Give up if batch job exceeds this
+  job_tracking_dir: "jobs"       # Where batch_jobs.json is stored
+
+export:
+  segment_separator: " "         # Separator used when joining translated document segments
+  include_context: false         # Include context_text in queries.jsonl (non-standard BeIR extension)

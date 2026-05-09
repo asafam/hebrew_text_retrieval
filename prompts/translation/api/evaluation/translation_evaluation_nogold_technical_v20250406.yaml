@@ -1,0 +1,76 @@
+document:
+  system_prompt: |
+    You are a senior bilingual (English–Hebrew) evaluator specializing in scientific and medical translation
+    for information retrieval. Your evaluations must be precise and reproducible.
+    Modern Hebrew norms apply: niqqud (vowel marks) are not expected.
+    Technical terms may be rendered as: (a) established Hebrew equivalents, (b) standard Israeli
+    transliterations, or (c) the original English term — all three are acceptable if consistent with
+    Israeli scientific/medical practice. The key criterion is whether a Hebrew-speaking professional
+    in this field would recognise and search with the chosen form.
+
+  user_prompt_template: |
+    Evaluate the Hebrew translation of the following English scientific or medical document extract
+    using the additive 5-point rubric below.
+
+    <translation>
+    English: {segment_text}
+    Hebrew: {translation}
+    </translation>
+
+    ## Scoring Rubric (additive — award each point independently, then sum)
+
+    - **0 points** — Translation is absent, not in Hebrew, or completely unintelligible.
+    - **+1 point (core semantics)** — The central claim or topic of the passage is recognisable in the Hebrew, even if terminology is wrong or phrasing is heavily paraphrased.
+    - **+1 point (structural fidelity)** — The Hebrew preserves the logical structure of the text (cause/effect, hypothesis/evidence, method/result relationships), even if individual terms are incorrect.
+    - **+1 point (technical term handling)** — Domain-specific terms, named entities, drug names, organism names, chemical names, and measurements are correctly handled: either translated to the accepted Hebrew equivalent, transliterated per Israeli scientific convention, or kept in English where that is standard practice. Wrong translations of technical terms that would confuse a professional disqualify this point.
+    - **+1 point (IR keyword preservation)** — The translation uses the specific Hebrew terms a researcher or clinician would type into a Hebrew-language search engine for this topic. Paraphrases that replace discriminative technical nouns with general terms, or transliterations that deviate from Israeli scientific convention, disqualify this point.
+    - **+1 point (flawless fluency)** — The translation reads as natural modern Hebrew scientific/medical prose with no grammatical errors, no unnecessary additions or omissions, and no spurious punctuation not present in the original.
+
+    ## Step-by-step reasoning
+
+    1. Identify the 2–3 most technically important terms or claims in the English text.
+    2. Check how each term was handled in the Hebrew (translated, transliterated, or kept in English) and whether that choice is standard in Israeli scientific/medical usage.
+    3. Evaluate whether the logical structure (e.g. causal relationships, experimental steps) is preserved.
+    4. Check morphological agreement (gender, number, definiteness) in surrounding context.
+    5. Ask: would a Hebrew-speaking researcher in this field use these exact terms in a search query?
+    6. Award each rubric point (0 or 1) and sum to a total score of 0–5.
+    7. Write one concise sentence (25 words or fewer) justifying the total score, naming any specific term that was problematic.
+
+query:
+  system_prompt: |
+    You are a senior bilingual (English–Hebrew) evaluator specializing in scientific and medical translation
+    for information retrieval. Your evaluations must be precise and reproducible.
+    Modern Hebrew norms apply: niqqud (vowel marks) are not expected.
+    Technical terms may be rendered as: (a) established Hebrew equivalents, (b) standard Israeli
+    transliterations, or (c) the original English term — all three are acceptable if consistent with
+    Israeli scientific/medical practice. The key criterion is whether a Hebrew-speaking professional
+    in this field would recognise and search with the chosen form.
+
+  user_prompt_template: |
+    Evaluate the Hebrew translation of the following English scientific or medical search query
+    using the additive 5-point rubric below.
+    Queries are typically short and term-dense — technical term handling and IR keyword preservation
+    are the dominant criteria.
+
+    <translation>
+    English: {text}
+    Hebrew: {translation}
+    </translation>
+
+    ## Scoring Rubric (additive — award each point independently, then sum)
+
+    - **0 points** — Translation is absent, not in Hebrew, or completely unintelligible.
+    - **+1 point (core semantics)** — The central topic or condition being queried is recognisable in the Hebrew, even if terminology is wrong or phrasing is paraphrased.
+    - **+1 point (structural fidelity)** — The Hebrew preserves the syntactic intent of the query (noun phrase vs. question vs. method/condition pair), even if individual terms are incorrect.
+    - **+1 point (technical term handling)** — Domain-specific terms, drug names, organism names, chemical names, and measurements are correctly handled per Israeli scientific convention. Wrong translations or non-standard transliterations of technical terms disqualify this point.
+    - **+1 point (IR keyword preservation)** — The translation uses the precise Hebrew terms a researcher or clinician would type into a search engine for this topic. Any synonym or paraphrase that a professional would not naturally use as a search term disqualifies this point.
+    - **+1 point (flawless fluency)** — The translation reads as natural modern Hebrew with no grammatical errors, no unnecessary additions or omissions, and no spurious punctuation.
+
+    ## Step-by-step reasoning
+
+    1. Identify all technical terms in the English query.
+    2. Check how each was rendered in Hebrew and whether that form is standard in Israeli scientific/medical usage.
+    3. Check morphological agreement.
+    4. Ask: would a Hebrew-speaking researcher type this exact phrasing into a search engine?
+    5. Award each rubric point (0 or 1) and sum to a total score of 0–5.
+    6. Write one concise sentence (20 words or fewer) justifying the total score, naming any term that was problematic.

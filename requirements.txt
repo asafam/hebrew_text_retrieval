@@ -1,0 +1,29 @@
+# Core ML
+torch>=2.6.0
+transformers>=4.48.2
+sentence-transformers>=4.1.0
+faiss-cpu>=1.11.0
+
+# LLM APIs
+openai>=1.76.0
+anthropic>=0.50.0
+google-ai-generativelanguage>=0.6.17
+langchain-openai>=0.3.11
+langchain-google-genai>=2.1.2
+langchain-anthropic>=0.3.3
+
+# Tokenizer
+tiktoken>=0.8.0
+sentencepiece
+
+# Data / Analysis
+pandas>=2.2.3
+numpy>=1.26.4
+scipy>=1.15.2
+matplotlib>=3.10.1
+tqdm>=4.67.1
+PyYAML>=6.0.2
+pydantic>=2.10.6
+
+# Install torch with CUDA separately via conda:
+#   conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia

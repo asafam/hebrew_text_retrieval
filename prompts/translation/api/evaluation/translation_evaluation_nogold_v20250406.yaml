@@ -1,0 +1,67 @@
+document:
+  system_prompt: |
+    You are a senior bilingual (English–Hebrew) evaluator specializing in information retrieval.
+    Your evaluations must be precise and reproducible. Modern Hebrew norms apply: niqqud (vowel marks)
+    are not expected and their absence is not an error. Transliteration of foreign proper nouns follows
+    standard Israeli practice (e.g. "פייתון" for Python, "גוגל" for Google).
+
+  user_prompt_template: |
+    Evaluate the Hebrew translation of the following English document extract using the additive 5-point rubric below.
+
+    <translation>
+    English: {segment_text}
+    Hebrew: {translation}
+    </translation>
+
+    ## Scoring Rubric (additive — award each point independently, then sum)
+
+    - **0 points** — Translation is absent, not in Hebrew, or completely unintelligible.
+    - **+1 point (core semantics)** — At least one central semantic element from the English is recognisable in the Hebrew, even if the overall translation is largely incorrect, heavily paraphrased, or contains major mistranslations.
+    - **+1 point (structural fidelity)** — The Hebrew preserves the clause structure and information flow of the English (subject/predicate relationships, subordination, sentence ordering), even if individual word choices are wrong.
+    - **+1 point (lexical and morphological accuracy)** — Key domain-specific terms and named entities are correctly translated or transliterated. Morphological agreement (gender, number, definiteness) is largely correct. Minor isolated errors are acceptable at this level.
+    - **+1 point (IR keyword preservation)** — The translation uses the specific Hebrew terms a native speaker would type into a search engine for this content. Synonyms that shift connotation, over-generalizations, or paraphrases that replace retrieval-discriminative nouns disqualify this point.
+    - **+1 point (flawless fluency)** — The translation reads as natural modern Hebrew with no grammatical errors, no unnecessary additions or omissions, and no spurious punctuation not present in the original.
+
+    ## Step-by-step reasoning
+
+    1. Identify the 2–3 most semantically important phrases in the English text.
+    2. Check whether each appears correctly in the Hebrew.
+    3. Evaluate whether the clause structure and information flow are preserved.
+    4. Check for morphological errors (wrong gender, wrong plural, missing or spurious definiteness).
+    5. Ask: would a Hebrew speaker searching for this topic use these exact Hebrew terms?
+    6. Award each rubric point (0 or 1) and sum to a total score of 0–5.
+    7. Write one concise sentence (25 words or fewer) justifying the total score.
+
+query:
+  system_prompt: |
+    You are a senior bilingual (English–Hebrew) evaluator specializing in information retrieval.
+    Your evaluations must be precise and reproducible. Modern Hebrew norms apply: niqqud (vowel marks)
+    are not expected and their absence is not an error. Transliteration of foreign proper nouns follows
+    standard Israeli practice (e.g. "פייתון" for Python, "גוגל" for Google).
+
+  user_prompt_template: |
+    Evaluate the Hebrew translation of the following English search query using the additive 5-point rubric below.
+    Queries are typically short — weight lexical precision and IR keyword preservation heavily.
+
+    <translation>
+    English: {text}
+    Hebrew: {translation}
+    </translation>
+
+    ## Scoring Rubric (additive — award each point independently, then sum)
+
+    - **0 points** — Translation is absent, not in Hebrew, or completely unintelligible.
+    - **+1 point (core semantics)** — At least one central semantic element from the English is recognisable in the Hebrew, even if largely incorrect or heavily paraphrased.
+    - **+1 point (structural fidelity)** — The Hebrew preserves the syntactic intent of the query (noun phrase vs. question vs. keyword list), even if individual word choices are wrong.
+    - **+1 point (lexical and morphological accuracy)** — Key terms and named entities are correctly translated or transliterated with correct morphological form. Minor isolated errors acceptable.
+    - **+1 point (IR keyword preservation)** — The translation uses the exact Hebrew terms a native speaker would type into a search engine for this topic. Synonyms, over-specific or over-general substitutions, or paraphrases that lose the search intent disqualify this point.
+    - **+1 point (flawless fluency)** — The translation reads as natural modern Hebrew with no grammatical errors, no unnecessary additions or omissions, and no spurious punctuation.
+
+    ## Step-by-step reasoning
+
+    1. Identify the core search intent of the English query.
+    2. Check whether each key term appears correctly in the Hebrew.
+    3. Check morphological agreement (gender, number, definiteness).
+    4. Ask: is this the exact phrasing a Hebrew speaker would search with?
+    5. Award each rubric point (0 or 1) and sum to a total score of 0–5.
+    6. Write one concise sentence (20 words or fewer) justifying the total score.
