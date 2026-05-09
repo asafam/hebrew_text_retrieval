@@ -5,14 +5,12 @@ import argparse
 import os
 from pathlib import Path
 
-Tokenizer = Union[PreTrainedTokenizer, PreTrainedTokenizerFast]
-
 def main(
     corpus: str,
     vocab_size: int,
     output_dir: str = 'tokenizer',
     force: bool = False
-) -> Tokenizer:
+) -> Union[PreTrainedTokenizer, PreTrainedTokenizerFast]:
     # Check if corpus file exists
     if not os.path.exists(corpus):
         raise FileNotFoundError(f"Corpus file not found: {corpus}")
@@ -24,7 +22,7 @@ def main(
     # Create output directory if it doesn't exist
     Path(output_dir).parent.mkdir(parents=True, exist_ok=True)
     
-    spm.SentencePieceTrainer.Train(
+    spm.SentencePieceTrainer.train(
         input=corpus,  # .txt input file
         model_prefix=output_dir,  
         vocab_size=vocab_size,  

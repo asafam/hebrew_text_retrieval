@@ -24,7 +24,8 @@ def main():
     parser.add_argument('--response_format', type=str, default="Translation", choices=("Translation", "UnifiedTranslation", "UnifiedSingleSentenceTranslation"), help="Response format for the translation.")
     parser.add_argument('--sleep_time', type=int, default=0, help="Sleep time between requests to avoid rate limiting.")
     parser.add_argument('--force', action='store_true', help="Force re-translation if output file exists.")
-    parser.add_argument('--parallel', action='store_true', help="Translate in parallel.")
+    parser.add_argument('--workers', type=int, default=0, help="Number of parallel workers (0 = serial).")
+    parser.add_argument('--provider', type=str, default=None, choices=('azure',), help="LLM provider override (e.g. 'azure'). Falls back to the 'provider' key in the prompt YAML.")
 
     args = parser.parse_args()
 
@@ -46,7 +47,8 @@ def main():
             response_format=args.response_format,
             sleep_time=args.sleep_time,
             force=args.force,
-            parallel=args.parallel
+            workers=args.workers,
+            provider=args.provider,
         )
             
 if __name__ == "__main__":

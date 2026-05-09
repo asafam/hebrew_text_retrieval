@@ -75,7 +75,8 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
         for query in queries0:
             # Identify the qrel containing the query
             qrel = next((q for q in qrels if str(q['query-id']) == str(query['_id'])), None)
-            context = corpus_dataset['corpus'][documents_ids_to_index[str(qrel['corpus-id'])]] if qrel is not None else None
+            corpus_idx = documents_ids_to_index.get(str(qrel['corpus-id'])) if qrel is not None else None
+            context = corpus_dataset['corpus'][corpus_idx] if corpus_idx is not None else None
             if query is not None and context is not None:
                 queries.append({
                     **query,

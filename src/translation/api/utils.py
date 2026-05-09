@@ -26,14 +26,16 @@ class TranslationCritique(BaseModel):
 
 
 class Translation(BaseModel):
-    text: str = Field(description="The text to be translated.")
-    translation: str = Field(description="The translated text.")
+    translation: str = Field(description="The translation of the input text.")
+
+    def __bool__(self):
+        return bool(self.translation)
 
     def __str__(self):
-        return self.translation
-    
+        return self.translation or ""
+
     def __repr__(self):
-        return self.translation
+        return self.translation or ""
     
 
 class UnifiedTranslation(BaseModel):
