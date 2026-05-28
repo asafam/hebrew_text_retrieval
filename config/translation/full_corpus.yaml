@@ -67,6 +67,24 @@ datasets:
   tokenizer_model: "gpt-4o-mini-2024-07-18"
   translate_titles: true
   random_seed: 42
+  # ── Ladder pipeline shard sizes (rows per shard) ─────────────────────────
+  default_shard_size: 10000
+  shard_sizes:
+    BeIR_nfcorpus:        500
+    BeIR_scifact:        1000
+    BeIR_arguana:        1000
+    BeIR_scidocs:        5000
+    BeIR_fiqa:          10000
+    BeIR_trec-covid:    10000
+    BeIR_webis-touche2020: 25000
+    BeIR_cqadupstack:   25000
+    BeIR_quora:         25000
+    BeIR_nq:           100000
+    BeIR_dbpedia-entity: 100000
+    BeIR_hotpotqa:     100000
+    BeIR_fever:        100000
+    BeIR_climate-fever: 100000
+    BeIR_msmarco:      100000
 
 # ── Execution ──────────────────────────────────────────────────────────────────
 
@@ -84,6 +102,8 @@ execution:
 paths:
   candidates_base: "outputs/translation/BeIR/candidates"
   runs_base: "outputs/beir_translation/full_corpus"
+  ladder_candidates_base: "outputs/translation/candidates"
+  ladder_runs_base: "outputs/translation/runs"
 
 # ── GCS / Vertex AI ───────────────────────────────────────────────────────────
 
@@ -134,3 +154,4 @@ qa:
   sample_size: 25
   workers: 4
   sleep_time: 3
+  min_score: 3.5       # ladder pipeline: absolute floor regardless of baseline
