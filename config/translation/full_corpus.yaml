@@ -124,6 +124,16 @@ progression:
 pilot:
   location: "global"  # gemini-3.1-flash-lite requires global endpoint for sync calls
 
+# ── Ladder cadence ────────────────────────────────────────────────────────────
+# Controls how many shards are submitted per QA gate (parallel within each step).
+#   static:      always cadence_start shards per step  (1, 1, 1, 1, ...)
+#   linear:      cadence_start × (step+1)              (1, 2, 3, 4, ...)
+#   exponential: cadence_start × 2^step                (1, 2, 4, 8, ...)
+
+ladder:
+  cadence: "static"
+  cadence_start: 1
+
 # ── QA (LLM-as-a-judge) ───────────────────────────────────────────────────────
 
 qa:

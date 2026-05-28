@@ -109,11 +109,12 @@ def _find_existing_run_dir(runs_base: str, run_id: str) -> Optional[str]:
 def _empty_ladder_entry(dataset_name: str) -> dict:
     return {
         "dataset_name": dataset_name,
-        "ladder_current_stage": 0,
+        "ladder_current_stage": 0,  # next shard index to process
+        "ladder_cadence_step": 0,   # current cadence step (grows with each QA gate)
         "ladder_stopped": False,
         "ladder_all_done": False,
         "ladder_stop_reason": None,
-        "ladder_stage_scores": {},  # str(stage_idx) → score dict
+        "ladder_stage_scores": {},  # str(cadence_step) → score dict
     }
 
 
@@ -196,7 +197,17 @@ def _compute_cost(input_tokens: int, output_tokens: int, config: dict) -> float:
     return (input_tokens * cost_in + output_tokens * cost_out) / 1_000_000
 
 
-def _translate_shard_batch(
+def _cadence_shards_for_step(step: int, start: int, mode: str) -> int:
+    """Number of shards to process in a cadence step."""
+    if mode == "exponential":
+        return start * (2 ** step)
+    elif mode == "linear":
+        return start * (step + 1)
+    else:  # static
+        return start
+
+
+def _submit_shard_job(
     shard_csv: str,
     output_path: str,
     text_type: str,
@@ -207,72 +218,88 @@ def _translate_shard_batch(
     gemini_client,
     gcs_client,
     bucket: str,
-    poll_interval: int,
-    max_wait_seconds: int,
-    config: dict,
-) -> tuple:
-    """
-    Translate one shard via GCS batch.
-    Returns (output_csv_path, input_tokens, output_tokens).
-    Raises on job failure or timeout.
-    """
+) -> dict:
+    """Upload shard to GCS and submit batch job. Returns job info dict (no polling)."""
     df = pd.read_csv(shard_csv, encoding="utf-8")
-    id_cols = _id_columns_for(df)
     gcs_prefix = _gcs_shard_prefix(run_id, slug, shard_idx, text_type)
     output_prefix = f"gs://{bucket}/{gcs_prefix}/output"
-
-    # Upload input JSONL to GCS
     input_uri = build_and_upload_input(
         df=df,
-        id_columns=id_cols,
+        id_columns=_id_columns_for(df),
         gcs_client=gcs_client,
         bucket=bucket,
         gcs_prefix=gcs_prefix,
         **_upload_kwargs(type_cfg),
     )
-
-    # Submit batch job
-    display_name = f"{run_id}__{slug}__shard{shard_idx:03d}__{text_type}"
     job_name = submit_gcs_batch_job(
         gemini_client, type_cfg["model"], input_uri, output_prefix,
-        display_name=display_name,
+        display_name=f"{run_id}__{slug}__shard{shard_idx:03d}__{text_type}",
     )
-    logger.info(f"  Batch job submitted: {job_name}")
+    logger.info(f"  Submitted: {job_name}")
+    return {
+        "job_name": job_name,
+        "shard_csv": shard_csv,
+        "output_path": output_path,
+        "gcs_output_prefix": output_prefix,
+    }
 
-    # Poll until terminal
+
+def _poll_until_all_complete(
+    jobs: dict,
+    gemini_client,
+    poll_interval: int,
+    max_wait_seconds: int,
+) -> None:
+    """
+    Poll all jobs until every one reaches a terminal state.
+    jobs: {key: job_info_dict} — mutated in place, adds 'status' to each entry.
+    """
+    pending = set(jobs.keys())
     waited = 0
-    while True:
-        status = check_job_status(gemini_client, job_name)
-        if status in TERMINAL_STATES:
-            break
-        if waited >= max_wait_seconds:
-            raise RuntimeError(
-                f"Batch job {job_name} did not complete within "
-                f"{max_wait_seconds // 3600}h. Status: {status}"
+    while pending:
+        for key in list(pending):
+            status = check_job_status(gemini_client, jobs[key]["job_name"])
+            if status in TERMINAL_STATES:
+                jobs[key]["status"] = status
+                pending.discard(key)
+                logger.info(f"  Job done [{status}]: {jobs[key]['job_name']}")
+        if pending:
+            if waited >= max_wait_seconds:
+                raise RuntimeError(
+                    f"{len(pending)} jobs timed out after {max_wait_seconds // 3600}h: "
+                    f"{[jobs[k]['job_name'] for k in pending]}"
+                )
+            logger.info(
+                f"  {len(pending)} job(s) still running "
+                f"(waited {waited // 60}m, next poll in {poll_interval // 60}m)"
             )
+            time.sleep(poll_interval)
+            waited += poll_interval
+
+
+def _collect_shard_results(jobs: dict, gcs_client, bucket: str) -> dict:
+    """
+    Download results for all jobs.
+    Returns {key: {"output_path", "input_tokens", "output_tokens"}}.
+    Raises on any failed job.
+    """
+    results = {}
+    for key, info in sorted(jobs.items()):
+        if info.get("status") in FAILED_STATES:
+            raise RuntimeError(f"Job failed [{info['status']}]: {info['job_name']}")
+        _, gcs_output_path = _strip_gs_uri(info["gcs_output_prefix"])
+        translations, in_tok, out_tok = _download_shard_results(gcs_client, bucket, gcs_output_path)
+        write_translated_csv(translations, info["shard_csv"], info["output_path"])
         logger.info(
-            f"  [{slug}] shard {shard_idx} {text_type} — {status} "
-            f"(waited {waited // 60}m, polling every {poll_interval // 60}m)"
+            f"  Collected: {info['job_name']} — "
+            f"{in_tok:,} input tokens, {out_tok:,} output tokens"
         )
-        time.sleep(poll_interval)
-        waited += poll_interval
-
-    if status in FAILED_STATES:
-        raise RuntimeError(f"Batch job {job_name} failed with state: {status}")
-
-    # Download results and extract token counts
-    _, gcs_output_path = _strip_gs_uri(output_prefix)
-    translations, input_tokens, output_tokens = _download_shard_results(
-        gcs_client, bucket, gcs_output_path
-    )
-    logger.info(
-        f"  [{slug}] shard {shard_idx} {text_type} — "
-        f"{input_tokens:,} input tokens, {output_tokens:,} output tokens"
-    )
-
-    # Write translated CSV
-    write_translated_csv(translations, shard_csv, output_path)
-    return output_path, input_tokens, output_tokens
+        results[key] = {
+            "output_path": info["output_path"],
+            "input_tokens": in_tok,
+            "output_tokens": out_tok,
+        }
+    return results
 
 
 def _append_to_accumulated(shard_out_csv: str, accumulated_csv: str) -> int:
@@ -547,8 +574,11 @@ def run_ladder(
     q_cfg = config["queries"]
     d_cfg = config["documents"]
     batch_cfg = config.get("batch", {})
-    poll_interval   = batch_cfg.get("poll_interval_seconds", 3600)
+    poll_interval    = batch_cfg.get("poll_interval_seconds", 3600)
     max_wait_seconds = int(batch_cfg.get("max_wait_hours", 72) * 3600)
+    ladder_cfg    = config.get("ladder", {})
+    cadence_mode  = ladder_cfg.get("cadence", "static")
+    cadence_start = int(ladder_cfg.get("cadence_start", 1))
 
     datasets = config["datasets"]["names"]
     if dataset_filter:
@@ -564,152 +594,155 @@ def run_ladder(
             logger.info(f"[{slug}] All shards done — skipping.")
             continue
         if entry.get("ladder_stopped"):
-            logger.info(
-                f"[{slug}] Ladder stopped — skipping. "
-                f"Reason: {entry.get('ladder_stop_reason')}"
-            )
+            logger.info(f"[{slug}] Ladder stopped — skipping. Reason: {entry.get('ladder_stop_reason')}")
             continue
 
         manifest_path = os.path.join(candidates_base, slug, "shard_manifest.json")
         manifest = _load_manifest(manifest_path)
         if manifest is None:
-            logger.warning(
-                f"[{slug}] No shard manifest at {manifest_path} — skipping. "
-                f"Build candidates with --shard-size first."
-            )
+            logger.warning(f"[{slug}] No shard manifest at {manifest_path} — skipping.")
             continue
 
-        q_shards = manifest["types"]["queries"]
-        d_shards = manifest["types"]["documents"]
+        q_by_idx = {s["index"]: s for s in manifest["types"]["queries"]}
+        d_by_idx = {s["index"]: s for s in manifest["types"]["documents"]}
+        all_indices = sorted(set(q_by_idx) | set(d_by_idx))
         logger.info(
-            f"[{slug}] Starting ladder: "
-            f"{len(q_shards)} query shards, {len(d_shards)} document shards"
+            f"[{slug}] Starting ladder ({cadence_mode}, start={cadence_start}): "
+            f"{len(q_by_idx)} query shards, {len(d_by_idx)} document shards, "
+            f"{len(all_indices)} total stages"
         )
 
         dataset_run_dir = os.path.join(run_dir, slug)
         shard_out_dir   = os.path.join(dataset_run_dir, "shards")
         os.makedirs(shard_out_dir, exist_ok=True)
-
         q_accumulated = os.path.join(dataset_run_dir, "queries_accumulated.csv")
         d_accumulated = os.path.join(dataset_run_dir, "documents_accumulated.csv")
 
         current_stage = entry.get("ladder_current_stage", 0)
+        cadence_step  = entry.get("ladder_cadence_step",  0)
+        cursor_pos    = next((i for i, idx in enumerate(all_indices) if idx >= current_stage), len(all_indices))
         dataset_stopped = False
 
-        for shard_meta in q_shards:
-            idx = shard_meta["index"]
-            if idx < current_stage:
-                continue  # already processed in a prior run
+        while cursor_pos < len(all_indices):
+            n = _cadence_shards_for_step(cadence_step, cadence_start, cadence_mode)
+            batch_indices = all_indices[cursor_pos:cursor_pos + n]
+            logger.info(f"[{slug}] Cadence step {cadence_step}: {len(batch_indices)} shard(s) {batch_indices}")
 
-            d_shard_meta = d_shards[idx] if idx < len(d_shards) else None
-            q_rows = shard_meta["rows"]
-            d_rows = d_shard_meta["rows"] if d_shard_meta else 0
-            logger.info(f"[{slug}] Shard {idx}: {q_rows} query rows + {d_rows} document rows")
+            # ── Submit all shard jobs in parallel ─────────────────────────────
+            pending_jobs = {}
+            submit_error = None
+            for shard_idx in batch_indices:
+                for text_type, by_idx, type_cfg in [("queries", q_by_idx, q_cfg), ("documents", d_by_idx, d_cfg)]:
+                    if shard_idx not in by_idx:
+                        continue
+                    shard_meta = by_idx[shard_idx]
+                    shard_csv  = os.path.join(candidates_base, slug, shard_meta["file"])
+                    if not os.path.exists(shard_csv):
+                        submit_error = f"shard {shard_idx}: {text_type} file missing: {shard_csv}"
+                        break
+                    out_path = os.path.join(shard_out_dir, shard_meta["file"].replace(".csv", "_translated.csv"))
+                    try:
+                        pending_jobs[(shard_idx, text_type)] = _submit_shard_job(
+                            shard_csv, out_path, text_type, type_cfg,
+                            run_id, slug, shard_idx, gemini_client, gcs_client, bucket,
+                        )
+                    except Exception as e:
+                        submit_error = f"shard {shard_idx}: {text_type} submit failed: {e}"
+                        break
+                if submit_error:
+                    break
 
-            # ── Translate queries shard via GCS batch ─────────────────────────
-            q_shard_csv = os.path.join(candidates_base, slug, shard_meta["file"])
-            if not os.path.exists(q_shard_csv):
-                logger.error(f"[{slug}] Query shard file missing: {q_shard_csv}")
+            if submit_error:
+                logger.error(f"[{slug}] {submit_error}")
                 entry["ladder_stopped"] = True
-                entry["ladder_stop_reason"] = f"shard {idx}: query shard file missing"
+                entry["ladder_stop_reason"] = submit_error
                 save_progress(run_dir, progress)
                 dataset_stopped = True
                 break
 
-            q_out_path = os.path.join(shard_out_dir, shard_meta["file"].replace(".csv", "_translated.csv"))
-            logger.info(f"[{slug}] Submitting queries shard {idx} to GCS batch")
+            # ── Poll all jobs until complete ──────────────────────────────────
             try:
-                q_out, q_in_tok, q_out_tok = _translate_shard_batch(
-                    shard_csv=q_shard_csv, output_path=q_out_path,
-                    text_type="queries", type_cfg=q_cfg,
-                    run_id=run_id, slug=slug, shard_idx=idx,
-                    gemini_client=gemini_client, gcs_client=gcs_client, bucket=bucket,
-                    poll_interval=poll_interval, max_wait_seconds=max_wait_seconds,
-                    config=config,
-                )
-            except Exception as e:
-                logger.error(f"[{slug}] Query shard {idx} batch failed: {e}")
+                _poll_until_all_complete(pending_jobs, gemini_client, poll_interval, max_wait_seconds)
+            except RuntimeError as e:
+                logger.error(f"[{slug}] Poll failed: {e}")
                 entry["ladder_stopped"] = True
-                entry["ladder_stop_reason"] = f"shard {idx}: query batch failed: {e}"
+                entry["ladder_stop_reason"] = str(e)
                 save_progress(run_dir, progress)
                 dataset_stopped = True
                 break
 
-            # ── Translate documents shard via GCS batch ───────────────────────
-            d_out = None
-            d_in_tok = d_out_tok = 0
-            if d_shard_meta:
-                d_shard_csv = os.path.join(candidates_base, slug, d_shard_meta["file"])
-                if not os.path.exists(d_shard_csv):
-                    logger.error(f"[{slug}] Document shard file missing: {d_shard_csv}")
-                    entry["ladder_stopped"] = True
-                    entry["ladder_stop_reason"] = f"shard {idx}: document shard file missing"
-                    save_progress(run_dir, progress)
-                    dataset_stopped = True
-                    break
-                d_out_path = os.path.join(shard_out_dir, d_shard_meta["file"].replace(".csv", "_translated.csv"))
-                logger.info(f"[{slug}] Submitting documents shard {idx} to GCS batch")
-                try:
-                    d_out, d_in_tok, d_out_tok = _translate_shard_batch(
-                        shard_csv=d_shard_csv, output_path=d_out_path,
-                        text_type="documents", type_cfg=d_cfg,
-                        run_id=run_id, slug=slug, shard_idx=idx,
-                        gemini_client=gemini_client, gcs_client=gcs_client, bucket=bucket,
-                        poll_interval=poll_interval, max_wait_seconds=max_wait_seconds,
-                        config=config,
-                    )
-                except Exception as e:
-                    logger.error(f"[{slug}] Document shard {idx} batch failed: {e}")
-                    entry["ladder_stopped"] = True
-                    entry["ladder_stop_reason"] = f"shard {idx}: document batch failed: {e}"
-                    save_progress(run_dir, progress)
-                    dataset_stopped = True
-                    break
+            # ── Collect results ───────────────────────────────────────────────
+            try:
+                shard_results = _collect_shard_results(pending_jobs, gcs_client, bucket)
+            except RuntimeError as e:
+                logger.error(f"[{slug}] Collect failed: {e}")
+                entry["ladder_stopped"] = True
+                entry["ladder_stop_reason"] = str(e)
+                save_progress(run_dir, progress)
+                dataset_stopped = True
+                break
 
-            # ── Cost tracking ─────────────────────────────────────────────────
+            # ── Accumulate + token tracking ───────────────────────────────────
+            q_in_tok = q_out_tok = d_in_tok = d_out_tok = 0
+            cumulative_q = cumulative_d = 0
+            for shard_idx in batch_indices:
+                if (shard_idx, "queries") in shard_results:
+                    r = shard_results[(shard_idx, "queries")]
+                    cumulative_q  = _append_to_accumulated(r["output_path"], q_accumulated)
+                    q_in_tok  += r["input_tokens"]
+                    q_out_tok += r["output_tokens"]
+                if (shard_idx, "documents") in shard_results:
+                    r = shard_results[(shard_idx, "documents")]
+                    cumulative_d  = _append_to_accumulated(r["output_path"], d_accumulated)
+                    d_in_tok  += r["input_tokens"]
+                    d_out_tok += r["output_tokens"]
+
+            # ── Cost ──────────────────────────────────────────────────────────
             shard_cost = _compute_cost(q_in_tok + d_in_tok, q_out_tok + d_out_tok, config)
             cumulative_cost_usd += shard_cost
             progress["total_cost_usd"] = round(cumulative_cost_usd, 6)
             logger.info(
-                f"[{slug}] Shard {idx} cost: ${shard_cost:.4f}  "
+                f"[{slug}] Step {cadence_step} cost: ${shard_cost:.4f}  "
                 f"(run total: ${cumulative_cost_usd:.4f})"
             )
 
-            # ── Accumulate ────────────────────────────────────────────────────
-            cumulative_q = _append_to_accumulated(q_out, q_accumulated)
-            cumulative_d = _append_to_accumulated(d_out, d_accumulated) if d_out else 0
-            logger.info(
-                f"[{slug}] Shard {idx} accumulated: "
-                f"{cumulative_q:,} query rows, {cumulative_d:,} document rows"
-            )
-
             # ── Judge ─────────────────────────────────────────────────────────
-            q_result = _ladder_qa(q_accumulated, slug, "query",    config, run_dir, idx)
-            d_result = _ladder_qa(d_accumulated, slug, "document", config, run_dir, idx) \
-                if d_out else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
+            q_result = _ladder_qa(q_accumulated, slug, "query",    config, run_dir, cadence_step) \
+                if os.path.exists(q_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
+            d_result = _ladder_qa(d_accumulated, slug, "document", config, run_dir, cadence_step) \
+                if os.path.exists(d_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
 
             # ── Persist ───────────────────────────────────────────────────────
+            combined_meta = {
+                "rows": sum(
+                    (q_by_idx[i]["rows"] if i in q_by_idx else 0) +
+                    (d_by_idx[i]["rows"] if i in d_by_idx else 0)
+                    for i in batch_indices
+                )
+            }
             _append_qa_scores(
-                run_dir, run_id, slug, idx, shard_meta,
+                run_dir, run_id, slug, cadence_step, combined_meta,
                 q_result, d_result, cumulative_q, cumulative_d,
                 q_input_tokens=q_in_tok, q_output_tokens=q_out_tok,
                 d_input_tokens=d_in_tok, d_output_tokens=d_out_tok,
-                shard_cost_usd=shard_cost,
-                cumulative_cost_usd=cumulative_cost_usd,
+                shard_cost_usd=shard_cost, cumulative_cost_usd=cumulative_cost_usd,
             )
-            entry["ladder_stage_scores"][str(idx)] = {
-                "q_score_mean": q_result["score_mean"],
-                "q_score_std":  q_result["score_std"],
-                "d_score_mean": d_result["score_mean"],
-                "d_score_std":  d_result["score_std"],
-                "passed": q_result["passed"] and d_result["passed"],
+            entry["ladder_stage_scores"][str(cadence_step)] = {
+                "shards_in_step":   len(batch_indices),
+                "shard_indices":    batch_indices,
+                "q_score_mean":     q_result["score_mean"],
+                "q_score_std":      q_result["score_std"],
+                "d_score_mean":     d_result["score_mean"],
+                "d_score_std":      d_result["score_std"],
+                "passed":           q_result["passed"] and d_result["passed"],
                 "cumulative_q_rows": cumulative_q,
                 "cumulative_d_rows": cumulative_d,
-                "shard_cost_usd": round(shard_cost, 6),
+                "shard_cost_usd":   round(shard_cost, 6),
                 "cumulative_cost_usd": round(cumulative_cost_usd, 6),
-                "timestamp": datetime.now().isoformat(),
+                "timestamp":        datetime.now().isoformat(),
             }
-            entry["ladder_current_stage"] = idx + 1
+            entry["ladder_current_stage"] = batch_indices[-1] + 1
+            entry["ladder_cadence_step"]  = cadence_step + 1
             save_progress(run_dir, progress)
 
             # ── Plots ─────────────────────────────────────────────────────────
@@ -724,17 +757,20 @@ def run_ladder(
                 dm = f"{d_result['score_mean']:.2f}" if d_result.get("score_mean") is not None else "N/A"
                 entry["ladder_stopped"] = True
                 entry["ladder_stop_reason"] = (
-                    f"stage {idx} QA failed (q_score={qm}, d_score={dm})"
+                    f"cadence step {cadence_step} QA failed (q={qm}, d={dm})"
                 )
                 save_progress(run_dir, progress)
                 logger.warning(f"[{slug}] Ladder stopped: {entry['ladder_stop_reason']}")
                 dataset_stopped = True
                 break
 
+            cursor_pos   += n
+            cadence_step += 1
+
         if not dataset_stopped:
             entry["ladder_all_done"] = True
             save_progress(run_dir, progress)
-            logger.info(f"[{slug}] All {len(q_shards)} shards completed.")
+            logger.info(f"[{slug}] All {len(all_indices)} shards completed.")
 
     logger.info(f"Run total cost: ${cumulative_cost_usd:.4f}")
 
