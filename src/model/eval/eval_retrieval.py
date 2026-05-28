@@ -11,6 +11,7 @@ import warnings
 from sklearn.metrics import ndcg_score
 from tqdm import tqdm
 from pathlib import Path
+from data.datasets.utils import hash_text
 
 
 def batched_encode(
@@ -91,6 +92,7 @@ def encode(model_name_or_path: str,
            max_length: int = 512,
            embeddings_files_path: str = None,
            pretrain: bool = True,
+           pooling: str = "mean",
            force_reencode: bool = False):
     # Load model
     if pretrain and os.path.isdir(model_name_or_path):
@@ -103,7 +105,7 @@ def encode(model_name_or_path: str,
                                           doc_model_name=model_name_or_path, 
                                           query_tokenizer_path=tokenizer_name_or_path,
                                           doc_tokenizer_path=tokenizer_name_or_path,
-                                          pooling='cls',
+                                          pooling=pooling,
                                           temperature=0.05)
         model = InfoNCEDualEncoder(config)
     
@@ -131,6 +133,9 @@ def encode(model_name_or_path: str,
                                max_length=max_length,
                                batch_size=batch_size,
                                file=queries_embeddings_file)
+    else:
+        q_emb = torch.load(queries_embeddings_file)
+        print(f"Loaded query embeddings from {queries_embeddings_file}")
 
     print(f"Encoding {len(documents):,} documents...")
     documents_embeddings_file = os.path.join(embeddings_files_path, "doc_embeddings.pt") if embeddings_files_path else None
@@ -157,12 +162,11 @@ def measure_performance(q_emb: torch.Tensor,
                         query_context_id_field: str = "context_guid",
                         document_id_field: str = "guid"):
     assert q_emb.shape[0] == len(gold), "Number of queries in embeddings and gold data must match."
-    
+    assert d_emb.shape[0] == len(documents), "Number of documents in embeddings and documents list must match."
     sim_matrix = torch.matmul(q_emb, d_emb.t())
     sim_scores = sim_matrix.cpu().numpy()
     
     # `contexts` is already defined
-
     ranks = []
     ndcg_targets = []
     ndcg_scores = []
@@ -214,18 +218,11 @@ def measure_performance(q_emb: torch.Tensor,
     recall_at_100 = np.mean([r <= 100 for r in valid_ranks])
 
     # nDCG metrics
-    ndcg_at_5 = np.mean([
-        ndcg_score([target], [score], k=5)
-        for target, score in zip(valid_ndcg_targets, valid_ndcg_scores)
-    ])
-    ndcg_at_10 = np.mean([
-        ndcg_score([target], [score], k=10)
-        for target, score in zip(valid_ndcg_targets, valid_ndcg_scores)
-    ])
-    ndcg_at_100 = np.mean([
-        ndcg_score([target], [score], k=100)
-        for target, score in zip(valid_ndcg_targets, valid_ndcg_scores)
-    ])
+    Y_true  = np.vstack(valid_ndcg_targets).astype(float)  # shape: (Q, D)
+    Y_score = np.vstack(valid_ndcg_scores).astype(float)   # shape: (Q, D)
+    ndcg_at_5   = ndcg_score(Y_true, Y_score, k=5)
+    ndcg_at_10  = ndcg_score(Y_true, Y_score, k=10)
+    ndcg_at_100 = ndcg_score(Y_true, Y_score, k=100)
 
     # Print results
     print(f"Top-1 Accuracy     : {accuracy:.4f}")
@@ -262,11 +259,12 @@ def main(model_name_or_path: str,
          max_length: int = 512,
          query_text_field: str = "text",
          query_context_field: str = "context",
-         query_context_id_field: str = "context_guid",
+         query_context_id_field: str = "context_id",
          document_text_field: str = "text",
-         document_id_field: str = "guid",
+         document_id_field: str = "context_hash",
          document_source_field: str = "_source",
          main_source: str = "heq",
+         pooling: str = "mean",
          pretrain: bool = True):
     # Load datasets
     data_files = {
@@ -283,8 +281,8 @@ def main(model_name_or_path: str,
 
     questions = [item[query_text_field] for item in tqdm(queries_dataset, desc="Loading queries")]
     gold = [{
-        query_context_id_field: item[query_context_id_field],
-        query_context_field: item[query_context_field]
+        query_context_id_field: item.get(query_context_id_field, hash_text(item[query_context_field])),
+        # query_context_field: item[query_context_field]
     } for item in tqdm(queries_dataset, desc="Loading gold contexts")] # list of lists
 
     unique_contexts = set()
@@ -293,6 +291,7 @@ def main(model_name_or_path: str,
     # Deduplicate contexts
     contexts.sort(key=lambda x: 0 if x[document_source_field] == main_source else 1)
     for i, context in tqdm(enumerate(contexts), desc="Deduplicating contexts"):
+        context[document_id_field] = context.get(document_id_field) or hash_text(context[document_text_field])
         if context[document_id_field] not in unique_contexts:
             unique_contexts.add(context[document_id_field])
             deduped_contexts.append(context)
@@ -304,7 +303,7 @@ def main(model_name_or_path: str,
 
     # Find how many gold contexts are in the documents
     gold_contexts = [c[query_context_id_field] for c in gold]
-    contexts_ids = [c["guid"] for c in contexts]
+    contexts_ids = [c[document_id_field] for c in contexts if document_id_field in c]
     found_gold_contexts = [c for c in set(gold_contexts) if c in contexts_ids]
     print(f"Found {len(found_gold_contexts)} gold contexts in the documents ({len(set(gold_contexts))}).")
     assert len(found_gold_contexts) == len(set(gold_contexts)), \
@@ -318,7 +317,8 @@ def main(model_name_or_path: str,
                           max_length=max_length,
                           embeddings_files_path=embeddings_files_path,
                           pretrain=pretrain,
-                          batch_size=batch_size)
+                          batch_size=batch_size,
+                          pooling=pooling,)
     print(f"Encoded {len(q_emb)} queries and {len(d_emb)} documents.")
     print(f"Query embeddings shape: {q_emb.shape}")
     print(f"Document embeddings shape: {d_emb.shape}")
@@ -361,6 +361,7 @@ if __name__ == "__main__":
                         help="Field name for document source (to deduplicate).")
     parser.add_argument("--main_source", type=str, default="heq",
                         help="Main source to prioritize when deduplicating documents.")
+    parser.add_argument("--pooling", type=str, default="mean", help="Pooling strategy: 'cls' or 'mean'.")
     parser.add_argument("--pretrain", action='store_true', help="Whether to load the model from a pre-trained checkpoint.")
 
     args = parser.parse_args()
@@ -378,4 +379,5 @@ if __name__ == "__main__":
          document_text_field=args.document_text_field,
          document_source_field=args.document_source_field,
          main_source=args.main_source,
+         pooling=args.pooling,
          pretrain=args.pretrain)

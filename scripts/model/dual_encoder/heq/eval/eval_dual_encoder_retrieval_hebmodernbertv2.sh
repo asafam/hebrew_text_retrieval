@@ -9,14 +9,15 @@ conda activate htr
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
-MODEL_PATH="outputs/models/dual_encoder/dual_encoder_infonce_heq/onlplab_alephbert-base/model"
-TOKENIZER_PATH="onlplab/alephbert-base"
-QUERIES_PATH="data/retrieval/queries/test.jsonl"
-DOCUMENTS_PATH="data/retrieval/documents/test.jsonl"
-BATCH_SIZE=1024
-MAX_LENGTH=512
-EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/dual_encoder_infonce_heq/onlplab_alephbert-base/model"
-OUTPUT_FILE="outputs/eval/dual_encoder/dual_encoder_infonce_heq/onlplab_alephbert-base/model/results.txt"
+MODEL_PATH="/home/nlp/achimoa/workspace/hebrew_text_retrieval/outputs/models/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_v2/model"
+TOKENIZER_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_v2"
+QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
+DOCUMENTS_PATH="data/retrieval/heq/test/documents.jsonl"
+BATCH_SIZE=128
+MAX_LENGTH=1024
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_v2/model"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_v2/model/results.txt"
+PRETRAIN="True"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"
@@ -28,6 +29,7 @@ echo "Batch size: $BATCH_SIZE"
 echo "Max length: $MAX_LENGTH"
 echo "Embeddings files path: $EMBEDDING_FILES_PATH"
 echo "Output file: $OUTPUT_FILE"
+echo "Pretrain: $PRETRAIN"
 
 # Run the Python script
 python src/model/eval/eval_retrieval.py \
@@ -38,6 +40,7 @@ python src/model/eval/eval_retrieval.py \
     --batch_size "$BATCH_SIZE" \
     --max_length "$MAX_LENGTH" \
     --embeddings_files_path "$EMBEDDING_FILES_PATH" \
-    --output_file "$OUTPUT_FILE"
+    --output_file "$OUTPUT_FILE" \
+    ${PRETRAIN:+--pretrain}
 
 echo "Done."

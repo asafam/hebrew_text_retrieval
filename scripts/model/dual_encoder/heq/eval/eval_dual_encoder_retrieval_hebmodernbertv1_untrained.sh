@@ -7,15 +7,16 @@ conda activate htr
 
 # Add src folder to PYTHONPATH
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
+
 # Define variables
-MODEL_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
-TOKENIZER_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
+MODEL_PATH="/home/nlp/achimoa/workspace/HebrewModernBERT/outputs/hf/HebrewModernBERT_base_mixed_h50e25c25_1024_0.2"
+TOKENIZER_PATH="/home/nlp/achimoa/workspace/HebrewModernBERT/outputs/hf/HebrewModernBERT_base_mixed_h50e25c25_1024_0.2"
 QUERIES_PATH="data/retrieval/heq/test/queries.jsonl"
 DOCUMENTS_PATH="data/retrieval/heq/test/documents.jsonl"
 BATCH_SIZE=128
 MAX_LENGTH=512
-EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_20250622_1325/model_untrained"
-OUTPUT_FILE="outputs/eval/dual_encoder/heq/hebmodernbert/ModernBERT-Hebrew-base_20250622_1325/model_untrained/results.txt"
+EMBEDDING_FILES_PATH="outputs/eval/dual_encoder/heq/hebmodernbert/HebrewModernBERT_base_mixed_h50e25c25_1024_0.2/model_untrained"
+OUTPUT_FILE="outputs/eval/dual_encoder/heq/hebmodernbert/HebrewModernBERT_base_mixed_h50e25c25_1024_0.2/model_untrained/results.txt"
 
 # Print the variables
 echo "Running the Python script: eval_retrieval.py"

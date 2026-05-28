@@ -1,0 +1,40 @@
+- name: heq_translated
+  type: jsonl
+  files: 
+    - /home/nlp/achimoa/workspace/hebrew_text_retrieval/data/heq_translated/test/documents.jsonl
+  text_field: context_english
+  exclude_files:
+    - .DS_Store
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 1.0
+    
+- name: nq
+  type: hf
+  args:
+    path: BeIR/nq
+    name: corpus
+    split: corpus
+    trust_remote_code: True
+    num_proc: 24
+  text_field: text
+  remove_duplicates: True
+  split_ratio:
+    train: 0.0
+    validation: 0.0
+    test: 0.1
+    
+- name: ag_news
+  type: hf
+  args:
+    path: fancyzhx/ag_news
+    split: train
+    trust_remote_code: True
+    num_proc: 24
+  text_field: text
+  remove_duplicates: True
+  split_ratio:
+    train: 1.0
+    validation: 0.0
+    test: 1.0

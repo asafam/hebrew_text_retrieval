@@ -13,10 +13,10 @@ DATASET_NAME="heq_translated"
 QUERY_MODEL_NAME="dicta-il/dictabert"
 DOC_MODEL_NAME="dicta-il/dictabert"
 QUERY_FIELD="question_hebrew"
-DOCUMENT_FIELD="context_english"
+DOCUMENT_FIELD="context_hebrew"
 MAX_LENGTH=512
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/heq_q_he_d_en/dicta-il_dictabert"
+OUTPUT_DIR="./outputs/models/dual_encoder/heq/dicta-il_dictabert"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder.py"

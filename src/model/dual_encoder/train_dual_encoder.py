@@ -96,6 +96,7 @@ def main(
     eval_strategy="steps",
     eval_steps=100,
     max_length=1024,
+    pooling: str = "mean",
     remove_to_overwrite: bool = False,
     force: bool = True
 ):
@@ -135,7 +136,7 @@ def main(
                                       doc_model_name=doc_model_name, 
                                       query_tokenizer_path=tokenizer_q.name_or_path,
                                       doc_tokenizer_path=tokenizer_d.name_or_path,
-                                      pooling='cls', 
+                                      pooling=pooling, 
                                       temperature=0.05)
     model = InfoNCEDualEncoder(config)
 
@@ -201,6 +202,7 @@ if __name__ == "__main__":
     parser.add_argument("--eval_strategy", type=str, default="steps", help="Evaluation strategy to use")
     parser.add_argument("--eval_steps", type=int, default=100, help="Run evaluation every X steps")
     parser.add_argument("--max_length", type=int, default=1024, help="Maximum sequence length for tokenization")
+    parser.add_argument("--pooling", type=str, default="mean", help="Pooling strategy: 'cls' or 'mean'.")
     parser.add_argument("--force", action='store_true', help="Remove output directory if it exists before training")
     args = parser.parse_args()
     
@@ -220,5 +222,6 @@ if __name__ == "__main__":
         eval_strategy=args.eval_strategy,
         eval_steps=args.eval_steps,
         max_length=args.max_length,
+        pooling=args.pooling,
         force=args.force,
     )

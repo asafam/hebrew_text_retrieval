@@ -12,11 +12,11 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 DATASET_NAME="heq_translated"
 QUERY_MODEL_NAME="onlplab/alephbert-base"
 DOC_MODEL_NAME="onlplab/alephbert-base"
-QUERY_FIELD="question_english"
+QUERY_FIELD="question_hebrew"
 DOCUMENT_FIELD="context_hebrew"
 MAX_LENGTH=512
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/heq_q_en_d_he/onlplab_alephbert-base"
+OUTPUT_DIR="./outputs/models/dual_encoder/heq/onlplab_alephbert-base"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder.py"

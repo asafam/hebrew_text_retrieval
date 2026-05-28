@@ -10,8 +10,8 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define variables
 DATA_PATH="data/dolma"
-OUTPUT_PATH="data/dolma/corpus_sampled_eng_75B.jsonl"
-TOKEN_BUDGET=75_000_000_000
+OUTPUT_PATH="data/dolma/corpus_sampled_eng_50B.jsonl"
+TOKEN_BUDGET=50_000_000_000
 SHUFFLE_BUFFFER=1_000_000
 TOKENIZER_PATH="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
 EXCLUDE_SOURCE="starcoder"

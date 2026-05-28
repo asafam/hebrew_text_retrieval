@@ -180,8 +180,8 @@ def main(
     context_window_tokens,
     tokenizer,
     gt_location="random",
-    document_field="document",
-    output_field="long_document",
+    document_field="text",
+    output_field="long_text",
     random_state=42
 ):
     # Seed for reproducibility
@@ -237,8 +237,8 @@ if __name__ == "__main__":
     parser.add_argument("--tokenizer", required=True, help="Tokenizer model name or path.")
     parser.add_argument("--context-window", type=int, default=8192, help="Document window size in tokens.")
     parser.add_argument("--gt_location", choices=["start", "end", "random"], default="random", help="Where to place GT document.")
-    parser.add_argument("--document_field", default="document", help="Field name for the ground-truth document.")
-    parser.add_argument("--output_field", default="long_document", help="Field name for the long document output.")
+    parser.add_argument("--document_field", default="text", help="Field name for the ground-truth document.")
+    parser.add_argument("--output_field", default="long_text", help="Field name for the long document output.")
     parser.add_argument("--distractor_source_folder", required=True, help="Path to a folder containing distractor files (JSONL format).")
     parser.add_argument("--encoding", default="utf-8", help="Encoding for input/output files.")
 

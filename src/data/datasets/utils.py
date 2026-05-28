@@ -60,7 +60,12 @@ def save_as_jsonl(dataset: Dataset,
     print(f"ℹ️ Iterating over a dataset streams into JSONL format")
     Path(output_file).parent.mkdir(parents=True, exist_ok=True) # Ensure the output_dir exists
     with open(output_file, "w", encoding="utf-8") as out_f:
+        record_keys = None
         for record in tqdm(dataset):
+            if record_keys is None:
+                record_keys = record.keys()
+            else:
+                record = {key: record.get(key, None) for key in record_keys if key in record}
             json_line = json.dumps(record, ensure_ascii=False)
             out_f.write(json_line + "\n")
 

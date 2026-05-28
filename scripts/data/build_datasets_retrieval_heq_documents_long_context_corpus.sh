@@ -9,16 +9,16 @@ conda activate bert24
 export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 
 # Define parameters
-DOCUMENTS_FILE_PATH="data/retrieval/heq/test/documents.jsonl"
+DOCUMENTS_FILE_PATH="data/retrieval/heq/test/documents_hebrew.jsonl"
 TOKENIZER="intfloat/multilingual-e5-base"
-CONTEXT_WINDOW=512
+CONTEXT_WINDOW=1024
 GT_LOCATION="random"
 DOCUMENT_FIELD="text"
 OUTPUT_FIELD="long_context"
 DISTRACTOR_SOURCE_FOLDER="data/mafat/hebrew/sources/"
 # Compose output file name dynamically
 OUTPUT_DIR="data/retrieval/heq/test"
-OUTPUT_FILE="documents_${OUTPUT_FIELD}_${CONTEXT_WINDOW}_${GT_LOCATION}.jsonl"
+OUTPUT_FILE="documents_hebrew_${OUTPUT_FIELD}_${CONTEXT_WINDOW}_${GT_LOCATION}.jsonl"
 OUTPUT_PATH="${OUTPUT_DIR}/${OUTPUT_FILE}"
 
 # Show parameters

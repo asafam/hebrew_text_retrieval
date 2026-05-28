@@ -14,9 +14,9 @@ QUERY_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/Mod
 DOC_MODEL_NAME="/home/nlp/achimoa/workspace/ModernBERT/hf/HebrewModernBERT/ModernBERT-Hebrew-base_20250622_1325/ep7-ba896339-rank0"
 QUERY_FIELD="question_hebrew"
 DOCUMENT_FIELD="context_english"
-MAX_LENGTH=8192
+MAX_LENGTH=512
 NUM_EPOCHS=10
-OUTPUT_DIR="./outputs/models/dual_encoder/heq_q_he_d_en/hebmodernbert/ckpt_20250622_1325_ep7-ba896339"
+OUTPUT_DIR="./outputs/models/dual_encoder/heq_q_heb_d_eng/hebmodernbert/ModernBERT-Hebrew-base_20250622_1325"
 
 # Print the variables
 echo "Running the Python script: train_dual_encoder.py"

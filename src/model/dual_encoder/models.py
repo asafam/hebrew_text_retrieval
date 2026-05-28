@@ -8,7 +8,7 @@ class InfoNCEDualEncoderConfig(PretrainedConfig):
 
     def __init__(self, query_model_name=None, doc_model_name=None, 
                  query_tokenizer_path=None, doc_tokenizer_path=None,
-                 pooling="cls", temperature=0.05, **kwargs):
+                 pooling="mean", temperature=0.05, **kwargs):
         super().__init__(**kwargs)
         self.query_model_name = query_model_name
         self.doc_model_name = doc_model_name
@@ -23,8 +23,8 @@ class InfoNCEDualEncoder(PreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self.query_encoder = AutoModel.from_pretrained(config.query_model_name)
-        self.doc_encoder = AutoModel.from_pretrained(config.doc_model_name or config.query_model_name)
+        self.query_encoder = AutoModel.from_pretrained(config.query_model_name, trust_remote_code=True)
+        self.doc_encoder = AutoModel.from_pretrained(config.doc_model_name or config.query_model_name, trust_remote_code=True)
         self.pooling = config.pooling
         self.temperature = config.temperature
 
@@ -33,8 +33,10 @@ class InfoNCEDualEncoder(PreTrainedModel):
             token_embeddings = output.last_hidden_state
             input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size())
             return (token_embeddings * input_mask_expanded).sum(1) / input_mask_expanded.sum(1)
-        else:
+        elif self.pooling == 'cls':
             return output.last_hidden_state[:, 0]
+        else:
+            raise ValueError("Unknown pooling type")
 
     def forward(self, query_input_ids, query_attention_mask, doc_input_ids, doc_attention_mask, labels=None):
         q_out = self.query_encoder(input_ids=query_input_ids, attention_mask=query_attention_mask)

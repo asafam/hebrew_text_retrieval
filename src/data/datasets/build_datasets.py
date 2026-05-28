@@ -59,7 +59,7 @@ def build(
                         limit=config.get("limit", 0),
                         tokens_limit=config.get("tokens_limit", 0),
                         split=split,
-                        split_ratio=config.get("split_ratio", {}).get("validation", 0.1),
+                        split_ratio=config.get("split_ratio", {}).get(split, 1.0),
                         shuffle=True,
                         random_state=random_state,
                     )
