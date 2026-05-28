@@ -1,4 +1,5 @@
 from typing import List, Optional
+import glob
 import json
 import pandas as pd
 import argparse
@@ -11,7 +12,14 @@ DEFAULT_OUTPUT_PATH = "outputs/translation/candidates"
 
 
 def _write_shards(df: pd.DataFrame, slug_dir: str, prefix: str, shard_size: int) -> list:
-    """Split df into fixed-size shard CSVs; return manifest shard list."""
+    """Split df into fixed-size shard CSVs; return manifest shard list.
+
+    Removes any pre-existing {prefix}_shard_*.csv first so a smaller rebuild
+    (e.g. switching --split from 'all' to 'test') doesn't leave stale shards.
+    """
+    for stale in glob.glob(os.path.join(slug_dir, f"{prefix}_shard_*.csv")):
+        os.remove(stale)
+
     shards = []
     total = len(df)
     idx = 0
@@ -131,7 +139,8 @@ def main():
     parser.add_argument("--output_path", type=str, default=None,
                         help=f"Output base directory (default: {DEFAULT_OUTPUT_PATH}).")
     parser.add_argument("--split", type=str, default="test",
-                        help="Dataset split (default: test).")
+                        help="Dataset split (default: test). For BeIR datasets, "
+                             "use 'all' to union train/dev/test queries.")
     parser.add_argument("--force", action="store_true",
                         help="Overwrite existing output files.")
     parser.add_argument("--random_state", type=int, default=None,

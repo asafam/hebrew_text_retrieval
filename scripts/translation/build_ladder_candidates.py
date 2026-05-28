@@ -133,6 +133,8 @@ def main():
     parser.add_argument("--config",  default=DEFAULT_CONFIG, help="YAML candidates config.")
     parser.add_argument("--dataset", default=None,           help="Partial name filter (e.g. 'nfcorpus').")
     parser.add_argument("--force",   action="store_true",    help="Rebuild even if manifest already exists.")
+    parser.add_argument("--split",   default="all",
+                        help="Qrel split to include (test/train/validation/dev/all). Default: all.")
     args = parser.parse_args()
 
     cfg         = load_config(args.config)
@@ -189,8 +191,9 @@ def main():
         log_fh = open(j["log"], "w")
         cmd = [
             python, "-m", "translation.build_translation_candidates",
-            "--config",       args.config,
+            "--config",        args.config,
             "--dataset_names", j["dataset_name"],
+            "--split",         args.split,
         ]
         if args.force:
             cmd.append("--force")

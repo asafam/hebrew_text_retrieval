@@ -175,10 +175,31 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
 
         documents_ids_to_index = {str(doc['_id']): idx for idx, doc in enumerate(corpus_dataset['corpus'])}
 
-        # Unify splits of qrels
-        qrels = []
-        for s in qrels_dataset.keys():
-            qrels.extend(qrels_dataset[s])
+        # Resolve which qrel splits to include. "all" = union of every split.
+        # Other values must match a qrel split (with dev <-> validation aliasing).
+        available_splits = list(qrels_dataset.keys())
+        if split == 'all':
+            target_splits = available_splits
+        else:
+            aliases = {'dev': 'validation', 'validation': 'dev'}
+            if split in available_splits:
+                target_splits = [split]
+            elif aliases.get(split) in available_splits:
+                target_splits = [aliases[split]]
+            else:
+                raise ValueError(
+                    f"Split '{split}' not in qrels {available_splits} for {dataset_name}. "
+                    f"Use one of {available_splits} or 'all'."
+                )
+
+        # Build qid -> (qrel, split). First occurrence wins when "all" sees a
+        # qid in multiple splits.
+        qid_to_qrel_split = {}
+        for s in target_splits:
+            for q in qrels_dataset[s]:
+                qid = str(q['query-id'])
+                if qid not in qid_to_qrel_split:
+                    qid_to_qrel_split[qid] = (q, s)
 
         # Sample documents
         all_documents = list(range(len(corpus_dataset['corpus'])))
@@ -209,17 +230,21 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
 
         queries = []
         for query in queries0:
-            qrel = next((q for q in qrels if str(q['query-id']) == str(query['_id'])), None)
-            corpus_idx = documents_ids_to_index.get(str(qrel['corpus-id'])) if qrel is not None else None
+            qid = str(query['_id'])
+            entry = qid_to_qrel_split.get(qid)
+            if entry is None:
+                continue
+            qrel, qrel_split = entry
+            corpus_idx = documents_ids_to_index.get(str(qrel['corpus-id']))
             context = corpus_dataset['corpus'][corpus_idx] if corpus_idx is not None else None
-            if query is not None and context is not None:
-                queries.append({
-                    **query,
-                    '_id': str(query['_id']),
-                    'text': query['text'].strip(),
-                    'context_id': context['_id'] if context is not None else None,
-                    'context_text': context['text'] if context is not None else None
-                })
+            if context is None:
+                continue
+            queries.append({
+                **query,
+                'context_id': context['_id'],
+                'context_text': context['text'],
+                'split': qrel_split,
+            })
         return queries, documents
 
     def is_match(self, dataset_name: str) -> bool:
@@ -250,10 +275,8 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
         for idx, segment in enumerate(segments):
             document_segments.append({
                 **document,
-                '_id': str(document['_id']),
-                'text': document['text'],
                 'segment_id': idx,
-                'segment_text': segment
+                'segment_text': segment,
             })
         return document_segments
 
