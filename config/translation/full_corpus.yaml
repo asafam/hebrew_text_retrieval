@@ -99,7 +99,7 @@ gcs:
 # ── Batch polling ──────────────────────────────────────────────────────────────
 
 batch:
-  poll_interval_seconds: 3600   # Poll every hour
+  poll_interval_seconds: 900    # Poll every 15 minutes
   max_wait_hours: 72
 
 # ── Export ─────────────────────────────────────────────────────────────────────
