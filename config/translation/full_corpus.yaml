@@ -155,3 +155,4 @@ qa:
   workers: 4
   sleep_time: 3
   min_score: 3.5       # ladder pipeline: absolute floor regardless of baseline
+  sample_seed: 42      # base random seed for sampling; actual seed = sample_seed + stage_idx

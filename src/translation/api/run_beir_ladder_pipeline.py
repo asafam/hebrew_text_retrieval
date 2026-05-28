@@ -46,6 +46,7 @@ from translation.api.run_beir_translation_pipeline import (
 )
 from translation.api.run_beir_batch_gcs import _build_run_kwargs
 from translation.api.translate import run_translation_pipeline as run_parallel_pipeline
+from translation.api.plot_ladder_scores import render_plots
 
 logger = logging.getLogger(__name__)
 
@@ -191,11 +192,12 @@ def _ladder_qa(
     from translation.api.evaluate_translations import run_evaluate_translations
     from translation.qa_phase import DATASET_EVAL_PROMPTS
 
-    min_score   = qa_cfg.get("min_score", 3.5)
-    sample_size = qa_cfg.get("sample_size", 25)
-    judge_model = qa_cfg.get("judge_model", "gemini-2.5-pro")
+    min_score      = qa_cfg.get("min_score", 3.5)
+    sample_size    = qa_cfg.get("sample_size", 25)
+    sample_seed    = qa_cfg.get("sample_seed", 42)
+    judge_model    = qa_cfg.get("judge_model", "gemini-2.5-pro")
     judge_location = qa_cfg.get("judge_location")
-    sleep_time  = qa_cfg.get("sleep_time", 0)
+    sleep_time     = qa_cfg.get("sleep_time", 0)
 
     df = pd.read_csv(accumulated_csv, encoding="utf-8")
     df = df[df["translation"].notna()]
@@ -203,7 +205,7 @@ def _ladder_qa(
         logger.warning(f"[qa] No translated rows in {accumulated_csv}")
         return {"passed": True, "score_mean": None, "score_std": None, "n": 0}
 
-    sample = df.sample(n=min(sample_size, len(df)), random_state=42 + stage_idx)
+    sample = df.sample(n=min(sample_size, len(df)), random_state=sample_seed + stage_idx)
     text_col = "text" if text_type == "query" else "segment_text"
 
     suffix = f"_s{stage_idx:03d}_{text_type}.csv"
@@ -401,8 +403,6 @@ def _dry_run(config: dict, dataset_filter: Optional[str]) -> None:
 # ── Main ladder loop ───────────────────────────────────────────────────────────
 
 def run_ladder(config: dict, run_dir: str, progress: dict, dataset_filter: Optional[str]) -> None:
-    from translation.api.plot_ladder_scores import render_plots
-
     run_id = progress["run_id"]
     candidates_base = _ladder_candidates_base(config)
     exec_cfg = config.get("execution", {})
