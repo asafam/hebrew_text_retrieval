@@ -57,7 +57,7 @@ def translate(system_prompt: str,
         }
     except Exception as e:
         print(f"Error: {e}")
-        if not fail_on_error:
+        if fail_on_error:
             raise e
 
     return {}

@@ -2,9 +2,15 @@ from typing import List, Dict, Optional
 import os
 import json
 from pathlib import Path
-from streaming import MDSWriter
+try:
+    from streaming import MDSWriter
+except ImportError:
+    MDSWriter = None
 from datasets import Dataset
-import sentencepiece as spm
+try:
+    import sentencepiece as spm
+except ImportError:
+    spm = None
 from tqdm import tqdm
 import hashlib
 

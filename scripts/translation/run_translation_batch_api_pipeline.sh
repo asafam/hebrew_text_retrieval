@@ -29,7 +29,7 @@ export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
 # Define variables for input and output
 SOURCE_FILE_PATHS=("outputs/translation/squad/squad_v2/_rajpurkar_squad_v2/validation/documents.csv") 
 PROMPT_FILE_NAME="prompts/translation/openai/translation_prompts_zero_shot_v20250105.yaml"
-MODEL_NAME="models/gemini-2.5-flash-lite-preview-06-17"  
+MODEL_NAME="gemini-3.1-flash-lite"
 LIMIT=256
 FORCE=true 
 ENGLISH_KEY="English"

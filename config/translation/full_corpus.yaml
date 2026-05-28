@@ -1,32 +1,48 @@
 # BeIR Full Corpus Translation
-# Translates all queries and documents across all 12 BeIR datasets.
+# Translates all queries, documents, and titles across all 15 BeIR datasets.
 #
-# Run queries:
-#   python -m translation.api.run_beir_translation_pipeline \
-#       --config config/translation/full_corpus.yaml --text-type query
-#
-# Run documents (after queries pass QA):
-#   python -m translation.api.run_beir_translation_pipeline \
-#       --config config/translation/full_corpus.yaml --text-type document
-#
-# CI / non-interactive (skip cost confirmation):
-#   python -m translation.api.run_beir_translation_pipeline \
-#       --config config/translation/full_corpus.yaml --text-type query --yes
+# Usage:
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml pilot
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml submit --yes
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml collect
 
-run_id: "full_corpus_zeroshot_nocontext_gpt54mini"
+run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite"
 
-model:
-  name: "gpt-5.4-mini"
+# ── Per-type model and prompt configuration ────────────────────────────────────
+
+queries:
+  model: "gemini-3.1-flash-lite"
   temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "query"
+    text_col: "text"              # CSV column with source text
+    english_key: "Text"           # template variable: source text
+    hebrew_key: "Hebrew Query"    # template variable: translation output
+    context_col: "context_text"   # CSV column for context (leave blank if none)
+    context_key: "Context"        # template variable: context
 
-prompt:
-  file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
-  response_format: "Translation"
-  english_key: "Text"
-  hebrew_key: "Translation"
-  context_key: "Context"
-  hebrew_key_query: "Hebrew Query"
-  hebrew_key_document: "Hebrew Document"
+documents:
+  model: "gemini-3.1-flash-lite"
+  temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "document"
+    text_col: "segment_text"
+    english_key: "Text"
+    hebrew_key: "Hebrew Document"
+
+titles:
+  model: "gemini-3.1-flash-lite"
+  temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "document"
+    text_col: "segment_text"
+    english_key: "Text"
+    hebrew_key: "Hebrew Document"
+
+# ── Datasets ───────────────────────────────────────────────────────────────────
 
 datasets:
   names:
@@ -35,7 +51,10 @@ datasets:
     - "BeIR/scifact"          # 5,183 docs
     - "BeIR/arguana"          # 8,674 docs
     - "BeIR/scidocs"          # 25,657 docs
+    - "BeIR/fiqa"             # 57,638 docs
+    - "BeIR/webis-touche2020" # 382,545 docs
     - "BeIR/trec-covid"       # 171,332 docs
+    - "BeIR/cqadupstack"      # ~457,199 docs (12 community QA subsets)
     - "BeIR/quora"            # 522,931 docs
     - "BeIR/nq"               # 2,681,468 docs
     - "BeIR/hotpotqa"         # 5,233,329 docs
@@ -49,47 +68,69 @@ datasets:
   translate_titles: true
   random_seed: 42
 
+# ── Execution ──────────────────────────────────────────────────────────────────
+
 execution:
-  mode: "auto"                # auto → batch API for gpt-* models
+  mode: "auto"
   num_workers: 8
   sleep_time: 0
-  limit: 0                    # 0 = no limit
+  limit: 0
   force_candidates: false
   force_translation: false
   force_export: false
 
+# ── Paths ──────────────────────────────────────────────────────────────────────
+
 paths:
-  candidates_base: "outputs/translation/BeIR/full_corpus"
+  candidates_base: "outputs/translation/BeIR/candidates"
   runs_base: "outputs/beir_translation/full_corpus"
 
+# ── GCS / Vertex AI ───────────────────────────────────────────────────────────
+
+gcs:
+  bucket: "beir-translation"
+  project: "iucc-tsarfaty-lab-gcp-asaf"
+  location: "us-east1"
+  input_prefix: "beir/input"
+  output_prefix: "beir/output"
+
+# ── Batch polling ──────────────────────────────────────────────────────────────
+
 batch:
-  poll_interval_seconds: 3600   # Poll every hour (free)
-  max_wait_hours: 72            # Large datasets may take up to 3 days
-  job_tracking_dir: "jobs/full_corpus"
+  poll_interval_seconds: 3600   # Poll every hour
+  max_wait_hours: 72
+
+# ── Export ─────────────────────────────────────────────────────────────────────
 
 export:
   segment_separator: " "
   include_context: false
 
 # ── Guardrails ────────────────────────────────────────────────────────────────
+
 guardrails:
   max_cost_usd: 2500.0
-  cost_per_1m_input_tokens: 0.075    # gpt-5.4-mini batch API rate
-  cost_per_1m_output_tokens: 0.300
+  cost_per_1m_input_tokens: 0.50     # gemini-3.1-flash-lite
+  cost_per_1m_output_tokens: 1.50    # gemini-3.1-flash-lite
 
-# ── Progressive translation ───────────────────────────────────────────────────
-# Translate pilot_n rows first, optionally QA them, then continue with the rest.
-# Set pilot_n: 0 to skip the pilot and translate everything in one pass.
+# ── Pilot (smoke test before full batch submit) ────────────────────────────────
+
 progression:
-  pilot_n: 100        # Translate 100 rows first as a smoke test
-  pilot_qa: true      # Run LLM-as-a-judge on the pilot before scaling up
+  pilot_n: 100        # rows translated synchronously before batch submit
+  pilot_qa: true      # run LLM-as-a-judge on pilot output; block submit on failure
 
-# ── Per-dataset QA ────────────────────────────────────────────────────────────
+pilot:
+  location: "global"  # gemini-3.1-flash-lite requires global endpoint for sync calls
+
+# ── QA (LLM-as-a-judge) ───────────────────────────────────────────────────────
+
 qa:
   enabled: true
   baseline_csv: "outputs/translation/BeIR/results_translation_eval.csv"
   baseline_model: "gpt-5.4-mini"
   baseline_prompt: "zeroshot_nocontext"
-  judge_model: "claude-sonnet-4-6"
+  judge_model: "gemini-3.1-pro-preview"
+  judge_location: "global"
   sample_size: 25
   workers: 4
+  sleep_time: 3

@@ -60,7 +60,7 @@ TRANSLATION_MODELS=(
     "gpt-5.4-mini"
     "gpt-5.4-nano"
     "claude-haiku-4-5-20251001"
-    "gemini-3.1-flash-lite-preview"
+    "gemini-3.1-flash-lite"
     "moonshotai/kimi-k2.6"
 )
 

@@ -35,7 +35,6 @@ from rich.progress import (
     TimeElapsedColumn,
 )
 
-from translation.build_translation_candidates import build_dataset_candidates
 from translation.api.translate import run_translation_pipeline as run_parallel_pipeline
 from translation.beir.export import export_to_beir_jsonl
 from translation.beir.cache import TranslationCache
@@ -229,8 +228,13 @@ def save_progress(run_dir: str, progress: dict) -> None:
 def resolve_execution_mode(config: dict) -> str:
     mode = config["execution"]["mode"]
     if mode == "auto":
-        return "batch" if re.match(r".*gpt.*", config["model"]["name"]) else "parallel"
-    return mode  # "batch" | "parallel" | "serial"
+        model = config["model"]["name"]
+        if re.match(r".*gpt.*", model):
+            return "batch"
+        if re.match(r"gemini.*", model):
+            return "gemini_batch"
+        return "parallel"
+    return mode  # "batch" | "gemini_batch" | "parallel" | "serial"
 
 
 def _dataset_slug(dataset_name: str) -> str:
@@ -242,12 +246,12 @@ def _empty_dataset_entry(dataset_name: str) -> dict:
         "dataset_name": dataset_name,
         "candidates_built": False,
         "queries_pilot_done": False,
-        "queries_pilot_qa_passed": False,
+        "queries_pilot_qa_passed": None,
         "queries_translated": False,
         "queries_qa_passed": False,
         "titles_translated": False,
         "documents_pilot_done": False,
-        "documents_pilot_qa_passed": False,
+        "documents_pilot_qa_passed": None,
         "documents_translated": False,
         "documents_qa_passed": False,
         "exported_to_beir": False,
@@ -285,6 +289,46 @@ def _estimate_and_confirm(csv_path: str, text_col: str, config: dict, yes: bool 
             raise RuntimeError("Translation cancelled by user at cost confirmation.")
 
 
+def _save_qa_history(
+    run_dir: str,
+    config: dict,
+    dataset_slug: str,
+    text_type: str,
+    sample_size: int,
+    score_mean: float,
+    score_std: float,
+    passed: bool,
+) -> None:
+    import csv
+    run_id = config.get("run_id", "")
+    cfg_key = "queries" if text_type == "query" else "documents"
+    translation_model = config.get(cfg_key, {}).get("model", "")
+    judge_model = config.get("qa", {}).get("judge_model", "")
+    history_path = str(Path(run_dir).parent.parent / "qa_history.csv")
+    row = {
+        "timestamp": datetime.now().isoformat(),
+        "run_id": run_id,
+        "dataset_slug": dataset_slug,
+        "text_type": text_type,
+        "translation_model": translation_model,
+        "judge_model": judge_model,
+        "sample_size": sample_size,
+        "score_mean": round(score_mean, 4),
+        "score_std": round(score_std, 4),
+        "passed": passed,
+    }
+    write_header = not os.path.exists(history_path)
+    os.makedirs(os.path.dirname(history_path) or ".", exist_ok=True)
+    try:
+        with open(history_path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(row.keys()))
+            if write_header:
+                writer.writeheader()
+            writer.writerow(row)
+    except Exception as e:
+        _log(f"  [qa] WARNING: could not save QA history: {e}")
+
+
 def _run_dataset_qa(
     translated_csv: str,
     dataset_slug: str,
@@ -313,10 +357,12 @@ def _run_dataset_qa(
     )
 
     sample_size = qa_cfg.get("sample_size", 25)
-    judge_model = qa_cfg.get("judge_model", "claude-sonnet-4-6")
+    judge_model = qa_cfg.get("judge_model", "gemini-2.5-pro")
+    judge_location = qa_cfg.get("judge_location")
     baseline_model = qa_cfg.get("baseline_model", "gpt-5.4-mini")
     baseline_prompt_slug = qa_cfg.get("baseline_prompt", "zeroshot_nocontext")
     workers = qa_cfg.get("workers", 4)
+    sleep_time = qa_cfg.get("sleep_time", 0)
 
     df = pd.read_csv(translated_csv, encoding="utf-8")
     df = df[df["translation"].notna()]
@@ -325,7 +371,8 @@ def _run_dataset_qa(
         return True
 
     sample = df.sample(n=min(sample_size, len(df)), random_state=42)
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False, mode="w", encoding="utf-8") as tmp:
+    suffix = "_queries.csv" if text_type == "query" else "_documents.csv"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False, mode="w", encoding="utf-8") as tmp:
         sample.to_csv(tmp, index=False)
         tmp_path = tmp.name
 
@@ -336,6 +383,10 @@ def _run_dataset_qa(
     tmp_out_dir = tempfile.mkdtemp()
     text_col = "text" if text_type == "query" else "segment_text"
 
+    # Override GEMINI_LOCATION for the judge if it lives in a different region
+    _prev_location = os.environ.get("GEMINI_LOCATION")
+    if judge_location:
+        os.environ["GEMINI_LOCATION"] = judge_location
     try:
         evaluated = run_evaluate_translations(
             source_file_path=tmp_path,
@@ -347,11 +398,17 @@ def _run_dataset_qa(
             sample=0.0,
             force=True,
             workers=workers,
+            sleep_time=sleep_time,
             english_key=text_col,
             hebrew_key="translation",
         )
     finally:
         os.unlink(tmp_path)
+        if judge_location:
+            if _prev_location is not None:
+                os.environ["GEMINI_LOCATION"] = _prev_location
+            else:
+                os.environ.pop("GEMINI_LOCATION", None)
 
     if evaluated is None or "score" not in evaluated.columns:
         _log(f"  [qa] Evaluation returned no scores — skipping comparison.")
@@ -373,6 +430,7 @@ def _run_dataset_qa(
     idx = (dataset_slug, text_type)
     if idx not in baseline_stats.index:
         _log(f"  [qa] No baseline for {dataset_slug}/{text_type} — reporting score only: {sample_mean:.3f}±{sample_std:.3f}")
+        _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, True)
         return True
 
     baseline_mean = float(baseline_stats.loc[idx, "mean"])
@@ -383,7 +441,7 @@ def _run_dataset_qa(
     _log(f"  [qa] {dataset_slug}/{text_type}: [{status}] "
          f"sample={sample_mean:.3f}±{sample_std:.3f}  baseline={baseline_mean:.3f}±{baseline_std_val:.3f}"
          + (f"  ← {reason}" if reason else ""))
-
+    _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, not degraded)
     return not degraded
 
 
@@ -529,6 +587,8 @@ def _expand_dedup_and_update_cache(
 # ── Phase 1: Build candidates ─────────────────────────────────────────────────
 
 def _phase_build_candidates(dataset_name: str, dataset_slug: str, config: dict) -> None:
+    import shutil
+    from translation.build_translation_candidates import build_dataset_candidates
     candidates_base = config["paths"]["candidates_base"]
     ds_cfg = config["datasets"]
 
@@ -537,11 +597,19 @@ def _phase_build_candidates(dataset_name: str, dataset_slug: str, config: dict) 
         dataset_names=[dataset_name],
         num_samples=ds_cfg["num_samples"],
         max_document_segment_tokens=ds_cfg["max_document_segment_tokens"],
-        model_name=ds_cfg["tokenizer_model"],
+        model_name_or_path=ds_cfg["tokenizer_model"],
         output_path=candidates_base,
         force=config["execution"]["force_candidates"],
-        random_seed=ds_cfg["random_seed"],
+        random_state=ds_cfg["random_seed"],
     )
+
+    # build_dataset_candidates saves to {slug}/test/ — promote to {slug}/ if needed
+    slug_dir = os.path.join(candidates_base, dataset_slug)
+    for fname in ("queries.csv", "documents.csv"):
+        src = os.path.join(slug_dir, "test", fname)
+        dst = os.path.join(slug_dir, fname)
+        if os.path.exists(src) and not os.path.exists(dst):
+            shutil.copy2(src, dst)
 
 
 # ── Phase 2: Translate files ──────────────────────────────────────────────────
@@ -588,6 +656,8 @@ def _phase_translate_file(
 
     if execution_mode == "batch":
         _translate_batch_mode(common_kwargs, job_key, progress_entry, run_dir, progress, config)
+    elif execution_mode == "gemini_batch":
+        _translate_gemini_batch_mode(common_kwargs, job_key, progress_entry, run_dir, progress, config)
     elif execution_mode == "parallel":
         run_parallel_pipeline(parallel=True, num_workers=exec_cfg["num_workers"], **common_kwargs)
     else:  # serial
@@ -655,6 +725,68 @@ def _translate_batch_mode(
         elapsed += poll_secs
 
     raise TimeoutError(f"Batch jobs for {source_file} did not complete within {batch_cfg['max_wait_hours']}h.")
+
+
+def _translate_gemini_batch_mode(
+    pipeline_kwargs: dict,
+    job_key: str,
+    progress_entry: dict,
+    run_dir: str,
+    progress: dict,
+    config: dict,
+) -> None:
+    """Submit to Gemini Batch API, poll until done, retrieve results."""
+    from translation.api.translate_batch_gemini import (
+        run_translation_pipeline as run_gemini_pipeline,
+        check_batch_status,
+        retrieve_batch_results,
+        FAILED_STATES,
+    )
+
+    batch_cfg = config["batch"]
+    poll_secs = batch_cfg["poll_interval_seconds"]
+    max_secs = batch_cfg["max_wait_hours"] * 3600
+    tracking_dir = batch_cfg["job_tracking_dir"]
+    source_file = pipeline_kwargs["source_file_path"]
+
+    existing_job_name = progress_entry.get(job_key)
+    if existing_job_name:
+        _log(f"  [gemini_batch] Resuming job {existing_job_name} for {source_file}...")
+        job_name = existing_job_name
+    else:
+        _log(f"  [gemini_batch] Submitting batch job for {source_file}...")
+        job_name = run_gemini_pipeline(**pipeline_kwargs, tracking_dir=tracking_dir)
+        if not job_name:
+            _log(f"  [gemini_batch] No pending rows — skipping.")
+            return
+        progress_entry[job_key] = job_name
+        save_progress(run_dir, progress)
+        _log(f"  [gemini_batch] Submitted: {job_name}")
+
+    elapsed = 0
+    while elapsed < max_secs:
+        jobs = check_batch_status(job_names=[job_name], tracking_dir=tracking_dir)
+        if not jobs:
+            raise RuntimeError(f"Gemini job {job_name} not found in tracking file.")
+
+        status = jobs[0].get("status", "unknown")
+
+        if status in FAILED_STATES:
+            raise RuntimeError(f"Gemini batch job {job_name} reached failed state: {status}")
+
+        if status == "JOB_STATE_SUCCEEDED":
+            retrieve_batch_results(job_names=[job_name], tracking_dir=tracking_dir)
+            _log(f"  [gemini_batch] Job {job_name} complete and results retrieved.")
+            return
+
+        _log(f"  [gemini_batch] Status: {status}. Sleeping {poll_secs // 3600:.0f}h "
+             f"{(poll_secs % 3600) // 60:.0f}m before next poll...")
+        time.sleep(poll_secs)
+        elapsed += poll_secs
+
+    raise TimeoutError(
+        f"Gemini batch job {job_name} did not complete within {batch_cfg['max_wait_hours']}h."
+    )
 
 
 # ── Phase 2b: Translate titles ────────────────────────────────────────────────

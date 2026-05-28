@@ -17,7 +17,7 @@ class EvaluatedTranslation():
         self.gold = gold
 
     def __str__(self):
-        return f"{source_lang}: {self.english}\nHebrew: {self.hebrew}\nGold: {self.gold}"
+        return f"English: {self.english}\nHebrew: {self.hebrew}\nGold: {self.gold}"
 
 
 class TranslationCritique(BaseModel):
@@ -144,14 +144,18 @@ def get_prompts(prompt_file_name: str, prompt_type: Optional[str], df: pd.DataFr
 
 
 def get_prompt_meta_fields(**kwargs):
+    text_key = kwargs.get('text_key', 'English')
+    translation_key = kwargs.get('translation_key', 'Hebrew')
     prompt_meta_fields = {
         'source_lang': kwargs.get('source_lang', 'English'),
         'target_lang': kwargs.get('target_lang', 'Hebrew'),
-        'text_key': kwargs.get('text_key', 'English'),
-        'translation_key': kwargs.get('translation_key', 'Hebrew'),
+        'text_key': text_key,
+        'translation_key': translation_key,
         'context_key': kwargs.get('context_key', 'Context'),
         'translation_query_key': kwargs.get('translation_query_key', 'Hebrew Query'),
         'translation_document_key': kwargs.get('translation_document_key', 'Hebrew Document'),
+        'english_key': kwargs.get('english_key', text_key),
+        'hebrew_key': kwargs.get('hebrew_key', translation_key),
     }
     return prompt_meta_fields
 

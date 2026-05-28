@@ -23,41 +23,33 @@ def evaluate_translation(
     ):
     start_datetime = datetime.now()
 
-    # Load the OpenAI client
-    client = OpenAI(
-        organization=os.environ['OPENAI_API_ORG'],
-        api_key=os.environ['OPENAI_API_KEY'],
-        project=os.environ['OPENAI_PROJECT']
-    )
+    from llms.router import get_llm
 
-    # Define the messages
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt}
     ]
 
-    # Run chat completion inference
     try:
         model_start_datetime = datetime.now()
-        completion = client.beta.chat.completions.parse(
-            model=model_name,
+        llm = get_llm(model_name)
+        result = llm.completions(
+            model_name=model_name,
             messages=messages,
             temperature=temperature,
-            response_format=response_format
+            response_format=response_format,
         )
-
         model_time = (datetime.now() - model_start_datetime).total_seconds()
-
-        translation_critique = completion.choices[0].message.parsed
-        input_tokens = completion.usage.prompt_tokens
-        output_tokens = completion.usage.completion_tokens
+        completion_parsed = result["completion"]
+        input_tokens = result["input_tokens"]
+        output_tokens = result["output_tokens"]
 
         end_datetime = datetime.now()
         translation_time = (end_datetime - start_datetime).total_seconds()
 
         return {
-            critique_key: translation_critique.critique,
-            score_key: translation_critique.score,
+            critique_key: completion_parsed.critique,
+            score_key: completion_parsed.score,
             'input_tokens': input_tokens,
             'output_tokens': output_tokens,
             'model_name': model_name,
@@ -67,7 +59,7 @@ def evaluate_translation(
         }
     except Exception as e:
         print(f"Error: {e}")
-        if not fail_on_error:
+        if fail_on_error:
             raise e
 
     return {}
@@ -113,48 +105,63 @@ def run_evaluate_translations(
         # Translate a batch of texts in parallel
         df = evaluate_translation_parallel(df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, translations_evaluation_output_file_path, id_columns)
     else:
-        df = evaluate_translations_serial(df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, translations_evaluation_output_file_path, id_columns)
+        df = evaluate_translations_serial(df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, translations_evaluation_output_file_path, id_columns, sleep_time=kwargs.get('sleep_time', 0))
     
     return df
 
 
-def evaluate_translations_serial(source_df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, output_file_path, id_columns):
-    # Translate a batch of texts
+def evaluate_translations_serial(source_df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, output_file_path, id_columns, sleep_time: int = 0):
     evaluation_datetime = datetime.now()
-    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
-        batch_datetime = datetime.now()
-        
-        # Translate batch item
-        results = evaluate_translation(
-            system_prompt=item['system_prompt'], 
-            user_prompt=item['user_prompt'],
-            model_name=model_name,
-            response_format=response_format,
-            critique_key=critique_key,
-            score_key=score_key
-        )
+    evaluations = []
 
-        evaluation = {
+    _TRANSIENT_CODES = (429, 503, 504)
+
+    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
+        if sleep_time > 0 and i > 0:
+            time.sleep(sleep_time)
+        results = {}
+        for attempt in range(3):
+            try:
+                results = evaluate_translation(
+                    system_prompt=item['system_prompt'],
+                    user_prompt=item['user_prompt'],
+                    model_name=model_name,
+                    response_format=response_format,
+                    critique_key=critique_key,
+                    score_key=score_key,
+                    fail_on_error=True,
+                )
+                break
+            except Exception as e:
+                code = getattr(e, 'status_code', None) or getattr(e, 'code', None)
+                is_transient = code in _TRANSIENT_CODES or any(
+                    kw in str(e) for kw in ("DEADLINE_EXCEEDED", "RESOURCE_EXHAUSTED", "timeout")
+                )
+                if is_transient and attempt < 2:
+                    wait = 30 * (attempt + 1)
+                    print(f"\nTransient error (attempt {attempt+1}/3), retrying in {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    print(f"\nSkipping row {i} after error: {e}")
+                    break
+        evaluations.append({
             **item,
             **results,
             "batch_idx": i,
             "batch_size": 1,
             "prompt_file_name": prompt_file_name,
-            "batch_datetime": batch_datetime,
+            "batch_datetime": datetime.now(),
             "evaluation": evaluation_datetime,
-        }
-        
-        # Save the results
-        evaluated_df = pd.DataFrame([evaluation])
-        df = pd.merge(source_df, evaluated_df, on=id_columns, how='left')
-        # Overwrite columns in left_df with values from right_df if available
-        for col in df.columns:
-            if (col + '_y') in df.columns and col not in id_columns:  # Skip key columns
-                df[col] = df[col + '_y'].combine_first(df[col + '_x'])
-                df.drop(columns=[col + '_x', col + '_y'], inplace=True)
-        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-        df.to_csv(output_file_path, encoding='utf-8', index=False)
+        })
 
+    evaluated_df = pd.DataFrame(evaluations)
+    df = pd.merge(source_df, evaluated_df, on=id_columns, how='left')
+    for col in evaluated_df.columns:
+        if (col + '_y') in df.columns and col not in id_columns:
+            df[col] = df[col + '_y'].combine_first(df[col + '_x'])
+            df.drop(columns=[col + '_x', col + '_y'], inplace=True)
+    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    df.to_csv(output_file_path, encoding='utf-8', index=False)
     return df
 
 def evaluate_translation_parallel(source_df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, output_file_path, id_columns, num_workers: int = 0, sleep_time: int = 0):
