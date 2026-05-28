@@ -25,8 +25,6 @@ BeIR = {
     'Entity retrieval': ['BeIR/dbpedia-entity'],
 }
 
-# Datasets whose Parquet files are incompatible with PyArrow 19 (Repetition level histogram)
-_FASTPARQUET_DATASETS = frozenset({'BeIR/fiqa', 'BeIR/webis-touche2020', 'BeIR/cqadupstack'})
 
 _CQADUPSTACK_SUBSETS = [
     'android', 'english', 'gaming', 'gis', 'mathematica', 'physics',
@@ -146,6 +144,22 @@ def _load_via_fastparquet(dataset_name: str):
 
 
 class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
+    def _load_beir_dataset(self, dataset_name: str):
+        """
+        Load corpus, queries, and qrels for a BeIR dataset.
+        Tries the standard HuggingFace loader first; if it fails (e.g. PyArrow
+        Repetition level histogram mismatch on some versions), falls back to
+        reading Parquet files directly with fastparquet.
+        """
+        try:
+            corpus  = load_dataset(dataset_name, 'corpus')
+            queries = load_dataset(dataset_name, 'queries')
+            qrels   = load_dataset(f'{dataset_name}-qrels')
+            return corpus, queries, qrels
+        except Exception as e:
+            print(f"  [warn] load_dataset failed for {dataset_name} ({e}); retrying with fastparquet")
+            return _load_via_fastparquet(dataset_name)
+
     def build_data(self,
                    dataset_name: str,
                    model_name: str = None,
@@ -157,12 +171,7 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
         model_name = model_name or kwargs.get('model_name_or_path', '')
         random_seed = random_seed if random_seed != 42 else kwargs.get('random_state', random_seed)
 
-        if dataset_name in _FASTPARQUET_DATASETS:
-            corpus_dataset, queries_dataset, qrels_dataset = _load_via_fastparquet(dataset_name)
-        else:
-            corpus_dataset = load_dataset(dataset_name, 'corpus')
-            queries_dataset = load_dataset(dataset_name, 'queries')
-            qrels_dataset = load_dataset(f'{dataset_name}-qrels')
+        corpus_dataset, queries_dataset, qrels_dataset = self._load_beir_dataset(dataset_name)
 
         documents_ids_to_index = {str(doc['_id']): idx for idx, doc in enumerate(corpus_dataset['corpus'])}
 
