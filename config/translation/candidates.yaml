@@ -1,0 +1,60 @@
+# Translation Candidates Configuration
+#
+# Controls candidate CSV generation for the ladder translation pipeline.
+# Used by:
+#   python scripts/translation/build_ladder_candidates.py [--config this_file]
+#
+# Shard sizes are per-dataset. After building, each dataset produces:
+#   outputs/translation/candidates/<slug>/queries_shard_NNN.csv
+#   outputs/translation/candidates/<slug>/documents_shard_NNN.csv
+#   outputs/translation/candidates/<slug>/shard_manifest.json
+
+datasets:
+  names:
+    # Ordered small → large so small datasets finish first and the pipeline
+    # can start translating while large ones are still being built.
+    - "BeIR/nfcorpus"         # 3,633 docs
+    - "BeIR/scifact"           # 5,183 docs
+    - "BeIR/arguana"           # 8,674 docs
+    - "BeIR/scidocs"           # 25,657 docs
+    - "BeIR/fiqa"              # 57,638 docs
+    - "BeIR/trec-covid"        # 171,332 docs
+    - "BeIR/webis-touche2020"  # 382,545 docs
+    - "BeIR/cqadupstack"       # ~457,199 docs (12 StackExchange subsets)
+    - "BeIR/quora"             # 522,931 docs
+    - "BeIR/nq"                # 2,681,468 docs
+    - "BeIR/hotpotqa"          # 5,233,329 docs
+    - "BeIR/dbpedia-entity"    # 4,635,922 docs
+    - "BeIR/fever"             # 5,416,568 docs
+    - "BeIR/climate-fever"     # 5,416,593 docs
+    - "BeIR/msmarco"           # 8,841,823 docs
+
+  # Rows per shard — drives QA gating granularity.
+  # Small datasets: small shards (fail fast, low waste).
+  # Large datasets: larger shards (translate a meaningful chunk before judging).
+  default_shard_size: 10000
+  shard_sizes:
+    BeIR_nfcorpus:           500
+    BeIR_scifact:           1000
+    BeIR_arguana:           1000
+    BeIR_scidocs:           5000
+    BeIR_fiqa:             10000
+    BeIR_trec-covid:       10000
+    BeIR_webis-touche2020: 25000
+    BeIR_cqadupstack:      25000
+    BeIR_quora:            25000
+    BeIR_nq:              100000
+    BeIR_hotpotqa:        100000
+    BeIR_dbpedia-entity:  100000
+    BeIR_fever:           100000
+    BeIR_climate-fever:   100000
+    BeIR_msmarco:         100000
+
+  max_document_segment_tokens: 512
+  tokenizer_model: "gpt-4o-mini-2024-07-18"
+  num_samples: 0       # 0 = all rows
+  random_seed: 42
+
+paths:
+  output: "outputs/translation/candidates"
+  logs:   "outputs/translation/candidates/logs"
