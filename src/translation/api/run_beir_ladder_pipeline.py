@@ -65,12 +65,6 @@ def _setup_logging(run_dir: str) -> None:
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
 
-def _shard_size(config: dict, slug: str) -> int:
-    ds_cfg = config.get("datasets", {})
-    default = ds_cfg.get("default_shard_size", 10000)
-    return ds_cfg.get("shard_sizes", {}).get(slug, default)
-
-
 def _ladder_candidates_base(config: dict) -> str:
     return config.get("paths", {}).get("ladder_candidates_base", "outputs/translation/candidates")
 
@@ -391,9 +385,10 @@ def _dry_run(config: dict, dataset_filter: Optional[str]) -> None:
         d_shards = manifest["types"]["documents"]
         total_q = sum(s["rows"] for s in q_shards)
         total_d = sum(s["rows"] for s in d_shards)
-        cfg_size = _shard_size(config, slug)
+        shard_sz = manifest.get("shard_size", "?")
+        shard_sz_fmt = f"{shard_sz:,}" if isinstance(shard_sz, int) else shard_sz
         print(
-            f"  {slug}: {len(q_shards)} query shards (configured size={cfg_size:,}) "
+            f"  {slug}: {len(q_shards)} query shards (shard size={shard_sz_fmt}) "
             f"= {total_q:,} queries | "
             f"{len(d_shards)} doc shards = {total_d:,} documents"
         )
