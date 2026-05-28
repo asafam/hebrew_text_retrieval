@@ -92,14 +92,14 @@ paths:
 gcs:
   bucket: "beir-translation"
   project: "iucc-tsarfaty-lab-gcp-asaf"
-  location: "us-east1"
+  location: "global"
   input_prefix: "beir/input"
   output_prefix: "beir/output"
 
 # ── Batch polling ──────────────────────────────────────────────────────────────
 
 batch:
-  poll_interval_seconds: 900    # Poll every 15 minutes
+  poll_interval_seconds: 300    # Poll every 5 minutes
   max_wait_hours: 72
 
 # ── Export ─────────────────────────────────────────────────────────────────────
@@ -131,7 +131,7 @@ pilot:
 #   exponential: cadence_start × 2^step                (1, 2, 4, 8, ...)
 
 ladder:
-  cadence: "linear"
+  cadence: "exponential"
   cadence_start: 1
 
 # ── QA (LLM-as-a-judge) ───────────────────────────────────────────────────────
@@ -144,7 +144,7 @@ qa:
   judge_model: "gemini-3.1-pro-preview"
   judge_location: "global"
   sample_size: 25
-  workers: 4
+  workers: 32
   sleep_time: 3
   min_score: 3.5       # ladder pipeline: absolute floor regardless of baseline
   sample_seed: 42      # base random seed for sampling; actual seed = sample_seed + stage_idx

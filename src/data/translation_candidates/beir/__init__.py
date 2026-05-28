@@ -167,6 +167,7 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
                    split: str = 'test',
                    max_tokens: int = 2048,
                    random_seed: int = 42,
+                   include_context: bool = False,
                    **kwargs):
         model_name = model_name or kwargs.get('model_name_or_path', '')
         random_seed = random_seed if random_seed != 42 else kwargs.get('random_state', random_seed)
@@ -239,12 +240,11 @@ class HuggingFaceBeIRDataBuilder(TranslationCandidatesDataBuilder):
             context = corpus_dataset['corpus'][corpus_idx] if corpus_idx is not None else None
             if context is None:
                 continue
-            queries.append({
-                **query,
-                'context_id': context['_id'],
-                'context_text': context['text'],
-                'split': qrel_split,
-            })
+            row = {**query, 'split': qrel_split}
+            if include_context:
+                row['context_id']   = context['_id']
+                row['context_text'] = context['text']
+            queries.append(row)
         return queries, documents
 
     def is_match(self, dataset_name: str) -> bool:

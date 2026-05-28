@@ -35,11 +35,13 @@ import os
 import sys
 import tempfile
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+from rich.console import Console
+from rich.table import Table
 
 from translation.api.run_beir_translation_pipeline import (
     load_config,
@@ -59,6 +61,7 @@ from translation.api.translate_batch_gemini_gcs import (
     build_and_upload_input,
     submit_gcs_batch_job,
     check_job_status,
+    get_job_info,
     write_translated_csv,
     _strip_gs_uri,
 )
@@ -177,8 +180,9 @@ def _download_shard_results(gcs_client, bucket: str, gcs_output_prefix: str) -> 
         for raw_line in blob.download_as_text(encoding="utf-8").splitlines():
             if not raw_line.strip():
                 continue
+            obj = json.loads(raw_line)
+            composite_id = obj.get("_id", "")
             try:
-                obj = json.loads(raw_line)
                 text = obj["response"]["candidates"][0]["content"]["parts"][0]["text"]
                 translation = json.loads(text).get("translation", text)
                 usage = obj["response"].get("usageMetadata", {})
@@ -186,16 +190,27 @@ def _download_shard_results(gcs_client, bucket: str, gcs_output_prefix: str) -> 
                 output_tokens += usage.get("candidatesTokenCount", 0)
             except Exception:
                 translation = ""
-            results.append({"translation": translation})
+            # Include the composite _id so write_translated_csv can match by id
+            # rather than by position. Vertex's prediction order does not match
+            # the input order, so positional matching corrupts the alignment.
+            results.append({"_id": composite_id, "translation": translation})
     return results, input_tokens, output_tokens
 
 
-def _compute_cost(input_tokens: int, output_tokens: int, config: dict) -> float:
-    """Compute USD cost from actual token counts using guardrails pricing."""
+BATCH_PRICE_MULTIPLIER = 0.5  # Vertex Gemini batch mode is 50% off sync pricing
+
+
+def _compute_cost(input_tokens: int, output_tokens: int, config: dict, batch: bool = True) -> float:
+    """Compute USD cost from actual token counts using guardrails pricing.
+
+    Vertex Gemini batch jobs are billed at 50% of sync pricing. Pass batch=False
+    for sync pricing.
+    """
     g = config.get("guardrails", {})
     cost_in  = g.get("cost_per_1m_input_tokens",  0.0)
     cost_out = g.get("cost_per_1m_output_tokens", 0.0)
-    return (input_tokens * cost_in + output_tokens * cost_out) / 1_000_000
+    cost = (input_tokens * cost_in + output_tokens * cost_out) / 1_000_000
+    return cost * BATCH_PRICE_MULTIPLIER if batch else cost
 
 
 def _cadence_shards_for_step(step: int, start: int, mode: str) -> int:
@@ -206,6 +221,30 @@ def _cadence_shards_for_step(step: int, start: int, mode: str) -> int:
         return start * (step + 1)
     else:  # static
         return start
+
+
+def _existing_job_info(
+    job_name: str,
+    shard_csv: str,
+    output_path: str,
+    run_id: str,
+    slug: str,
+    shard_idx: int,
+    text_type: str,
+    bucket: str,
+) -> dict:
+    """Reconstruct the job-info dict for a previously-submitted job (no resubmit).
+
+    Same shape as _submit_shard_job's return so the rest of the pipeline
+    (polling, collection) treats it identically.
+    """
+    gcs_prefix = _gcs_shard_prefix(run_id, slug, shard_idx, text_type)
+    return {
+        "job_name":         job_name,
+        "shard_csv":        shard_csv,
+        "output_path":      output_path,
+        "gcs_output_prefix": f"gs://{bucket}/{gcs_prefix}/output",
+    }
 
 
 def _submit_shard_job(
@@ -245,40 +284,159 @@ def _submit_shard_job(
     }
 
 
+_poll_console = Console()
+
+
+def _parse_vertex_time(t):
+    """Parse a Vertex timestamp (datetime, ISO string, or None) to tz-aware UTC datetime."""
+    if t is None:
+        return None
+    if isinstance(t, datetime):
+        return t if t.tzinfo else t.replace(tzinfo=timezone.utc)
+    s = str(t).replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+_STATE_STYLE = {
+    "QUEUED":    ("·",  "dim"),
+    "PENDING":   ("·",  "dim"),
+    "RUNNING":   ("⟳",  "bold cyan"),
+    "UPDATING":  ("⟳",  "cyan"),
+    "SUCCEEDED": ("✓",  "bold green"),
+    "FAILED":    ("✗",  "bold red"),
+    "CANCELLED": ("⊘",  "yellow"),
+    "EXPIRED":   ("⊘",  "yellow"),
+}
+
+
+def _job_row(key, info, now):
+    """Return a list of cell values for one Table row."""
+    shard_idx, text_type = key
+    short = info["state"].replace("JOB_STATE_", "")
+    icon, _ = _STATE_STYLE.get(short, ("?", ""))
+
+    create = _parse_vertex_time(info.get("create_time"))
+    start  = _parse_vertex_time(info.get("start_time"))
+    end    = _parse_vertex_time(info.get("end_time"))
+
+    def _m(td):
+        return f"{int(td.total_seconds() // 60)}m" if td is not None else "—"
+
+    queued = _m(start - create) if (create and start) else (_m(now - create) if create and not start else "—")
+    if end and start:
+        runtime = _m(end - start)
+    elif start:
+        runtime = _m(now - start)
+    else:
+        runtime = "—"
+
+    sc, fc = info.get("successful_count"), info.get("failed_count")
+    counts = "—"
+    if sc is not None or fc is not None:
+        counts = f"{sc or 0} ok"
+        if fc:
+            counts += f" / {fc} fail"
+
+    err = info.get("error_message") or ""
+    return [
+        f"shard_{shard_idx:03d}",
+        text_type,
+        f"{icon} {short}",
+        queued,
+        runtime,
+        counts,
+        err[:60],
+    ]
+
+
+def _render_poll_table(snapshot, poll_idx, waited, pending_n, total_n, poll_interval, now,
+                       cumulative_cost_usd=None):
+    """Render a rich Table to the console for one poll cycle."""
+    title = (
+        f"Poll #{poll_idx}  ·  elapsed {waited // 60}m  ·  "
+        f"{pending_n}/{total_n} pending"
+    )
+    if cumulative_cost_usd is not None:
+        title += f"  ·  cost so far ${cumulative_cost_usd:.4f} (batch)"
+    if pending_n:
+        title += f"  ·  next in {poll_interval // 60}m"
+
+    table = Table(title=title, show_header=True, header_style="bold", expand=False)
+    table.add_column("Shard")
+    table.add_column("Type")
+    table.add_column("State", min_width=12)
+    table.add_column("Queued", justify="right")
+    table.add_column("Runtime", justify="right")
+    table.add_column("Counts", justify="right")
+    table.add_column("Error", overflow="fold", max_width=40)
+
+    for key, info in snapshot:
+        cells = _job_row(key, info, now)
+        short = info["state"].replace("JOB_STATE_", "")
+        _, style = _STATE_STYLE.get(short, ("?", ""))
+        table.add_row(*cells, style=style)
+
+    _poll_console.print(table)
+
+
 def _poll_until_all_complete(
     jobs: dict,
     gemini_client,
     poll_interval: int,
     max_wait_seconds: int,
+    cumulative_cost_usd: float = None,
 ) -> None:
     """
     Poll all jobs until every one reaches a terminal state.
-    jobs: {key: job_info_dict} — mutated in place, adds 'status' to each entry.
+    jobs: {key: job_info_dict} — mutated in place, adds 'status' (and 'info')
+    to each entry. Each cycle renders a Table to the console and writes a
+    one-line summary to the log file. The table title shows the cumulative
+    batch cost so far across the run when cumulative_cost_usd is provided.
     """
     pending = set(jobs.keys())
     waited = 0
+    poll_idx = 0
     while pending:
-        for key in list(pending):
-            status = check_job_status(gemini_client, jobs[key]["job_name"])
-            if status in TERMINAL_STATES:
-                jobs[key]["status"] = status
-                pending.discard(key)
-                logger.info(f"  Job done [{status}]: {jobs[key]['job_name']}")
+        poll_idx += 1
+        now = datetime.now(timezone.utc)
+        snapshot = []
+        for key in sorted(jobs.keys()):
+            if key in pending:
+                info = get_job_info(gemini_client, jobs[key]["job_name"])
+                if info["state"] in TERMINAL_STATES:
+                    jobs[key]["status"] = info["state"]
+                    jobs[key]["info"]   = info
+                    pending.discard(key)
+            else:
+                info = jobs[key].get("info") or {"state": jobs[key].get("status", "?")}
+            snapshot.append((key, info))
+
+        _render_poll_table(
+            snapshot, poll_idx, waited, len(pending), len(jobs), poll_interval, now,
+            cumulative_cost_usd=cumulative_cost_usd,
+        )
+        logger.info(
+            f"Poll #{poll_idx}: {len(pending)}/{len(jobs)} pending (elapsed {waited // 60}m); "
+            + ", ".join(
+                f"shard_{k[0]:03d}/{k[1]}={i['state'].replace('JOB_STATE_', '')}"
+                for k, i in snapshot
+            )
+        )
+
         if pending:
             if waited >= max_wait_seconds:
                 raise RuntimeError(
                     f"{len(pending)} jobs timed out after {max_wait_seconds // 3600}h: "
                     f"{[jobs[k]['job_name'] for k in pending]}"
                 )
-            logger.info(
-                f"  {len(pending)} job(s) still running "
-                f"(waited {waited // 60}m, next poll in {poll_interval // 60}m)"
-            )
             time.sleep(poll_interval)
             waited += poll_interval
 
 
-def _collect_shard_results(jobs: dict, gcs_client, bucket: str) -> dict:
+def _collect_shard_results(jobs: dict, gcs_client, bucket: str, config: dict = None) -> dict:
     """
     Download results for all jobs.
     Returns {key: {"output_path", "input_tokens", "output_tokens"}}.
@@ -288,12 +446,20 @@ def _collect_shard_results(jobs: dict, gcs_client, bucket: str) -> dict:
     for key, info in sorted(jobs.items()):
         if info.get("status") in FAILED_STATES:
             raise RuntimeError(f"Job failed [{info['status']}]: {info['job_name']}")
-        _, gcs_output_path = _strip_gs_uri(info["gcs_output_prefix"])
+        # Prefer Vertex's per-job output_dir (gcsOutputDirectory) over the shared
+        # parent gcs_output_prefix. The parent may contain prediction-model-* dirs
+        # from earlier orphaned submissions; the per-job dir targets only this job.
+        per_job_dir = (info.get("info") or {}).get("output_dir")
+        download_uri = per_job_dir or info["gcs_output_prefix"]
+        _, gcs_output_path = _strip_gs_uri(download_uri)
         translations, in_tok, out_tok = _download_shard_results(gcs_client, bucket, gcs_output_path)
         write_translated_csv(translations, info["shard_csv"], info["output_path"])
+        cost_str = ""
+        if config is not None:
+            cost_str = f", ${_compute_cost(in_tok, out_tok, config):.4f} (batch)"
         logger.info(
             f"  Collected: {info['job_name']} — "
-            f"{in_tok:,} input tokens, {out_tok:,} output tokens"
+            f"{in_tok:,} input tokens, {out_tok:,} output tokens{cost_str}"
         )
         results[key] = {
             "output_path": info["output_path"],
@@ -344,6 +510,7 @@ def _ladder_qa(
     judge_model    = qa_cfg.get("judge_model", "gemini-2.5-pro")
     judge_location = qa_cfg.get("judge_location")
     sleep_time     = qa_cfg.get("sleep_time", 0)
+    num_workers    = qa_cfg.get("workers", qa_cfg.get("num_workers", 32))
 
     df = pd.read_csv(accumulated_csv, encoding="utf-8")
     df = df[df["translation"].notna()]
@@ -380,6 +547,9 @@ def _ladder_qa(
             sleep_time=sleep_time,
             english_key=text_col,
             hebrew_key="translation",
+            prompt_type=text_type,
+            parallel=True,
+            num_workers=num_workers,
         )
     finally:
         try:
@@ -631,10 +801,12 @@ def run_ladder(
             batch_indices = all_indices[cursor_pos:cursor_pos + n]
             logger.info(f"[{slug}] Cadence step {cadence_step}: {len(batch_indices)} shard(s) {batch_indices}")
 
-            # ── Submit all shard jobs in parallel ─────────────────────────────
+            # ── Submit all shard jobs in parallel (reuse persisted jobs on resume) ─
             pending_jobs = {}
             submit_error = None
+            shards_state = entry.setdefault("shards", {})
             for shard_idx in batch_indices:
+                shard_record = shards_state.setdefault(str(shard_idx), {})
                 for text_type, by_idx, type_cfg in [("queries", q_by_idx, q_cfg), ("documents", d_by_idx, d_cfg)]:
                     if shard_idx not in by_idx:
                         continue
@@ -644,11 +816,35 @@ def run_ladder(
                         submit_error = f"shard {shard_idx}: {text_type} file missing: {shard_csv}"
                         break
                     out_path = os.path.join(shard_out_dir, shard_meta["file"].replace(".csv", "_translated.csv"))
-                    try:
-                        pending_jobs[(shard_idx, text_type)] = _submit_shard_job(
-                            shard_csv, out_path, text_type, type_cfg,
-                            run_id, slug, shard_idx, gemini_client, gcs_client, bucket,
+                    existing = shard_record.get(text_type)
+                    if existing and existing.get("appended"):
+                        # Fully completed on an earlier run — translations live in
+                        # the accumulated CSV. Don't poll, don't re-download.
+                        logger.info(
+                            f"  Skipping shard {shard_idx} {text_type}: "
+                            f"already collected & appended on a prior run"
                         )
+                        continue
+                    try:
+                        if existing and existing.get("job_name"):
+                            logger.info(
+                                f"  Reusing previously-submitted job for "
+                                f"shard {shard_idx} {text_type}: {existing['job_name']}"
+                            )
+                            pending_jobs[(shard_idx, text_type)] = _existing_job_info(
+                                existing["job_name"], shard_csv, out_path,
+                                run_id, slug, shard_idx, text_type, bucket,
+                            )
+                        else:
+                            pending_jobs[(shard_idx, text_type)] = _submit_shard_job(
+                                shard_csv, out_path, text_type, type_cfg,
+                                run_id, slug, shard_idx, gemini_client, gcs_client, bucket,
+                            )
+                            shard_record[text_type] = {
+                                "job_name":     pending_jobs[(shard_idx, text_type)]["job_name"],
+                                "submitted_at": datetime.now(timezone.utc).isoformat(),
+                            }
+                            save_progress(run_dir, progress)
                     except Exception as e:
                         submit_error = f"shard {shard_idx}: {text_type} submit failed: {e}"
                         break
@@ -665,7 +861,10 @@ def run_ladder(
 
             # ── Poll all jobs until complete ──────────────────────────────────
             try:
-                _poll_until_all_complete(pending_jobs, gemini_client, poll_interval, max_wait_seconds)
+                _poll_until_all_complete(
+                    pending_jobs, gemini_client, poll_interval, max_wait_seconds,
+                    cumulative_cost_usd=cumulative_cost_usd,
+                )
             except RuntimeError as e:
                 logger.error(f"[{slug}] Poll failed: {e}")
                 entry["ladder_stopped"] = True
@@ -676,7 +875,7 @@ def run_ladder(
 
             # ── Collect results ───────────────────────────────────────────────
             try:
-                shard_results = _collect_shard_results(pending_jobs, gcs_client, bucket)
+                shard_results = _collect_shard_results(pending_jobs, gcs_client, bucket, config)
             except RuntimeError as e:
                 logger.error(f"[{slug}] Collect failed: {e}")
                 entry["ladder_stopped"] = True
@@ -686,24 +885,39 @@ def run_ladder(
                 break
 
             # ── Accumulate + token tracking ───────────────────────────────────
+            # Idempotent: skip shards already appended on a prior run. Their tokens
+            # have already been counted into total_cost_usd, so leaving them out of
+            # this step's tallies prevents double-counting.
             q_in_tok = q_out_tok = d_in_tok = d_out_tok = 0
             cumulative_q = cumulative_d = 0
             for shard_idx in batch_indices:
-                if (shard_idx, "queries") in shard_results:
-                    r = shard_results[(shard_idx, "queries")]
-                    cumulative_q  = _append_to_accumulated(r["output_path"], q_accumulated)
-                    q_in_tok  += r["input_tokens"]
-                    q_out_tok += r["output_tokens"]
-                if (shard_idx, "documents") in shard_results:
-                    r = shard_results[(shard_idx, "documents")]
-                    cumulative_d  = _append_to_accumulated(r["output_path"], d_accumulated)
-                    d_in_tok  += r["input_tokens"]
-                    d_out_tok += r["output_tokens"]
+                shard_record = shards_state.setdefault(str(shard_idx), {})
+                for text_type, acc_path in (("queries", q_accumulated), ("documents", d_accumulated)):
+                    if (shard_idx, text_type) not in shard_results:
+                        continue
+                    rec = shard_record.setdefault(text_type, {})
+                    if rec.get("appended"):
+                        continue
+                    r = shard_results[(shard_idx, text_type)]
+                    cumulative = _append_to_accumulated(r["output_path"], acc_path)
+                    rec["appended"]      = True
+                    rec["input_tokens"]  = r["input_tokens"]
+                    rec["output_tokens"] = r["output_tokens"]
+                    save_progress(run_dir, progress)
+                    if text_type == "queries":
+                        cumulative_q = cumulative
+                        q_in_tok  += r["input_tokens"]
+                        q_out_tok += r["output_tokens"]
+                    else:
+                        cumulative_d = cumulative
+                        d_in_tok  += r["input_tokens"]
+                        d_out_tok += r["output_tokens"]
 
             # ── Cost ──────────────────────────────────────────────────────────
             shard_cost = _compute_cost(q_in_tok + d_in_tok, q_out_tok + d_out_tok, config)
             cumulative_cost_usd += shard_cost
             progress["total_cost_usd"] = round(cumulative_cost_usd, 6)
+            save_progress(run_dir, progress)
             logger.info(
                 f"[{slug}] Step {cadence_step} cost: ${shard_cost:.4f}  "
                 f"(run total: ${cumulative_cost_usd:.4f})"

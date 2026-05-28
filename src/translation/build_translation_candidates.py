@@ -4,8 +4,40 @@ import json
 import pandas as pd
 import argparse
 import os
+import re
 from tqdm import tqdm
 from data.translation_candidates import build_data
+
+
+# Columns the BeIR candidate builder can emit conditionally (drop if no prompt
+# template references them). Add new optional columns here as the schema grows.
+_OPTIONAL_COLUMNS = {
+    "context_id":   "include_context",
+    "context_text": "include_context",
+}
+
+
+def _placeholders_in_prompts(prompt_files: list) -> set:
+    """Return the set of {placeholder} names used across the given prompt YAMLs."""
+    pat = re.compile(r"\{(\w+)\}")
+    names: set = set()
+    for pf in prompt_files or []:
+        if not os.path.isfile(pf):
+            print(f"  [warn] prompt file not found, ignoring: {pf}")
+            continue
+        with open(pf, encoding="utf-8") as f:
+            names.update(pat.findall(f.read()))
+    return names
+
+
+def _builder_flags_from_prompts(prompt_files: list) -> dict:
+    """Map prompt-placeholder usage to builder kwargs (e.g. include_context)."""
+    used = _placeholders_in_prompts(prompt_files)
+    flags: dict = {}
+    for col, flag in _OPTIONAL_COLUMNS.items():
+        if col in used:
+            flags[flag] = True
+    return flags
 
 
 DEFAULT_OUTPUT_PATH = "outputs/translation/candidates"
@@ -46,6 +78,7 @@ def build_dataset_candidates(
     force: bool = False,
     random_state: int = 42,
     shard_size: Optional[int] = None,
+    builder_flags: Optional[dict] = None,
 ) -> None:
     """Build candidate CSVs for each dataset.
 
@@ -79,6 +112,7 @@ def build_dataset_candidates(
             max_tokens=max_document_segment_tokens,
             split=split,
             random_state=random_state,
+            **(builder_flags or {}),
         )
         queries, documents = data
 
@@ -163,6 +197,13 @@ def main():
     output_path = args.output_path or paths_cfg.get("output", DEFAULT_OUTPUT_PATH)
     random_state = args.random_state if args.random_state is not None else ds_cfg.get("random_seed", 42)
 
+    # Scan listed prompts to decide which optional columns to emit
+    # (e.g. context_id/context_text only if a template references them).
+    prompt_files  = cfg.get("prompts", [])
+    builder_flags = _builder_flags_from_prompts(prompt_files)
+    if prompt_files:
+        print(f"Scanned {len(prompt_files)} prompt(s) -> builder flags: {builder_flags or '{}  (no optional columns)'}")
+
     if not dataset_names:
         parser.error("--dataset_names is required when --config is not given or has no datasets.names.")
     if not model:
@@ -186,6 +227,7 @@ def main():
                 force=args.force,
                 random_state=random_state,
                 shard_size=shard_size,
+                builder_flags=builder_flags,
             )
     else:
         build_dataset_candidates(
@@ -199,6 +241,7 @@ def main():
             force=args.force,
             random_state=random_state,
             shard_size=args.shard_size,
+            builder_flags=builder_flags,
         )
 
 

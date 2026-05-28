@@ -94,16 +94,23 @@ def run_evaluate_translations(
     if 'segment_id' in df.columns:
         id_columns.append('segment_id')
 
-    # Get the batch data
-    prompt_type = 'query' if re.fullmatch(r'.*queries.*.csv', os.path.basename(source_file_path)) else 'document'
+    # Get the batch data. Caller may pass prompt_type explicitly (preferred); the
+    # filename regex is only a fallback for legacy call sites that don't.
+    prompt_type = kwargs.pop("prompt_type", None) or (
+        "query" if re.fullmatch(r".*queries.*.csv", os.path.basename(source_file_path)) else "document"
+    )
     batch_data = get_prompts(prompt_file_name, prompt_type, df, id_columns, **kwargs)
     
     # Define the response format
     response_format = TranslationCritique
 
     if parallel:
-        # Translate a batch of texts in parallel
-        df = evaluate_translation_parallel(df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, translations_evaluation_output_file_path, id_columns)
+        df = evaluate_translation_parallel(
+            df, batch_data, model_name, response_format, critique_key, score_key,
+            prompt_file_name, translations_evaluation_output_file_path, id_columns,
+            num_workers=kwargs.get("num_workers", 0),
+            sleep_time=kwargs.get("sleep_time", 0),
+        )
     else:
         df = evaluate_translations_serial(df, batch_data, model_name, response_format, critique_key, score_key, prompt_file_name, translations_evaluation_output_file_path, id_columns, sleep_time=kwargs.get('sleep_time', 0))
     

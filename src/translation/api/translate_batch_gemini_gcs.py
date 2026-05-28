@@ -110,7 +110,69 @@ def submit_gcs_batch_job(
 
 def check_job_status(gemini_client, job_name: str) -> str:
     """Returns the current state string for a batch job (e.g. 'JOB_STATE_RUNNING')."""
-    return str(gemini_client.batches.get(name=job_name).state)
+    return get_job_info(gemini_client, job_name)["state"]
+
+
+def get_job_info(gemini_client, job_name: str) -> dict:
+    """Fetch a batch job's full status info.
+
+    Returns a dict with: state, create_time, start_time, end_time,
+    successful_count, failed_count, error_message. Fields are None when the
+    Vertex response hasn't populated them yet (e.g. start_time is None while
+    the job is still queued).
+    """
+    job = gemini_client.batches.get(name=job_name)
+
+    def _attr(obj, *names):
+        for n in names:
+            v = getattr(obj, n, None)
+            if v is not None:
+                return v
+        return None
+
+    def _as_int(v):
+        try:
+            return int(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    # google-genai returns a JobState enum. Different SDK versions expose the
+    # enum differently — .name might already be "JOB_STATE_SUCCEEDED" or just
+    # "SUCCEEDED", and str() gives "JobState.SUCCEEDED". Normalize to the
+    # canonical "JOB_STATE_*" form the rest of the codebase compares against.
+    state_raw = _attr(job, "state")
+    if hasattr(state_raw, "name"):
+        name = state_raw.name
+    elif state_raw is not None:
+        name = str(state_raw).rsplit(".", 1)[-1]
+    else:
+        name = ""
+    state_str = name if name.startswith("JOB_STATE_") else f"JOB_STATE_{name}"
+
+    info = {
+        "state":            state_str,
+        "create_time":      _attr(job, "create_time", "createTime"),
+        "start_time":       _attr(job, "start_time", "startTime"),
+        "end_time":         _attr(job, "end_time", "endTime"),
+        "successful_count": None,
+        "failed_count":     None,
+        "error_message":    None,
+        "output_dir":       None,
+    }
+    stats = _attr(job, "completion_stats", "completionStats")
+    if stats is not None:
+        info["successful_count"] = _as_int(_attr(stats, "successful_count", "successfulCount"))
+        info["failed_count"]     = _as_int(_attr(stats, "failed_count", "failedCount"))
+    err = _attr(job, "error")
+    if err is not None:
+        info["error_message"] = _attr(err, "message")
+    # The precise output directory for THIS job (e.g. .../output/prediction-model-<ts>/).
+    # Crucial when multiple jobs share the parent gcs_output_prefix — without this,
+    # _download_shard_results would mix predictions from orphaned earlier jobs.
+    output_info = _attr(job, "output_info", "outputInfo")
+    if output_info is not None:
+        info["output_dir"] = _attr(output_info, "gcs_output_directory", "gcsOutputDirectory")
+    return info
 
 
 # ── Result download ───────────────────────────────────────────────────────────
@@ -121,14 +183,15 @@ def download_and_parse_results(
     gcs_output_prefix: str,
 ) -> list:
     """
-    Download prediction shards from GCS and return translations in input order.
+    Download prediction shards from GCS and return translations tagged with their _id.
 
-    Vertex AI writes shards named prediction-*.jsonl under gcs_output_prefix.
-    Responses are 1:1 ordered with the input JSONL — we rely on this guarantee.
+    Vertex AI does NOT guarantee that output order matches input order — predictions
+    must be matched back to source rows via the composite _id embedded in each line.
 
     gcs_output_prefix: path WITHOUT gs:// prefix (e.g. 'beir/run_id/slug/queries/output').
 
-    Returns list of {"translation": str}, one per input row.
+    Returns list of {"_id": composite_id, "translation": str}, in JSONL order.
+    Pass to write_translated_csv, which now matches by _id.
     """
     bucket_obj = gcs_client.bucket(bucket)
     blobs = sorted(
@@ -150,13 +213,14 @@ def download_and_parse_results(
         for raw_line in blob.download_as_text(encoding="utf-8").splitlines():
             if not raw_line.strip():
                 continue
+            obj = json.loads(raw_line)
+            composite_id = obj.get("_id", "")
             try:
-                obj = json.loads(raw_line)
                 text = obj["response"]["candidates"][0]["content"]["parts"][0]["text"]
                 translation = json.loads(text).get("translation", text)
             except Exception:
                 translation = ""
-            results.append({"translation": translation})
+            results.append({"_id": composite_id, "translation": translation})
 
     return results
 
@@ -185,7 +249,8 @@ def write_translated_csv(
     if "translation" not in df.columns:
         df["translation"] = None
 
-    pending_indices = df.index[df["translation"].isna()].tolist()
+    pending_mask = df["translation"].isna()
+    pending_indices = df.index[pending_mask].tolist()
 
     if len(translations) != len(pending_indices):
         raise ValueError(
@@ -195,8 +260,32 @@ def write_translated_csv(
             f"The file may have been modified between submit and collect."
         )
 
-    for idx, t in zip(pending_indices, translations):
-        df.at[idx, "translation"] = t.get("translation", "")
+    # Match by composite _id when the result objects carry one — Vertex doesn't
+    # guarantee output order matches input order. Fall back to positional zip
+    # only when no _id is present (sync / inline path).
+    have_ids = translations and all(t.get("_id") for t in translations)
+    if have_ids:
+        # Composite id is "<_id>" for queries, "<_id>__<segment_id>" for docs.
+        df_composite = df["_id"].astype(str)
+        if "segment_id" in df.columns:
+            df_composite = df_composite + "__" + df["segment_id"].astype(str)
+        id_to_idx = {cid: idx for idx, cid in df_composite.items() if pending_mask.loc[idx]}
+        unmatched = []
+        for t in translations:
+            idx = id_to_idx.get(str(t["_id"]))
+            if idx is None:
+                unmatched.append(t["_id"])
+                continue
+            df.at[idx, "translation"] = t.get("translation", "")
+        if unmatched:
+            raise ValueError(
+                f"{len(unmatched)} prediction _id(s) had no matching pending row in "
+                f"{output_csv if os.path.exists(output_csv) else source_csv}. "
+                f"First few unmatched: {unmatched[:5]}"
+            )
+    else:
+        for idx, t in zip(pending_indices, translations):
+            df.at[idx, "translation"] = t.get("translation", "")
 
     os.makedirs(os.path.dirname(output_csv) or ".", exist_ok=True)
     df.to_csv(output_csv, index=False, encoding="utf-8")
