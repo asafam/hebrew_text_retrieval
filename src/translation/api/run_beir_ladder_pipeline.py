@@ -23,7 +23,8 @@ Usage:
       --config config/translation/full_corpus.yaml \\
       [--dataset BeIR/nfcorpus] \\
       [--resume] \\
-      [--dry-run]
+      [--dry-run] \\
+      [--max-cadence-steps N]
 """
 
 import argparse
@@ -568,6 +569,7 @@ def run_ladder(
     gemini_client,
     gcs_client,
     bucket: str,
+    max_cadence_steps: int = 0,
 ) -> None:
     run_id = progress["run_id"]
     candidates_base = _ladder_candidates_base(config)
@@ -622,6 +624,7 @@ def run_ladder(
         cadence_step  = entry.get("ladder_cadence_step",  0)
         cursor_pos    = next((i for i, idx in enumerate(all_indices) if idx >= current_stage), len(all_indices))
         dataset_stopped = False
+        dataset_paused  = False
 
         while cursor_pos < len(all_indices):
             n = _cadence_shards_for_step(cadence_step, cadence_start, cadence_mode)
@@ -764,13 +767,25 @@ def run_ladder(
                 dataset_stopped = True
                 break
 
+            # ── Step cap (--max-cadence-steps) ───────────────────────────────
+            if max_cadence_steps > 0 and cadence_step + 1 >= max_cadence_steps:
+                logger.info(
+                    f"[{slug}] Paused after cadence step {cadence_step} "
+                    f"(--max-cadence-steps {max_cadence_steps}). "
+                    f"Review qa_scores.csv, then re-run with --resume to continue."
+                )
+                dataset_paused = True
+                break
+
             cursor_pos   += n
             cadence_step += 1
 
-        if not dataset_stopped:
+        if not dataset_stopped and not dataset_paused:
             entry["ladder_all_done"] = True
             save_progress(run_dir, progress)
             logger.info(f"[{slug}] All {len(all_indices)} shards completed.")
+        elif dataset_paused:
+            logger.info(f"[{slug}] Paused at stage {entry['ladder_current_stage']}.")
 
     logger.info(f"Run total cost: ${cumulative_cost_usd:.4f}")
 
@@ -796,6 +811,14 @@ def main() -> None:
     parser.add_argument(
         "--dry-run", action="store_true", dest="dry_run",
         help="Print the shard plan without translating.",
+    )
+    parser.add_argument(
+        "--max-cadence-steps", type=int, default=0, dest="max_cadence_steps",
+        help=(
+            "Stop after this many cadence steps per dataset (0 = unlimited). "
+            "Use --max-cadence-steps 1 to translate only the first shard batch "
+            "per dataset, review qa_scores.csv, then --resume to continue."
+        ),
     )
     args = parser.parse_args()
 
@@ -847,7 +870,11 @@ def main() -> None:
     logger.info(f"GCS batch: project={project}, bucket={bucket}, location={location}")
 
     progress = _load_or_init_progress(run_dir, config, run_id)
-    run_ladder(config, run_dir, progress, args.dataset, gemini_client, gcs_client, bucket)
+    run_ladder(
+        config, run_dir, progress, args.dataset,
+        gemini_client, gcs_client, bucket,
+        max_cadence_steps=args.max_cadence_steps,
+    )
 
     total_cost = progress.get("total_cost_usd", 0.0)
     logger.info(f"Ladder pipeline complete. Total cost: ${total_cost:.4f}")
