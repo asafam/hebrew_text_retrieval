@@ -131,7 +131,7 @@ pilot:
 #   exponential: cadence_start × 2^step                (1, 2, 4, 8, ...)
 
 ladder:
-  cadence: "static"
+  cadence: "linear"
   cadence_start: 1
 
 # ── QA (LLM-as-a-judge) ───────────────────────────────────────────────────────
