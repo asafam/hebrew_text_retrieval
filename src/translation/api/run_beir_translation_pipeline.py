@@ -182,12 +182,12 @@ def make_run_id(config: dict) -> str:
 
 # ── Progress tracking ────────────────────────────────────────────────────────
 
-def _progress_path(run_dir: str) -> str:
-    return os.path.join(run_dir, "progress.json")
+def _progress_path(run_dir: str, filename: str = "progress.json") -> str:
+    return os.path.join(run_dir, filename)
 
 
-def load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
-    path = _progress_path(run_dir)
+def load_or_init_progress(run_dir: str, config: dict, run_id: str, filename: str = "progress.json") -> dict:
+    path = _progress_path(run_dir, filename)
     if os.path.exists(path):
         with open(path, "r") as f:
             progress = json.load(f)
@@ -195,11 +195,15 @@ def load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
         return progress
 
     dataset_names = config["datasets"]["names"]
+    # Per-type configs (queries/documents) don't have a top-level model/prompt;
+    # fall back gracefully so this works for both schemas.
+    model_name = config.get("model", {}).get("name") or config.get("queries", {}).get("model", "")
+    prompt_file = config.get("prompt", {}).get("file") or config.get("queries", {}).get("prompt", {}).get("file", "")
     progress = {
         "run_id": run_id,
         "config_file": config.get("_config_path", ""),
-        "model_name": config["model"]["name"],
-        "prompt_file": config["prompt"]["file"],
+        "model_name": model_name,
+        "prompt_file": prompt_file,
         "started_at": datetime.now().isoformat(),
         "updated_at": datetime.now().isoformat(),
         "datasets": {
@@ -208,14 +212,14 @@ def load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
         },
     }
     os.makedirs(run_dir, exist_ok=True)
-    save_progress(run_dir, progress)
+    save_progress(run_dir, progress, filename)
     return progress
 
 
-def save_progress(run_dir: str, progress: dict) -> None:
+def save_progress(run_dir: str, progress: dict, filename: str = "progress.json") -> None:
     """Atomic write: write to .tmp then rename to avoid corruption on crash."""
     progress["updated_at"] = datetime.now().isoformat()
-    path = _progress_path(run_dir)
+    path = _progress_path(run_dir, filename)
     tmp_path = path + ".tmp"
     os.makedirs(run_dir, exist_ok=True)
     with open(tmp_path, "w") as f:
@@ -344,10 +348,10 @@ def _run_dataset_qa(
     if not qa_cfg.get("enabled", False):
         return True
 
+    # The baseline is only used for degradation comparison. Its absence must NOT
+    # skip the judge — without a baseline we still score and gate on min_score.
     baseline_csv = qa_cfg.get("baseline_csv", "")
-    if not baseline_csv or not os.path.exists(baseline_csv):
-        _log(f"  [qa] No baseline CSV — skipping QA for {dataset_slug}.")
-        return True
+    have_baseline = bool(baseline_csv) and os.path.exists(baseline_csv)
 
     import tempfile
     import pandas as pd
@@ -397,10 +401,12 @@ def _run_dataset_qa(
             limit=0,
             sample=0.0,
             force=True,
-            workers=workers,
+            parallel=True,
+            num_workers=workers,
             sleep_time=sleep_time,
             english_key=text_col,
             hebrew_key="translation",
+            prompt_type=text_type,
         )
     finally:
         os.unlink(tmp_path)
@@ -421,6 +427,16 @@ def _run_dataset_qa(
 
     sample_mean = float(valid.mean())
     sample_std = float(valid.std())
+
+    # No baseline → gate on absolute min_score (same rule as the ladder pipeline).
+    if not have_baseline:
+        min_score = qa_cfg.get("min_score", 3.5)
+        passed = sample_mean >= min_score
+        status = "PASS" if passed else "FAIL"
+        _log(f"  [qa] {dataset_slug}/{text_type}: [{status}] "
+             f"score={sample_mean:.3f}±{sample_std:.3f}  (min_score={min_score}, no baseline)")
+        _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, passed)
+        return passed
 
     baseline_df = load_baseline(baseline_csv, baseline_model, baseline_prompt_slug, judge_model)
     baseline_stats = (

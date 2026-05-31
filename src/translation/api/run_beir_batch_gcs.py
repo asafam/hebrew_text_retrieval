@@ -47,8 +47,8 @@ load_dotenv()
 from translation.api.run_beir_translation_pipeline import (
     load_config,
     make_run_id,
-    load_or_init_progress,
-    save_progress,
+    load_or_init_progress as _load_or_init_progress,
+    save_progress as _save_progress,
     _phase_build_candidates,
     _run_dataset_qa,
     _apply_cache_and_dedup,
@@ -97,6 +97,19 @@ GCS_PROGRESS_KEYS = {
     "titles_submitted_at":      None,
     "titles_completed_at":      None,
 }
+
+
+# This pipeline keeps its own progress file inside the shared run dir, so it
+# never collides with the ladder's progress.json (different entry schema).
+_BATCH_PROGRESS_FILE = "progress.batch.json"
+
+
+def load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
+    return _load_or_init_progress(run_dir, config, run_id, filename=_BATCH_PROGRESS_FILE)
+
+
+def save_progress(run_dir: str, progress: dict) -> None:
+    _save_progress(run_dir, progress, filename=_BATCH_PROGRESS_FILE)
 
 
 def _patch_gcs_keys(progress: dict) -> None:
@@ -266,7 +279,7 @@ def run_pilot(
 
     dataset_names = config["datasets"]["names"]
     if dataset_filter:
-        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter]
+        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter or n == dataset_filter]
         if not dataset_names:
             raise ValueError(f"Dataset '{dataset_filter}' not found in config.")
 
@@ -484,7 +497,7 @@ def run_submit(
 
     dataset_names = config["datasets"]["names"]
     if dataset_filter:
-        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter]
+        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter or n == dataset_filter]
 
     pending_datasets = []
     for dataset_name in dataset_names:
@@ -679,7 +692,7 @@ def run_collect(
     """
     dataset_names = config["datasets"]["names"]
     if dataset_filter:
-        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter]
+        dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter or n == dataset_filter]
 
     candidates_base = os.path.join(run_dir, "candidates")
     q_cfg = config["queries"]

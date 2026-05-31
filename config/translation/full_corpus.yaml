@@ -131,7 +131,7 @@ guardrails:
 # ── Pilot (smoke test before full batch submit) ────────────────────────────────
 
 progression:
-  pilot_n: 100        # rows translated synchronously before batch submit
+  pilot_n: 25         # rows translated synchronously before batch submit
   pilot_qa: true      # run LLM-as-a-judge on pilot output; block submit on failure
 
 pilot:
