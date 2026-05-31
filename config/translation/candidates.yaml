@@ -55,9 +55,12 @@ datasets:
   num_samples: 0       # 0 = all rows
   random_seed: 42
 
+# Candidates live under the run dir's `candidates/` phase so everything for a
+# run_id sits in one folder (candidates/pilot/corpus). Keep run_id in sync with
+# config/translation/full_corpus.yaml.
 paths:
-  output: "outputs/translation/candidates"
-  logs:   "outputs/translation/candidates/logs"
+  output: "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates"
+  logs:   "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/logs"
 
 # Prompts that will consume these candidates. The builder scans them and only
 # emits optional columns whose placeholders are referenced. For zeroshot

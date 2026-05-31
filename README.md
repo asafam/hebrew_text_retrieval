@@ -64,7 +64,7 @@ Each dataset is split into fixed-size shards (configured per dataset: 500 rows f
 
 **Pilot result (all 15/15 datasets passed):** scores ranged 3.72–5.00 / 5 on 100-row synchronous pilot runs.
 
-**Outputs:** `outputs/translation/runs/<timestamp>_<run_id>/`
+**Outputs:** `outputs/translation/runs/<run_id>/{candidates,pilot,corpus}/`
 
 ---
 
@@ -120,38 +120,47 @@ Required keys in `.env`: `OPENAI_API_KEY`, `OPENAI_API_ORG`, `OPENAI_PROJECT`, `
 
 ### Experiment 4 — Full corpus ladder pipeline
 
+Two sibling wrapper scripts drive the whole flow. Both set up the conda env,
+load `.env`, and use Vertex AI (gcloud ADC) — run `gcloud auth application-default login`
+once. Everything for a `run_id` lands under one folder:
+`outputs/translation/runs/<run_id>/{candidates,pilot,corpus}/`.
+
 ```bash
-# 1. Build sharded candidate CSVs (one shard_manifest.json per dataset)
-#    Shard sizes are configured in config/translation/full_corpus.yaml
-#    under datasets.shard_sizes (e.g. 500 for nfcorpus, 100000 for msmarco).
-python -m translation.build_translation_candidates \
-    --dataset_names BeIR/nfcorpus BeIR/scifact ...   \  # or all 15
-    --model_name_or_path gpt-4o-mini-2024-07-18       \
-    --output_path outputs/translation/candidates       \
-    --shard-size 500   # overridden per-dataset by the YAML at runtime
+# 1. Build sharded candidate CSVs (one shard_manifest.json per dataset).
+#    Shard sizes come from config/translation/candidates.yaml. Writes into
+#    the run's candidates/ phase.
+bash scripts/translation/candidates.sh                      # all datasets
+bash scripts/translation/candidates.sh --dataset nfcorpus   # one dataset
+bash scripts/translation/candidates.sh --split test         # qrel split filter (default: all)
 
-# 2. Dry-run: inspect the shard plan without translating
-python -m translation.api.run_beir_ladder_pipeline \
-    --config config/translation/full_corpus.yaml \
-    --dry-run
+# 2. Pilot (optional but recommended): small synchronous sample per dataset +
+#    LLM-as-a-judge QA gate. Lands in <run_dir>/pilot/<slug>/.
+bash scripts/translation/translate.sh --pilot
+bash scripts/translation/translate.sh --pilot --dataset BeIR/nfcorpus --yes
 
-# 3. Run the ladder (new timestamped run folder created automatically)
-python -m translation.api.run_beir_ladder_pipeline \
-    --config config/translation/full_corpus.yaml \
-    [--dataset BeIR/nfcorpus]   # optional: single dataset
+# 3. Dry-run: inspect the shard plan without translating
+bash scripts/translation/translate.sh --dry-run
 
-# 4. Resume after an interruption (human decision required)
-#    The pipeline exits with instructions if an in-progress run is detected.
-#    Once you decide to resume:
-python -m translation.api.run_beir_ladder_pipeline \
-    --config config/translation/full_corpus.yaml \
-    --resume
+# 4. Run the full-corpus ladder. Lands in <run_dir>/corpus/<slug>/.
+bash scripts/translation/translate.sh                       # all datasets
+bash scripts/translation/translate.sh --dataset BeIR/nfcorpus
+
+# 5. Resume after an interruption (human decision required).
+bash scripts/translation/translate.sh --resume
+
+# 6. Export a finished run to HuggingFace-ready BeIR JSONL (no HF upload).
+python scripts/translation/build_hf_dataset.py \
+    --run-dir outputs/translation/runs/<run_id> --dataset nfcorpus
 ```
+
+`translate.sh` with no `--pilot` runs the ladder (`run_beir_ladder_pipeline`);
+with `--pilot` it runs the pilot phase (`run_beir_batch_gcs pilot`). Both
+reuse the **same** sharded candidates from step 1 — one source of truth.
 
 > **Kill safety:** if the process is killed and restarted without `--resume`, it exits
 > with a message listing your options (resume the same run, or start fresh by changing
-> `run_id` in the config). Resuming an interrupted run re-translates only the current
-> in-flight shard; all completed shards are skipped.
+> `run_id` in the config). Resuming reuses already-submitted batch jobs and skips
+> shards already collected and appended — no duplicate work or cost.
 
 ### Experiment 3 — step by step
 
@@ -204,32 +213,36 @@ outputs/
 │   │           └── <translation_model>/
 │   │               └── queries_translated.csv
 │   │
-│   ├── candidates/                        # Experiment 4 — sharded candidates
-│   │   └── <dataset_slug>/
-│   │       ├── queries_shard_000.csv
-│   │       ├── queries_shard_001.csv
-│   │       ├── ...
-│   │       ├── documents_shard_000.csv
-│   │       ├── ...
-│   │       └── shard_manifest.json        # shard index (read by ladder pipeline)
-│   │
-│   └── runs/                              # Experiment 4 — ladder run output
-│       └── <YYYYMMDD_HHMMSS>_<run_id>/
+│   └── runs/                              # Experiment 4 — unified run layout
+│       └── <run_id>/                      # one folder per run_id (no timestamp)
 │           ├── run.log
 │           ├── progress.json              # per-shard state; safe for --resume
 │           ├── qa_scores.csv              # one row per shard per dataset
 │           ├── plots/
 │           │   ├── <dataset_slug>.png     # score vs. cumulative rows (±1σ)
 │           │   └── summary.png            # heatmap: all datasets × all shards
-│           └── <dataset_slug>/
-│               ├── shards/
-│               │   ├── queries_shard_000_translated.csv
-│               │   └── documents_shard_000_translated.csv
-│               ├── queries_accumulated.csv
-│               └── documents_accumulated.csv
-│
-└── beir_translation/
-    └── qa_history.csv                     # global QA log across all runs
+│           ├── candidates/                # phase 1: sharded source CSVs
+│           │   └── <dataset_slug>/
+│           │       ├── queries_shard_000.csv
+│           │       ├── documents_shard_000.csv
+│           │       ├── ...
+│           │       └── shard_manifest.json
+│           ├── pilot/                     # phase 2 (optional): sample + QA
+│           │   └── <dataset_slug>/
+│           │       ├── queries_translated.csv
+│           │       └── documents_translated.csv
+│           └── corpus/                    # phase 3: full ladder translation
+│               └── <dataset_slug>/
+│                   ├── shards/
+│                   │   ├── queries_shard_000_translated.csv
+│                   │   └── documents_shard_000_translated.csv
+│                   ├── queries_accumulated.csv
+│                   ├── documents_accumulated.csv
+│                   └── beir/              # build_hf_dataset.py output (HF-ready)
+│                       ├── corpus.jsonl
+│                       ├── queries.jsonl
+│                       ├── qrels/<split>.tsv
+│                       └── metadata.json
 ```
 
 ---

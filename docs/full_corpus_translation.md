@@ -1,5 +1,14 @@
 # BeIR Full Corpus Translation
 
+> ⚠️ **DEPRECATED.** This describes the pre-ladder full-corpus pipeline
+> (`run_full_corpus.sh` → `run_beir_translation_pipeline`, `gpt-5.4-mini`,
+> `outputs/beir_translation/…`). Those wrappers are archived under
+> `scripts/translation/_archive/`. The current pipeline is the shard-ladder +
+> Vertex batch flow driven by `scripts/translation/candidates.sh` and
+> `scripts/translation/translate.sh` (`--pilot` for the pilot phase). See
+> **README.md → Experiment 4** and **TRANSLATION.md**. Kept for historical
+> reference only.
+
 Translates all 12 BeIR datasets (queries + documents) from English to Hebrew using an LLM,
 producing HuggingFace-ready JSONL files with matching IDs and original text preserved alongside translations.
 

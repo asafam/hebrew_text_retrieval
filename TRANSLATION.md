@@ -24,15 +24,15 @@ gcloud auth application-default print-access-token
 
 ### 2. GCS Bucket
 
-The bucket `beir-translation` must exist in project `iucc-tsarfaty-lab-gcp-asaf`, region `us-east1`. Create it via the GCP Console or:
+The bucket `beir-translation` must exist in project `iucc-tsarfaty-lab-gcp-asaf`, region `global`. Create it via the GCP Console or:
 
 ```bash
-gsutil mb -p iucc-tsarfaty-lab-gcp-asaf -l us-east1 gs://beir-translation
+gsutil mb -p iucc-tsarfaty-lab-gcp-asaf -l us-east1   # bucket region; model calls use the global endpoint gs://beir-translation
 ```
 
 ### 3. Candidate CSVs
 
-The source CSVs (English text to translate) must exist under `outputs/translation/BeIR/candidates/`. Each dataset directory contains `queries.csv` and `documents.csv`. These are generated separately by the candidate-building pipeline and are a prerequisite for running any translation.
+The source CSVs (English text to translate) must exist under `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/`. Each dataset directory contains `queries.csv` and `documents.csv`. These are generated separately by the candidate-building pipeline and are a prerequisite for running any translation.
 
 ### 4. Environment
 
@@ -141,16 +141,16 @@ To use a different model for queries vs documents, change the `model` field in t
 Translates 100 rows per dataset synchronously (no batch jobs), runs LLM-as-a-judge QA on the output, and prints a score for every dataset. Takes ~20–30 minutes for all 12.
 
 ```bash
-python -m translation.api.run_beir_batch_gcs \
-    --config config/translation/full_corpus.yaml pilot
+bash scripts/translation/translate.sh --pilot
+# (wraps: python -m translation.api.run_beir_batch_gcs --config <cfg> pilot)
 ```
 
 After it finishes:
 - Review the QA scores printed in the terminal (PASS / FAIL per dataset)
 - Manually spot-check a few rows in the translated CSVs:
   ```
-  outputs/beir_translation/full_corpus/<run_id>/<dataset>/queries_translated.csv
-  outputs/beir_translation/full_corpus/<run_id>/<dataset>/documents_translated.csv
+  outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/pilot/<dataset>/queries_translated.csv
+  outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/pilot/<dataset>/documents_translated.csv
   ```
 
 Datasets that fail QA are automatically excluded from submit. Fix the prompt or model and re-run pilot before proceeding.

@@ -18,8 +18,8 @@ source of truth for dataset names, shard sizes, tokenizer, and output paths.
 | Shard sizes | Per-dataset: 500 rows (nfcorpus) → 100,000 rows (msmarco) |
 | Tokenizer | `gpt-4o-mini-2024-07-18` |
 | Max segment tokens | 512 |
-| Output | `outputs/translation/candidates/` |
-| Logs | `outputs/translation/candidates/logs/` |
+| Output | `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/` |
+| Logs | `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/logs/` |
 
 > **Note:** Three datasets (`fiqa`, `webis-touche2020`, `cqadupstack`) use
 > `fastparquet` to work around a PyArrow 19 incompatibility. This is handled
@@ -30,7 +30,7 @@ source of truth for dataset names, shard sizes, tokenizer, and output paths.
 ## Output structure
 
 ```
-outputs/translation/candidates/
+outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/
   BeIR_nfcorpus/
     queries_shard_000.csv       # ≤ shard_size rows
     documents_shard_000.csv
@@ -89,19 +89,19 @@ nfcorpus has ~3,600 documents and finishes in under a minute.
 Check the manifest to confirm the shard counts look right:
 
 ```bash
-cat outputs/translation/candidates/BeIR_nfcorpus/shard_manifest.json
+cat outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/BeIR_nfcorpus/shard_manifest.json
 ```
 
 Spot-check a shard file:
 
 ```bash
-head -3 outputs/translation/candidates/BeIR_nfcorpus/queries_shard_000.csv
+head -3 outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite/candidates/BeIR_nfcorpus/queries_shard_000.csv
 ```
 
 ### 3. Run all 15 datasets in parallel
 
 ```bash
-bash scripts/translation/build_ladder_candidates.sh
+bash scripts/translation/candidates.sh
 ```
 
 Or equivalently:
@@ -131,13 +131,13 @@ Already-completed datasets are skipped automatically — just rerun the same
 command. No `--force` needed.
 
 ```bash
-bash scripts/translation/build_ladder_candidates.sh
+bash scripts/translation/candidates.sh
 ```
 
 ### 5. Force rebuild everything
 
 ```bash
-bash scripts/translation/build_ladder_candidates.sh --force
+bash scripts/translation/candidates.sh --force
 ```
 
 ---
@@ -158,12 +158,13 @@ Once all candidates are built, run the ladder translation pipeline:
 
 ```bash
 # Dry run — prints shard plan, no translation
-python -m translation.api.run_beir_ladder_pipeline \
-    --config config/translation/full_corpus.yaml --dry-run
+bash scripts/translation/translate.sh --dry-run
+
+# Optional pilot (sample + QA gate) before the full run
+bash scripts/translation/translate.sh --pilot
 
 # Full run
-python -m translation.api.run_beir_ladder_pipeline \
-    --config config/translation/full_corpus.yaml
+bash scripts/translation/translate.sh
 ```
 
 See `README.md` for the full pipeline description and kill-safety notes.
