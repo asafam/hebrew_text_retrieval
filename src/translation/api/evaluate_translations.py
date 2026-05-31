@@ -10,7 +10,11 @@ import time
 import re
 from translation.api.utils import *
 
-    
+# Suppresses the per-row tqdm bars when set (e.g. for the ladder pipeline, which
+# renders QA results in its own rich Table instead of progress bars).
+_QUIET = os.environ.get("EVAL_TRANSLATIONS_QUIET", "").lower() in ("1", "true", "yes")
+
+
 def evaluate_translation(
         system_prompt: str,
         user_prompt: str,
@@ -123,7 +127,7 @@ def evaluate_translations_serial(source_df, batch_data, model_name, response_for
 
     _TRANSIENT_CODES = (429, 503, 504)
 
-    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
+    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data), disable=_QUIET):
         if sleep_time > 0 and i > 0:
             time.sleep(sleep_time)
         results = {}
@@ -203,26 +207,32 @@ def evaluate_translation_parallel(source_df, batch_data, model_name, response_fo
         futures = {executor.submit(evaluate_translation_batch_item, args): args[0] for args in task_args}
 
         # Collect results asynchronously
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations"):
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations", disable=_QUIET):
             try:
                 evaluated_results.append(future.result())
             except Exception as e:
                 print(f"Error processing item {futures[future]}: {e}")
 
     # Convert results to DataFrame and merge
-    if evaluated_results:
-        evaluated_df = pd.DataFrame(evaluated_results)
-        df = pd.merge(source_df, evaluated_df, on=id_columns, how='left')
+    if not evaluated_results:
+        # All workers failed — return source unchanged rather than crashing with
+        # an UnboundLocalError, so the caller can detect the empty result.
+        print(f"[eval] WARNING: no results produced for {output_file_path} "
+              f"(all {len(batch_data)} items failed).")
+        return source_df
 
-        # Overwrite existing columns with new values
-        for col in evaluated_df.columns:
-            if (col + '_y') in df.columns and col not in id_columns:
-                df[col] = df[col + '_y'].combine_first(df[col + '_x'])
-                df.drop(columns=[col + '_x', col + '_y'], inplace=True)
+    evaluated_df = pd.DataFrame(evaluated_results)
+    df = pd.merge(source_df, evaluated_df, on=id_columns, how='left')
 
-        # Save results to CSV
-        os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
-        df.to_csv(output_file_path, encoding='utf-8', index=False)
+    # Overwrite existing columns with new values
+    for col in evaluated_df.columns:
+        if (col + '_y') in df.columns and col not in id_columns:
+            df[col] = df[col + '_y'].combine_first(df[col + '_x'])
+            df.drop(columns=[col + '_x', col + '_y'], inplace=True)
+
+    # Save results to CSV
+    os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
+    df.to_csv(output_file_path, encoding='utf-8', index=False)
 
     return df
 
@@ -262,6 +272,6 @@ def evaluate_translation_batch_item(args, **kwargs):
     }
 
     if sleep_time > 0:
-        time.sleep(kwargs['sleep_time'])
+        time.sleep(sleep_time)
 
     return evaluated_item

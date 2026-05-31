@@ -80,16 +80,22 @@ def _setup_logging(run_dir: str) -> None:
     if not root.handlers:
         root.addHandler(logging.FileHandler(log_path, encoding="utf-8"))
         root.addHandler(logging.StreamHandler(sys.stdout))
+    # Silence the SDK-level HTTP request chatter so the console only shows
+    # pipeline-level events (poll tables, QA summary, errors).
+    for noisy in ("httpx", "httpcore", "google.genai", "google.api_core",
+                  "google.auth", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
 
-def _ladder_candidates_base(config: dict) -> str:
-    return config.get("paths", {}).get("ladder_candidates_base", "outputs/translation/candidates")
+def _runs_base(config: dict) -> str:
+    return config.get("paths", {}).get("runs_base", "outputs/translation/runs")
 
 
-def _ladder_runs_base(config: dict) -> str:
-    return config.get("paths", {}).get("ladder_runs_base", "outputs/translation/runs")
+def _phase_dir(config: dict, phase: str) -> str:
+    """Subdir name for a pipeline phase inside a run dir (candidates/pilot/corpus)."""
+    return config.get("paths", {}).get("phases", {}).get(phase, phase)
 
 
 # ── Run directory management ──────────────────────────────────────────────────
@@ -156,7 +162,7 @@ def _load_manifest(manifest_path: str) -> Optional[dict]:
 # ── Translation (GCS batch) ────────────────────────────────────────────────────
 
 def _gcs_shard_prefix(run_id: str, slug: str, shard_idx: int, text_type: str) -> str:
-    return f"beir_ladder/{run_id}/{slug}/shard_{shard_idx:03d}/{text_type}"
+    return f"translation/{run_id}/corpus/{slug}/shard_{shard_idx:03d}/{text_type}"
 
 
 def _download_shard_results(gcs_client, bucket: str, gcs_output_prefix: str) -> tuple:
@@ -353,7 +359,7 @@ def _job_row(key, info, now):
 
 
 def _render_poll_table(snapshot, poll_idx, waited, pending_n, total_n, poll_interval, now,
-                       cumulative_cost_usd=None):
+                       cumulative_cost_usd=None, slug=None):
     """Render a rich Table to the console for one poll cycle."""
     title = (
         f"Poll #{poll_idx}  ·  elapsed {waited // 60}m  ·  "
@@ -365,6 +371,7 @@ def _render_poll_table(snapshot, poll_idx, waited, pending_n, total_n, poll_inte
         title += f"  ·  next in {poll_interval // 60}m"
 
     table = Table(title=title, show_header=True, header_style="bold", expand=False)
+    table.add_column("Dataset")
     table.add_column("Shard")
     table.add_column("Type")
     table.add_column("State", min_width=12)
@@ -374,10 +381,103 @@ def _render_poll_table(snapshot, poll_idx, waited, pending_n, total_n, poll_inte
     table.add_column("Error", overflow="fold", max_width=40)
 
     for key, info in snapshot:
-        cells = _job_row(key, info, now)
+        cells = [slug or "?"] + _job_row(key, info, now)
         short = info["state"].replace("JOB_STATE_", "")
         _, style = _STATE_STYLE.get(short, ("?", ""))
         table.add_row(*cells, style=style)
+
+    # Judge placeholder rows — always shown so the user can see the full cadence
+    # step at a glance. Populated with real scores in the _render_step_summary
+    # table after translations + QA complete.
+    icon, style = _STATE_STYLE["PENDING"]
+    for label in ("queries-judge", "documents-judge"):
+        table.add_row(slug or "?", "—", label, f"{icon} PENDING (waiting)",
+                      "—", "—", "—", "", style=style)
+
+    _poll_console.print(table)
+
+
+def _render_judging_notice(slug, cadence_step, qa_cfg):
+    """Tiny status line printed BEFORE the judge runs (since tqdm is silenced)."""
+    qa_cfg = qa_cfg or {}
+    sample_size = qa_cfg.get("sample_size", 25)
+    workers     = qa_cfg.get("workers", qa_cfg.get("num_workers", 32))
+    judge_model = qa_cfg.get("judge_model", "?")
+    _poll_console.print(
+        f"[dim][{slug}] cadence step {cadence_step}: judging {sample_size}× "
+        f"queries + {sample_size}× documents with {judge_model} "
+        f"({workers} workers)…[/dim]"
+    )
+
+
+def _render_step_summary(slug, cadence_step, jobs, q_result, d_result,
+                         qa_cfg=None, cumulative_cost_usd=None):
+    """End-of-cadence-step Table: translation jobs (final) + judge rows.
+
+    Same column layout as the poll table, so visually it's the same family.
+    Judge rows are shown after translation rows with score `mean ± std` against
+    the 5-point IR translation rubric, and overall verdict.
+    """
+    qa_cfg = qa_cfg or {}
+    min_score   = qa_cfg.get("min_score", 3.5)
+    judge_model = qa_cfg.get("judge_model", "?")
+
+    overall_pass = q_result.get("passed", True) and d_result.get("passed", True)
+    verdict_icon, verdict_style = (("✓ PASS", "bold green") if overall_pass else ("✗ FAIL", "bold red"))
+
+    title = (
+        f"[{slug}]  cadence step {cadence_step} done  ·  "
+        f"judge {judge_model}  ·  min_score {min_score:.2f}/5  ·  {verdict_icon}"
+    )
+    if cumulative_cost_usd is not None:
+        title += f"  ·  total ${cumulative_cost_usd:.4f} (batch)"
+
+    table = Table(
+        title=title, title_style=verdict_style,
+        show_header=True, header_style="bold", expand=False,
+    )
+    table.add_column("Dataset")
+    table.add_column("Shard")
+    table.add_column("Type")
+    table.add_column("State", min_width=12)
+    table.add_column("Queued",          justify="right")
+    table.add_column("Runtime",         justify="right")
+    table.add_column("Score / Counts",  justify="right")
+    table.add_column("Verdict / Error", overflow="fold", max_width=40)
+
+    now = datetime.now(timezone.utc)
+
+    # Translation rows
+    for key in sorted(jobs.keys()):
+        info = jobs[key].get("info") or {"state": jobs[key].get("status", "?")}
+        cells = _job_row(key, info, now)
+        # _job_row: [shard, type, state, queued, runtime, counts, error]
+        sc, fc = info.get("successful_count"), info.get("failed_count")
+        counts = "—"
+        if sc is not None or fc is not None:
+            counts = f"{sc or 0} ok" + (f" / {fc} fail" if fc else "")
+        err = info.get("error_message") or ""
+        short = info["state"].replace("JOB_STATE_", "")
+        _, style = _STATE_STYLE.get(short, ("?", ""))
+        table.add_row(slug, cells[0], cells[1], cells[2], cells[3], cells[4],
+                      counts, err[:40], style=style)
+
+    # Judge rows
+    for label, r in (("queries-judge", q_result), ("documents-judge", d_result)):
+        passed = r.get("passed", True)
+        mean = r.get("score_mean")
+        std  = r.get("score_std")
+        n    = r.get("n", 0)
+        if isinstance(mean, (int, float)) and isinstance(std, (int, float)):
+            score_cell = f"{mean:.2f} ± {std:.2f}  (n={n})"
+        elif isinstance(mean, (int, float)):
+            score_cell = f"{mean:.2f}  (n={n})"
+        else:
+            score_cell = "—"
+        verdict = "✓ PASS" if passed else "✗ FAIL"
+        style   = "bold green" if passed else "bold red"
+        table.add_row(slug, "—", label, "✓ SUCCEEDED", "—", "—",
+                      score_cell, verdict, style=style)
 
     _poll_console.print(table)
 
@@ -388,6 +488,7 @@ def _poll_until_all_complete(
     poll_interval: int,
     max_wait_seconds: int,
     cumulative_cost_usd: float = None,
+    slug: str = None,
 ) -> None:
     """
     Poll all jobs until every one reaches a terminal state.
@@ -416,7 +517,7 @@ def _poll_until_all_complete(
 
         _render_poll_table(
             snapshot, poll_idx, waited, len(pending), len(jobs), poll_interval, now,
-            cumulative_cost_usd=cumulative_cost_usd,
+            cumulative_cost_usd=cumulative_cost_usd, slug=slug,
         )
         logger.info(
             f"Poll #{poll_idx}: {len(pending)}/{len(jobs)} pending (elapsed {waited // 60}m); "
@@ -434,6 +535,45 @@ def _poll_until_all_complete(
                 )
             time.sleep(poll_interval)
             waited += poll_interval
+
+
+_TRANSLATION_SYSTEM_PROMPT = (
+    "You are a precise and concise translation assistant. Your task is to "
+    "translate sentences from English to Hebrew, providing accurate "
+    "translations without unnecessary explanations.\n"
+)
+
+
+def _repair_shard_csv(shard_csv_path: str, text_type: str, type_cfg: dict, config: dict) -> dict:
+    """Detect + repair failed/truncated translations in a shard CSV (in place).
+
+    Returns the repair-result dict from repair_translations (or a no-op dict
+    when repair is disabled). text_type is "queries"/"documents".
+    """
+    repair_cfg = config.get("repair", {})
+    if not repair_cfg.get("enabled", True):
+        return {"checked": 0, "failed": 0, "repaired": 0, "still_failed": 0, "failed_ids": []}
+
+    from translation.api.translate import repair_translations
+
+    text_col = type_cfg.get("prompt", {}).get("text_col") or (
+        "text" if text_type == "queries" else "segment_text"
+    )
+    df = pd.read_csv(shard_csv_path, encoding="utf-8")
+    res = repair_translations(
+        df,
+        text_col=text_col,
+        model_name=type_cfg.get("model"),
+        system_prompt=_TRANSLATION_SYSTEM_PROMPT,
+        text_type="query" if text_type == "queries" else "document",
+        translation_col="translation",
+        ratio_floor=repair_cfg.get("ratio_floor", 0.5),
+        max_attempts=repair_cfg.get("max_attempts", 3),
+        temperature=repair_cfg.get("temperature", 0.3),
+    )
+    if res["repaired"] or res["still_failed"]:
+        df.to_csv(shard_csv_path, index=False, encoding="utf-8")
+    return res
 
 
 def _collect_shard_results(jobs: dict, gcs_client, bucket: str, config: dict = None) -> dict:
@@ -702,7 +842,8 @@ def _append_qa_scores(
 # ── Dry run ────────────────────────────────────────────────────────────────────
 
 def _dry_run(config: dict, dataset_filter: Optional[str]) -> None:
-    candidates_base = _ladder_candidates_base(config)
+    run_id = config.get("run_id", "ladder_run")
+    candidates_base = os.path.join(_runs_base(config), run_id, _phase_dir(config, "candidates"))
     datasets = config["datasets"]["names"]
     if dataset_filter:
         datasets = [d for d in datasets if _dataset_slug(d) == dataset_filter or d == dataset_filter]
@@ -742,7 +883,8 @@ def run_ladder(
     max_cadence_steps: int = 0,
 ) -> None:
     run_id = progress["run_id"]
-    candidates_base = _ladder_candidates_base(config)
+    candidates_base = os.path.join(run_dir, _phase_dir(config, "candidates"))
+    corpus_base     = os.path.join(run_dir, _phase_dir(config, "corpus"))
     q_cfg = config["queries"]
     d_cfg = config["documents"]
     batch_cfg = config.get("batch", {})
@@ -784,7 +926,7 @@ def run_ladder(
             f"{len(all_indices)} total stages"
         )
 
-        dataset_run_dir = os.path.join(run_dir, slug)
+        dataset_run_dir = os.path.join(corpus_base, slug)
         shard_out_dir   = os.path.join(dataset_run_dir, "shards")
         os.makedirs(shard_out_dir, exist_ok=True)
         q_accumulated = os.path.join(dataset_run_dir, "queries_accumulated.csv")
@@ -863,7 +1005,7 @@ def run_ladder(
             try:
                 _poll_until_all_complete(
                     pending_jobs, gemini_client, poll_interval, max_wait_seconds,
-                    cumulative_cost_usd=cumulative_cost_usd,
+                    cumulative_cost_usd=cumulative_cost_usd, slug=slug,
                 )
             except RuntimeError as e:
                 logger.error(f"[{slug}] Poll failed: {e}")
@@ -883,6 +1025,33 @@ def run_ladder(
                 save_progress(run_dir, progress)
                 dataset_stopped = True
                 break
+
+            # ── Repair failed / truncated translations ────────────────────────
+            for shard_idx in batch_indices:
+                for text_type, type_cfg in (("queries", q_cfg), ("documents", d_cfg)):
+                    if (shard_idx, text_type) not in shard_results:
+                        continue
+                    shard_record = shards_state.setdefault(str(shard_idx), {})
+                    rec = shard_record.setdefault(text_type, {})
+                    if rec.get("appended") or rec.get("repaired") is not None:
+                        continue  # already processed on a prior run
+                    out_path = shard_results[(shard_idx, text_type)]["output_path"]
+                    try:
+                        rr = _repair_shard_csv(out_path, text_type, type_cfg, config)
+                    except Exception as e:
+                        logger.warning(f"[{slug}] repair failed for shard {shard_idx} {text_type}: {e}")
+                        rr = None
+                    if rr is not None:
+                        rec["repaired"] = rr["repaired"]
+                        rec["still_failed"] = rr["still_failed"]
+                        if rr["failed"]:
+                            logger.info(
+                                f"[{slug}] shard {shard_idx} {text_type}: "
+                                f"{rr['failed']} failed → {rr['repaired']} repaired, "
+                                f"{rr['still_failed']} still failed "
+                                + (f"(ids: {rr['failed_ids']})" if rr["failed_ids"] else "")
+                            )
+                        save_progress(run_dir, progress)
 
             # ── Accumulate + token tracking ───────────────────────────────────
             # Idempotent: skip shards already appended on a prior run. Their tokens
@@ -924,10 +1093,27 @@ def run_ladder(
             )
 
             # ── Judge ─────────────────────────────────────────────────────────
-            q_result = _ladder_qa(q_accumulated, slug, "query",    config, run_dir, cadence_step) \
-                if os.path.exists(q_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
-            d_result = _ladder_qa(d_accumulated, slug, "document", config, run_dir, cadence_step) \
-                if os.path.exists(d_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
+            # Suppress evaluate_translations' internal tqdm; we render results
+            # below in a single rich Table.
+            qa_cfg_for_ui = config.get("qa", {})
+            _render_judging_notice(slug, cadence_step, qa_cfg_for_ui)
+            _prev_quiet = os.environ.get("EVAL_TRANSLATIONS_QUIET")
+            os.environ["EVAL_TRANSLATIONS_QUIET"] = "1"
+            try:
+                q_result = _ladder_qa(q_accumulated, slug, "query",    config, run_dir, cadence_step) \
+                    if os.path.exists(q_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
+                d_result = _ladder_qa(d_accumulated, slug, "document", config, run_dir, cadence_step) \
+                    if os.path.exists(d_accumulated) else {"passed": True, "score_mean": None, "score_std": None, "n": 0}
+            finally:
+                if _prev_quiet is None:
+                    os.environ.pop("EVAL_TRANSLATIONS_QUIET", None)
+                else:
+                    os.environ["EVAL_TRANSLATIONS_QUIET"] = _prev_quiet
+
+            _render_step_summary(
+                slug, cadence_step, pending_jobs, q_result, d_result,
+                qa_cfg=qa_cfg_for_ui, cumulative_cost_usd=cumulative_cost_usd,
+            )
 
             # ── Persist ───────────────────────────────────────────────────────
             combined_meta = {
@@ -1038,23 +1224,25 @@ def main() -> None:
 
     config = load_config(args.config)
     run_id = config.get("run_id", "ladder_run")
-    runs_base = _ladder_runs_base(config)
+    runs_base = _runs_base(config)
 
     if args.dry_run:
         _dry_run(config, args.dataset)
         return
 
-    existing = _find_existing_run_dir(runs_base, run_id)
+    # Unified layout: one run dir per run_id (no timestamp prefix). Phases
+    # (candidates/pilot/corpus) live as subdirs inside it.
+    run_dir = os.path.join(runs_base, run_id)
+    existing = run_dir if os.path.isfile(os.path.join(run_dir, "progress.json")) else None
 
     if args.resume:
         if existing is None:
             print(
                 f"ERROR: --resume specified but no existing run found for "
-                f"run_id='{run_id}' in {runs_base}",
+                f"run_id='{run_id}' at {run_dir}",
                 file=sys.stderr,
             )
             sys.exit(1)
-        run_dir = existing
         print(f"Resuming run: {run_dir}")
     else:
         if existing is not None:
@@ -1068,8 +1256,6 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        run_dir = os.path.join(runs_base, f"{ts}_{run_id}")
 
     os.makedirs(run_dir, exist_ok=True)
     _setup_logging(run_dir)

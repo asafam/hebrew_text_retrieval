@@ -63,6 +63,95 @@ def translate(system_prompt: str,
     return {}
 
 
+# ── Repair: re-translate failed / truncated rows ───────────────────────────────
+
+def _is_failed_translation(english, hebrew, text_type: str, ratio_floor: float) -> bool:
+    """Heuristic failure detector for a translated row.
+
+    A row is considered failed when:
+      - the Hebrew is empty/NaN, OR
+      - (documents only) the Hebrew is suspiciously short vs. the English.
+        gemini-3.1-flash-lite reproducibly truncates some long document
+        segments mid-text while still reporting finishReason=STOP, so length
+        ratio is the only reliable signal. Queries are too short for a ratio
+        test, so only emptiness counts there.
+    """
+    if hebrew is None or (isinstance(hebrew, float) and pd.isna(hebrew)):
+        return True
+    he = str(hebrew).strip()
+    if not he:
+        return True
+    if text_type == "document":
+        en = str(english).strip()
+        if en and len(he) < ratio_floor * len(en):
+            return True
+    return False
+
+
+def repair_translations(
+    df: pd.DataFrame,
+    text_col: str,
+    model_name: str,
+    system_prompt: str,
+    text_type: str = "document",
+    translation_col: str = "translation",
+    ratio_floor: float = 0.5,
+    max_attempts: int = 3,
+    temperature: float = 0.3,
+) -> dict:
+    """Detect and repair failed/truncated translations in-place.
+
+    Failed rows are re-translated by splitting the source into sentences,
+    translating each independently, and rejoining — this isolates the
+    content tokens (e.g. "mumol/[kg.min]") that make the model stop early on
+    the full segment.
+
+    Returns {"checked", "failed", "repaired", "still_failed", "failed_ids"}.
+    Mutates df[translation_col] for repaired rows.
+    """
+    from nltk.tokenize import sent_tokenize
+
+    failed_idx = [
+        i for i, row in df.iterrows()
+        if _is_failed_translation(row.get(text_col), row.get(translation_col), text_type, ratio_floor)
+    ]
+    result = {"checked": len(df), "failed": len(failed_idx),
+              "repaired": 0, "still_failed": 0, "failed_ids": []}
+    if not failed_idx:
+        return result
+
+    for i in failed_idx:
+        source = str(df.at[i, text_col] or "").strip()
+        if not source:
+            result["still_failed"] += 1
+            continue
+        best = ""
+        for _ in range(max_attempts):
+            sentences = sent_tokenize(source) or [source]
+            parts = []
+            for s in sentences:
+                up = f"Translate the following English text into Hebrew.\nText: {s}\nHebrew:"
+                out = translate(system_prompt, up, model_name,
+                                temperature=temperature, fail_on_error=False)
+                parts.append((out or {}).get("translation", "") or "")
+            joined = " ".join(p for p in parts if p).strip()
+            if len(joined) > len(best):
+                best = joined
+            if not _is_failed_translation(source, best, text_type, ratio_floor):
+                break
+        if best and not _is_failed_translation(source, best, text_type, ratio_floor):
+            df.at[i, translation_col] = best
+            result["repaired"] += 1
+        else:
+            if best:
+                df.at[i, translation_col] = best  # keep best effort
+            result["still_failed"] += 1
+            _id = df.at[i, "_id"] if "_id" in df.columns else i
+            seg = df.at[i, "segment_id"] if "segment_id" in df.columns else None
+            result["failed_ids"].append(f"{_id}__{seg}" if seg is not None else str(_id))
+    return result
+
+
 def run_translation_pipeline(source_file_path: str,
                              output_dir: str,
                              prompt_file_name: str,

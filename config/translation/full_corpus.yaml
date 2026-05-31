@@ -81,11 +81,14 @@ execution:
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 
+# Unified layout: one run dir per run_id, phases as subdirs.
+#   outputs/translation/runs/<run_id>/{candidates,pilot,corpus}/<slug>/
 paths:
-  candidates_base: "outputs/translation/BeIR/candidates"
-  runs_base: "outputs/beir_translation/full_corpus"
-  ladder_candidates_base: "outputs/translation/candidates"
-  ladder_runs_base: "outputs/translation/runs"
+  runs_base: "outputs/translation/runs"
+  phases:
+    candidates: "candidates"
+    pilot: "pilot"
+    corpus: "corpus"
 
 # ── GCS / Vertex AI ───────────────────────────────────────────────────────────
 
@@ -101,6 +104,16 @@ gcs:
 batch:
   poll_interval_seconds: 300    # Poll every 5 minutes
   max_wait_hours: 72
+
+# ── Repair (re-translate failed/truncated rows after each shard) ────────────────
+# gemini-3.1-flash-lite reproducibly truncates some long document segments
+# mid-text (finishReason=STOP, content-triggered, e.g. "mumol/[kg.min]").
+# Failed rows are re-translated sentence-by-sentence and rejoined.
+repair:
+  enabled: true
+  ratio_floor: 0.5     # documents: flag if len(HE) < ratio_floor * len(EN)
+  max_attempts: 3
+  temperature: 0.3
 
 # ── Export ─────────────────────────────────────────────────────────────────────
 

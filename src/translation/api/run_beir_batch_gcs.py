@@ -109,7 +109,7 @@ def _patch_gcs_keys(progress: dict) -> None:
 # ── GCS path helpers ──────────────────────────────────────────────────────────
 
 def _gcs_prefix(run_id: str, dataset_slug: str, text_type: str) -> str:
-    return f"beir/{run_id}/{dataset_slug}/{text_type}"
+    return f"translation/{run_id}/corpus/{dataset_slug}/{text_type}"
 
 
 def _gcs_input_uri(bucket: str, run_id: str, dataset_slug: str, text_type: str) -> str:
@@ -242,7 +242,7 @@ def run_pilot(
     pilot_n = config.get("progression", {}).get("pilot_n", 100)
     pilot_qa = config.get("progression", {}).get("pilot_qa", True)
     pilot_location = config.get("pilot", {}).get("location")
-    candidates_base = config["paths"]["candidates_base"]
+    candidates_base = os.path.join(run_dir, "candidates")
     exec_cfg = config["execution"]
     q_cfg = config["queries"]
     d_cfg = config["documents"]
@@ -261,7 +261,7 @@ def run_pilot(
         entry = progress["datasets"].setdefault(slug, _empty_dataset_entry(dataset_name))
         _patch_gcs_keys(progress)
 
-        dataset_run_dir = os.path.join(run_dir, slug)
+        dataset_run_dir = os.path.join(run_dir, "pilot", slug)
         queries_translated = os.path.join(dataset_run_dir, "queries_translated.csv")
         documents_translated = os.path.join(dataset_run_dir, "documents_translated.csv")
 
@@ -448,7 +448,7 @@ def run_submit(
     Upload full input JSONLs to GCS and submit all batch jobs at once.
     Only datasets that passed pilot QA (or have pilot disabled) are submitted.
     """
-    candidates_base = config["paths"]["candidates_base"]
+    candidates_base = os.path.join(run_dir, "candidates")
     exec_cfg = config["execution"]
     q_cfg = config["queries"]
     d_cfg = config["documents"]
@@ -490,7 +490,7 @@ def run_submit(
         slug = _dataset_slug(dataset_name)
         entry = progress["datasets"].setdefault(slug, _empty_dataset_entry(dataset_name))
         _patch_gcs_keys(progress)
-        dataset_run_dir = os.path.join(run_dir, slug)
+        dataset_run_dir = os.path.join(run_dir, "corpus", slug)
         os.makedirs(dataset_run_dir, exist_ok=True)
 
         _console.print(f"  [cyan]{dataset_name}[/cyan]")
@@ -655,7 +655,7 @@ def run_collect(
     if dataset_filter:
         dataset_names = [n for n in dataset_names if _dataset_slug(n) == dataset_filter]
 
-    candidates_base = config["paths"]["candidates_base"]
+    candidates_base = os.path.join(run_dir, "candidates")
     q_cfg = config["queries"]
     d_cfg = config["documents"]
 
@@ -666,7 +666,7 @@ def run_collect(
             slug = _dataset_slug(dataset_name)
             entry = progress["datasets"].get(slug, {})
             _patch_gcs_keys(progress)
-            dataset_run_dir = os.path.join(run_dir, slug)
+            dataset_run_dir = os.path.join(run_dir, "corpus", slug)
             os.makedirs(dataset_run_dir, exist_ok=True)
 
             queries_csv = os.path.join(candidates_base, slug, "queries.csv")
