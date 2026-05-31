@@ -223,6 +223,23 @@ def _elapsed_str(start_iso: Optional[str], end_iso: Optional[str] = None) -> str
         return ""
 
 
+def _flatten_shards_to_csv(slug_dir: str, prefix: str, out_csv: str) -> bool:
+    """Concatenate the ladder's sharded candidates into one flat CSV.
+
+    {prefix}_shard_000.csv, _001.csv, … → out_csv (e.g. queries.csv). This lets
+    the pilot reuse the exact same candidate rows the corpus ladder uses — one
+    source of truth — instead of re-fetching/rebuilding from HuggingFace.
+    Returns True if shards were found and flattened.
+    """
+    import glob
+    shards = sorted(glob.glob(os.path.join(slug_dir, f"{prefix}_shard_*.csv")))
+    if not shards:
+        return False
+    df = pd.concat([pd.read_csv(s) for s in shards], ignore_index=True)
+    df.to_csv(out_csv, index=False, encoding="utf-8")
+    return True
+
+
 # ── Phase 1: Pilot ────────────────────────────────────────────────────────────
 
 def run_pilot(
@@ -291,12 +308,21 @@ def run_pilot(
 
         if not qa_only:
             # ── Build candidates ───────────────────────────────────────────────
-            queries_csv = os.path.join(candidates_base, slug, "queries.csv")
-            documents_csv = os.path.join(candidates_base, slug, "documents.csv")
+            slug_dir = os.path.join(candidates_base, slug)
+            queries_csv = os.path.join(slug_dir, "queries.csv")
+            documents_csv = os.path.join(slug_dir, "documents.csv")
             if not entry["candidates_built"] or exec_cfg.get("force_candidates"):
                 if os.path.exists(queries_csv) and os.path.exists(documents_csv) and not exec_cfg.get("force_candidates"):
                     entry["candidates_built"] = True
                     save_progress(run_dir, progress)
+                elif os.path.exists(os.path.join(slug_dir, "shard_manifest.json")):
+                    # Reuse the corpus ladder's sharded candidates (single source
+                    # of truth) — flatten them into queries.csv/documents.csv.
+                    _flatten_shards_to_csv(slug_dir, "queries", queries_csv)
+                    _flatten_shards_to_csv(slug_dir, "documents", documents_csv)
+                    entry["candidates_built"] = True
+                    save_progress(run_dir, progress)
+                    _console.print(f"    [dim]candidates flattened from shards[/dim]")
                 else:
                     try:
                         _phase_build_candidates(dataset_name, slug, config)
