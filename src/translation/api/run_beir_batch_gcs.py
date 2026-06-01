@@ -268,6 +268,57 @@ def _flatten_shards_to_csv(slug_dir: str, prefix: str, out_csv: str, max_rows: i
 
 # ── Phase 1: Pilot ────────────────────────────────────────────────────────────
 
+_PILOT_STATUS_STYLE = {
+    "pending": "dim", "running": "bold cyan", "done": "bold green", "failed": "bold red",
+}
+_PILOT_STATUS_ICON = {
+    "pending": "·", "running": "⟳", "done": "✓", "failed": "✗",
+}
+
+
+def _pilot_status(entry: dict, pilot_qa: bool) -> str:
+    if (entry.get("error") or "").startswith("pilot_qa_failed"):
+        return "failed"
+    done_tr = entry.get("queries_pilot_done") and entry.get("documents_pilot_done")
+    done_qa = (not pilot_qa) or (entry.get("queries_pilot_qa_passed") and entry.get("documents_pilot_qa_passed"))
+    return "done" if (done_tr and done_qa) else "pending"
+
+
+def _render_pilot_table(dataset_names: list, progress: dict, config: dict, current: str = None) -> None:
+    """Ladder-style status grid for the pilot: model + prompt in the title,
+    one row per dataset with status and per-type QA verdict."""
+    q, d = config["queries"], config["documents"]
+    model = q["model"] if q["model"] == d["model"] else f'{q["model"]} / {d["model"]}'
+    prompt = os.path.basename(q["prompt"]["file"])
+    pilot_qa = config.get("progression", {}).get("pilot_qa", True)
+    pilot_n = config.get("progression", {}).get("pilot_n", 0)
+
+    statuses = {n: _pilot_status(progress["datasets"].get(_dataset_slug(n), {}), pilot_qa) for n in dataset_names}
+    if current and statuses.get(current) == "pending":
+        statuses[current] = "running"
+    done = sum(1 for s in statuses.values() if s == "done")
+
+    title = (f"Pilot — {config.get('run_id', '')}\n"
+             f"model {model}  ·  prompt {prompt}  ·  pilot_n={pilot_n}  ·  {done}/{len(dataset_names)} done")
+    table = Table(title=title, show_header=True, header_style="bold", expand=False)
+    table.add_column("Dataset")
+    table.add_column("Status", min_width=10)
+    table.add_column("Queries QA")
+    table.add_column("Documents QA")
+
+    def _qa(entry, key):
+        v = entry.get(key)
+        return "✓ PASS" if v is True else ("✗ FAIL" if v is False else "—")
+
+    for n in dataset_names:
+        slug = _dataset_slug(n)
+        e = progress["datasets"].get(slug, {})
+        st = statuses[n]
+        table.add_row(n, f"{_PILOT_STATUS_ICON[st]} {st}", _qa(e, "queries_pilot_qa_passed"),
+                      _qa(e, "documents_pilot_qa_passed"), style=_PILOT_STATUS_STYLE.get(st, ""))
+    _console.print(table)
+
+
 def run_pilot(
     config: dict,
     run_id: str,
@@ -303,6 +354,8 @@ def run_pilot(
         slug = _dataset_slug(dataset_name)
         entry = progress["datasets"].setdefault(slug, _empty_dataset_entry(dataset_name))
         _patch_gcs_keys(progress)
+        # Ladder-style status grid: model + prompt + per-dataset done/pending/QA.
+        _render_pilot_table(dataset_names, progress, config, current=slug)
 
         dataset_run_dir = os.path.join(run_dir, "pilot", slug)
         queries_translated = os.path.join(dataset_run_dir, "queries_translated.csv")
@@ -473,6 +526,7 @@ def run_pilot(
 
         _console.print(f"    queries QA: {q_score}   documents QA: {d_score}")
 
+    _render_pilot_table(dataset_names, progress, config)
     _console.print("\n[bold]Pilot complete.[/bold] Run [cyan]submit[/cyan] to fire batch jobs.")
 
 
