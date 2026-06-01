@@ -125,7 +125,7 @@ export:
 
 guardrails:
   max_cost_usd: 2500.0
-  cost_per_1m_input_tokens: 0.50     # gemini-3.1-flash-lite
+  cost_per_1m_input_tokens: 0.25     # gemini-3.1-flash-lite (sync list; batch halves in code)
   cost_per_1m_output_tokens: 1.50    # gemini-3.1-flash-lite
 
 # ── Pilot (smoke test before full batch submit) ────────────────────────────────
