@@ -619,36 +619,105 @@ _TRANSLATION_SYSTEM_PROMPT = (
 )
 
 
-def _repair_shard_csv(shard_csv_path: str, text_type: str, type_cfg: dict, config: dict) -> dict:
+def _composite_ids(df: pd.DataFrame, text_type: str) -> pd.Series:
+    """Composite id matching build_and_upload_input: _id for queries,
+    _id__segment_id for documents."""
+    comp = df["_id"].astype(str)
+    if text_type == "documents" and "segment_id" in df.columns:
+        comp = comp + "__" + df["segment_id"].astype(str)
+    return comp
+
+
+def _apply_translations_by_id(df: pd.DataFrame, text_type: str, results: list) -> int:
+    """Overwrite df['translation'] for rows whose composite _id matches a result.
+    Returns count applied. Used to write batch-repair results back in place."""
+    idx_by_id = {cid: i for i, cid in _composite_ids(df, text_type).items()}
+    n = 0
+    for r in results:
+        i = idx_by_id.get(str(r.get("_id", "")))
+        t = (r.get("translation") or "").strip()
+        if i is not None and t:
+            df.at[i, "translation"] = r["translation"]
+            n += 1
+    return n
+
+
+def _repair_shard_csv(shard_csv_path, text_type, type_cfg, config, run_id=None, slug=None,
+                      shard_idx=None, gemini_client=None, gcs_client=None, bucket=None,
+                      poll_interval=300, max_wait_seconds=72 * 3600) -> dict:
     """Detect + repair failed/truncated translations in a shard CSV (in place).
 
-    Returns the repair-result dict from repair_translations (or a no-op dict
-    when repair is disabled). text_type is "queries"/"documents".
+    Truncated rows are re-translated WHOLE-DOCUMENT via the batch API (full
+    context — preserves quality, 50% batch cost), looping up to max_attempts
+    rounds since truncation is stochastic (~2/3 succeed per try). Only rows
+    that still fail after all batch rounds fall back to sync sentence-chunking.
+    Falls back entirely to sync repair if batch clients aren't provided.
     """
     repair_cfg = config.get("repair", {})
+    noop = {"checked": 0, "failed": 0, "repaired": 0, "still_failed": 0, "failed_ids": []}
     if not repair_cfg.get("enabled", True):
-        return {"checked": 0, "failed": 0, "repaired": 0, "still_failed": 0, "failed_ids": []}
+        return noop
 
-    from translation.api.translate import repair_translations
+    from translation.api.translate import _is_failed_translation, repair_translations
 
+    ratio_floor = repair_cfg.get("ratio_floor", 0.5)
+    max_rounds  = repair_cfg.get("max_attempts", 3)
+    tt = "query" if text_type == "queries" else "document"
     text_col = type_cfg.get("prompt", {}).get("text_col") or (
-        "text" if text_type == "queries" else "segment_text"
-    )
+        "text" if text_type == "queries" else "segment_text")
+
     df = pd.read_csv(shard_csv_path, encoding="utf-8")
-    res = repair_translations(
-        df,
-        text_col=text_col,
-        model_name=type_cfg.get("model"),
-        system_prompt=_TRANSLATION_SYSTEM_PROMPT,
-        text_type="query" if text_type == "queries" else "document",
-        translation_col="translation",
-        ratio_floor=repair_cfg.get("ratio_floor", 0.5),
-        max_attempts=repair_cfg.get("max_attempts", 3),
-        temperature=repair_cfg.get("temperature", 0.3),
-    )
-    if res["repaired"] or res["still_failed"]:
-        df.to_csv(shard_csv_path, index=False, encoding="utf-8")
-    return res
+
+    def failed_mask(d):
+        return d.apply(lambda r: _is_failed_translation(
+            r.get(text_col), r.get("translation"), tt, ratio_floor), axis=1)
+
+    initial = int(failed_mask(df).sum())
+    if initial == 0:
+        return {"checked": len(df), "failed": 0, "repaired": 0, "still_failed": 0, "failed_ids": []}
+
+    batch_ok = all(x is not None for x in (run_id, slug, shard_idx, gemini_client, gcs_client, bucket))
+    if batch_ok:
+        logger.info(f"[{slug}] shard {shard_idx} {text_type}: {initial} truncated → whole-doc batch re-translation")
+        for rnd in range(max_rounds):
+            mask = failed_mask(df)
+            if not mask.any():
+                break
+            sub = df[mask].copy()
+            gcs_prefix = _gcs_shard_prefix(run_id, slug, shard_idx, f"{text_type}/repair{rnd}")
+            output_prefix = f"gs://{bucket}/{gcs_prefix}/output"
+            try:
+                input_uri = build_and_upload_input(
+                    df=sub, id_columns=_id_columns_for(sub), gcs_client=gcs_client,
+                    bucket=bucket, gcs_prefix=gcs_prefix, **_upload_kwargs(type_cfg))
+                job = submit_gcs_batch_job(
+                    gemini_client, type_cfg["model"], input_uri, output_prefix,
+                    display_name=f"{run_id}__{slug}__shard{shard_idx:03d}__{text_type}__repair{rnd}")
+                jobs = {("repair", text_type, rnd): {"job_name": job, "gcs_output_prefix": output_prefix}}
+                _poll_until_all_complete(jobs, gemini_client, poll_interval, max_wait_seconds, slug=slug)
+                _, gcs_out = _strip_gs_uri((jobs[("repair", text_type, rnd)].get("info") or {}).get("output_dir") or output_prefix)
+                results, _, _ = _download_shard_results(gcs_client, bucket, gcs_out)
+                applied = _apply_translations_by_id(df, text_type, results)
+                logger.info(f"[{slug}] shard {shard_idx} {text_type}: repair round {rnd}: "
+                            f"re-translated {applied}, {int(failed_mask(df).sum())} still short")
+            except Exception as e:
+                logger.warning(f"[{slug}] shard {shard_idx} {text_type}: repair round {rnd} failed ({e})")
+                break
+
+    # Last-resort: sentence-chunk the stubborn rows the batch couldn't fix.
+    if int(failed_mask(df).sum()) > 0 and repair_cfg.get("chunk_fallback", True):
+        repair_translations(
+            df, text_col=text_col, model_name=type_cfg.get("model"),
+            system_prompt=_TRANSLATION_SYSTEM_PROMPT, text_type=tt, translation_col="translation",
+            ratio_floor=ratio_floor, max_attempts=max_rounds,
+            temperature=repair_cfg.get("temperature", 0.3))
+
+    final_failed = int(failed_mask(df).sum())
+    df.to_csv(shard_csv_path, index=False, encoding="utf-8")
+    failed_ids = [str(c) for c, m in zip(_composite_ids(df, text_type), failed_mask(df)) if m]
+    return {"checked": len(df), "failed": initial,
+            "repaired": initial - final_failed, "still_failed": final_failed,
+            "failed_ids": failed_ids[:20]}
 
 
 def _collect_shard_results(jobs: dict, gcs_client, bucket: str, config: dict = None) -> dict:
@@ -1139,7 +1208,11 @@ def run_ladder(
                         continue  # already processed on a prior run
                     out_path = shard_results[(shard_idx, text_type)]["output_path"]
                     try:
-                        rr = _repair_shard_csv(out_path, text_type, type_cfg, config)
+                        rr = _repair_shard_csv(
+                            out_path, text_type, type_cfg, config,
+                            run_id=run_id, slug=slug, shard_idx=shard_idx,
+                            gemini_client=gemini_client, gcs_client=gcs_client, bucket=bucket,
+                            poll_interval=poll_interval, max_wait_seconds=max_wait_seconds)
                     except Exception as e:
                         logger.warning(f"[{slug}] repair failed for shard {shard_idx} {text_type}: {e}")
                         rr = None
