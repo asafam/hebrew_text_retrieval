@@ -1,0 +1,163 @@
+# BeIR Full Corpus Translation
+# Translates all queries, documents, and titles across all 15 BeIR datasets.
+#
+# Usage:
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml pilot
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml submit --yes
+#   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml collect
+
+run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20250220_judgev20260531"
+
+# ── Per-type model and prompt configuration ────────────────────────────────────
+
+queries:
+  model: "gemini-3.1-flash-lite"
+  temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "query"
+    text_col: "text"              # CSV column with source text
+    english_key: "Text"           # template variable: source text
+    hebrew_key: "Hebrew Query"    # template variable: translation output
+    context_col: "context_text"   # CSV column for context (leave blank if none)
+    context_key: "Context"        # template variable: context
+
+documents:
+  model: "gemini-3.1-flash-lite"
+  temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "document"
+    text_col: "segment_text"
+    english_key: "Text"
+    hebrew_key: "Hebrew Document"
+
+titles:
+  model: "gemini-3.1-flash-lite"
+  temperature: 0.7
+  prompt:
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    type: "document"
+    text_col: "segment_text"
+    english_key: "Text"
+    hebrew_key: "Hebrew Document"
+
+# ── Datasets ───────────────────────────────────────────────────────────────────
+
+datasets:
+  names:
+    # Ordered small → large for natural phasing
+    - "BeIR/nfcorpus"        # 3,633 docs
+    - "BeIR/scifact"          # 5,183 docs
+    - "BeIR/arguana"          # 8,674 docs
+    - "BeIR/scidocs"          # 25,657 docs
+    - "BeIR/fiqa"             # 57,638 docs
+    - "BeIR/webis-touche2020" # 382,545 docs
+    - "BeIR/trec-covid"       # 171,332 docs
+    - "BeIR/cqadupstack"      # ~457,199 docs (12 community QA subsets)
+    - "BeIR/quora"            # 522,931 docs
+    - "BeIR/nq"               # 2,681,468 docs
+    - "BeIR/hotpotqa"         # 5,233,329 docs
+    - "BeIR/dbpedia-entity"   # 4,635,922 docs
+    - "BeIR/fever"            # 5,416,568 docs  (Wikipedia corpus — shared with climate-fever)
+    - "BeIR/climate-fever"    # 5,416,593 docs  (same Wikipedia corpus)
+    - "BeIR/msmarco"          # 8,841,823 docs
+  num_samples: 0              # 0 = translate all records
+  max_document_segment_tokens: 512
+  tokenizer_model: "gpt-4o-mini-2024-07-18"
+  translate_titles: true
+  random_seed: 42
+
+# ── Execution ──────────────────────────────────────────────────────────────────
+
+execution:
+  mode: "auto"
+  num_workers: 8
+  sleep_time: 0
+  limit: 0
+  force_candidates: false
+  force_translation: false
+  force_export: false
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+
+# Unified layout: one run dir per run_id, phases as subdirs.
+#   outputs/translation/runs/<run_id>/{candidates,pilot,corpus}/<slug>/
+paths:
+  runs_base: "outputs/translation/runs"
+  phases:
+    candidates: "candidates"
+    pilot: "pilot"
+    corpus: "corpus"
+
+# ── GCS / Vertex AI ───────────────────────────────────────────────────────────
+
+gcs:
+  bucket: "beir-translation"
+  project: "iucc-tsarfaty-lab-gcp-asaf"
+  location: "global"
+  input_prefix: "beir/input"
+  output_prefix: "beir/output"
+
+# ── Batch polling ──────────────────────────────────────────────────────────────
+
+batch:
+  poll_interval_seconds: 300    # Poll every 5 minutes
+  max_wait_hours: 72
+
+# ── Repair (re-translate failed/truncated rows after each shard) ────────────────
+# gemini-3.1-flash-lite reproducibly truncates some long document segments
+# mid-text (finishReason=STOP, content-triggered, e.g. "mumol/[kg.min]").
+# Failed rows are re-translated sentence-by-sentence and rejoined.
+repair:
+  enabled: true
+  ratio_floor: 0.5     # documents: flag if len(HE) < ratio_floor * len(EN)
+  max_attempts: 3
+  temperature: 0.3
+
+# ── Export ─────────────────────────────────────────────────────────────────────
+
+export:
+  segment_separator: " "
+  include_context: false
+
+# ── Guardrails ────────────────────────────────────────────────────────────────
+
+guardrails:
+  max_cost_usd: 2500.0
+  cost_per_1m_input_tokens: 0.50     # gemini-3.1-flash-lite
+  cost_per_1m_output_tokens: 1.50    # gemini-3.1-flash-lite
+
+# ── Pilot (smoke test before full batch submit) ────────────────────────────────
+
+progression:
+  pilot_n: 25         # rows translated synchronously before batch submit
+  pilot_qa: true      # run LLM-as-a-judge on pilot output; block submit on failure
+
+pilot:
+  location: "global"  # gemini-3.1-flash-lite requires global endpoint for sync calls
+
+# ── Ladder cadence ────────────────────────────────────────────────────────────
+# Controls how many shards are submitted per QA gate (parallel within each step).
+#   static:      always cadence_start shards per step  (1, 1, 1, 1, ...)
+#   linear:      cadence_start × (step+1)              (1, 2, 3, 4, ...)
+#   exponential: cadence_start × 2^step                (1, 2, 4, 8, ...)
+
+ladder:
+  cadence: "exponential"
+  cadence_start: 1
+
+# ── QA (LLM-as-a-judge) ───────────────────────────────────────────────────────
+
+qa:
+  enabled: true
+  baseline_csv: "outputs/translation/BeIR/results_translation_eval.csv"
+  baseline_model: "gpt-5.4-mini"
+  baseline_prompt: "zeroshot_nocontext"
+  judge_model: "gemini-3.1-pro-preview"
+  judge_location: "global"
+  sample_size: 25
+  workers: 32
+  sleep_time: 3
+  min_score: 3.5       # ladder pipeline: absolute floor regardless of baseline
+  sample_seed: 42      # base random seed for sampling; actual seed = sample_seed + stage_idx
