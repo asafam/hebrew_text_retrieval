@@ -726,6 +726,27 @@ def _repair_shard_csv(shard_csv_path, text_type, type_cfg, config, run_id=None, 
             "failed_ids": failed_ids[:20]}
 
 
+def _shard_output_complete(output_csv: str) -> bool:
+    """True if a translated shard CSV exists and has no pending (NaN) rows.
+
+    Resume idempotency: a prior run may have collected a shard (output fully
+    written) but crashed before `appended` was set — e.g. an exception in the
+    repair step. On resume the shard is reused and re-collected; re-writing a
+    fully-translated output would trip write_translated_csv's pending-count
+    check (received N translations but 0 rows pending). Detect that case and
+    skip the re-write while still letting repair/append run on the output.
+    """
+    if not os.path.exists(output_csv):
+        return False
+    try:
+        df = pd.read_csv(output_csv, encoding="utf-8")
+    except Exception:
+        return False
+    if "translation" not in df.columns or len(df) == 0:
+        return False
+    return int(df["translation"].isna().sum()) == 0
+
+
 def _collect_shard_results(jobs: dict, gcs_client, bucket: str, config: dict = None) -> dict:
     """
     Download results for all jobs.
@@ -743,7 +764,13 @@ def _collect_shard_results(jobs: dict, gcs_client, bucket: str, config: dict = N
         download_uri = per_job_dir or info["gcs_output_prefix"]
         _, gcs_output_path = _strip_gs_uri(download_uri)
         translations, in_tok, out_tok = _download_shard_results(gcs_client, bucket, gcs_output_path)
-        write_translated_csv(translations, info["shard_csv"], info["output_path"])
+        if _shard_output_complete(info["output_path"]):
+            logger.info(
+                f"  Already collected (resume): {info['output_path']} — "
+                f"skipping re-write of {len(translations)} translations"
+            )
+        else:
+            write_translated_csv(translations, info["shard_csv"], info["output_path"])
         cost_str = ""
         if config is not None:
             cost_str = f", ${_compute_cost(in_tok, out_tok, config):.4f} (batch)"
