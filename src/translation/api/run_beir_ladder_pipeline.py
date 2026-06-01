@@ -693,9 +693,15 @@ def _repair_shard_csv(shard_csv_path, text_type, type_cfg, config, run_id=None, 
                 job = submit_gcs_batch_job(
                     gemini_client, type_cfg["model"], input_uri, output_prefix,
                     display_name=f"{run_id}__{slug}__shard{shard_idx:03d}__{text_type}__repair{rnd}")
-                jobs = {("repair", text_type, rnd): {"job_name": job, "gcs_output_prefix": output_prefix}}
+                # _job_row / poll rendering unpack the job key as (shard_idx, text_type)
+                # — `shard_idx, text_type = key` and f"{k[0]:03d}". A 3-tuple
+                # ("repair", text_type, rnd) key crashed that 2-unpack ("too many values
+                # to unpack"), so use the standard 2-tuple shape. This jobs dict is local
+                # to this repair round, so the key value is purely internal.
+                job_key = (shard_idx, text_type)
+                jobs = {job_key: {"job_name": job, "gcs_output_prefix": output_prefix}}
                 _poll_until_all_complete(jobs, gemini_client, poll_interval, max_wait_seconds, slug=slug)
-                _, gcs_out = _strip_gs_uri((jobs[("repair", text_type, rnd)].get("info") or {}).get("output_dir") or output_prefix)
+                _, gcs_out = _strip_gs_uri((jobs[job_key].get("info") or {}).get("output_dir") or output_prefix)
                 results, _, _ = _download_shard_results(gcs_client, bucket, gcs_out)
                 applied = _apply_translations_by_id(df, text_type, results)
                 logger.info(f"[{slug}] shard {shard_idx} {text_type}: repair round {rnd}: "
