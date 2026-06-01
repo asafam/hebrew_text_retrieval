@@ -700,6 +700,30 @@ def _append_to_accumulated(shard_out_csv: str, accumulated_csv: str) -> int:
 
 # ── QA ─────────────────────────────────────────────────────────────────────────
 
+def _load_pilot_baseline(run_dir: str) -> dict:
+    """Per-dataset/type pilot QA baseline → {(slug, text_type): (mean, std)}.
+
+    Source is the pilot's progress.batch.json (same run dir), which stores
+    {queries,documents}_pilot_qa_score / _std per dataset. Used to gate the
+    ladder relative to each dataset's own pilot rather than a flat threshold.
+    """
+    p = os.path.join(run_dir, "progress.batch.json")
+    out = {}
+    if not os.path.exists(p):
+        return out
+    try:
+        d = json.load(open(p))
+    except Exception:
+        return out
+    for slug, e in d.get("datasets", {}).items():
+        for tt, pref in (("query", "queries"), ("document", "documents")):
+            m = e.get(f"{pref}_pilot_qa_score")
+            s = e.get(f"{pref}_pilot_qa_std")
+            if isinstance(m, (int, float)):
+                out[(slug, tt)] = (float(m), float(s) if isinstance(s, (int, float)) else 0.0)
+    return out
+
+
 def _ladder_qa(
     accumulated_csv: str,
     slug: str,
@@ -789,36 +813,37 @@ def _ladder_qa(
     std  = float(valid.std()) if len(valid) > 1 else 0.0
     n    = int(len(valid))
 
-    # Baseline comparison (if configured); fall back to absolute min_score threshold
-    baseline_csv = qa_cfg.get("baseline_csv", "")
+    # Gate against each dataset's PILOT baseline (μ±σ): degraded if the ladder
+    # score is out of range vs pilot (z-score) or an absolute drop — adapts to
+    # each dataset's variance. Falls back to absolute min_score when no pilot
+    # baseline exists. σ is clamped so zero/tiny-variance datasets don't false-
+    # trip, and a low abs_floor backstops an over-permissive (low) pilot.
+    sigma_floor = qa_cfg.get("sigma_floor", 0.5)
+    abs_floor   = qa_cfg.get("abs_floor", 2.5)
+    z_threshold = qa_cfg.get("z_threshold", 1.5)
+    use_pilot   = qa_cfg.get("baseline_from_pilot", True)
     passed = True
     reason = ""
-    if baseline_csv and os.path.exists(baseline_csv):
-        try:
-            from translation.qa_phase import compare_scores, load_baseline
-            bdf = load_baseline(
-                baseline_csv,
-                qa_cfg.get("baseline_model", ""),
-                qa_cfg.get("baseline_prompt", ""),
-                judge_model,
-            )
-            bstats = bdf.groupby(["dataset_slug", "text_type"])["score"].agg(["mean", "std"])
-            idx = (slug, text_type)
-            if idx in bstats.index:
-                b_mean = float(bstats.loc[idx, "mean"])
-                b_std  = float(bstats.loc[idx, "std"])
-                degraded, reason = compare_scores(mean, b_mean, b_std)
-                passed = not degraded
-                if passed and mean < min_score:
-                    passed = False
-                    reason = f"score {mean:.2f} < min_score {min_score}"
-            else:
-                passed = mean >= min_score
-        except Exception as e:
-            logger.warning(f"[qa] Baseline comparison failed ({e}); using min_score threshold")
-            passed = mean >= min_score
+    baseline = _load_pilot_baseline(run_dir).get((slug, text_type)) if use_pilot else None
+    if baseline:
+        # Out-of-range test vs the pilot: how many σ below the pilot mean.
+        # σ is clamped (sigma_floor) so tiny/zero-variance datasets don't
+        # false-trip; abs_floor backstops an over-low pilot baseline. No fixed
+        # margin — the band scales with each dataset's variance.
+        b_mean, b_std = baseline
+        sd = max(b_std, sigma_floor)
+        z = (b_mean - mean) / sd
+        if z > z_threshold:
+            passed = False
+            reason = f"out of range vs pilot {b_mean:.2f}±{b_std:.2f}  (z={z:.2f} > {z_threshold})"
+        elif mean < abs_floor:
+            passed = False
+            reason = f"score {mean:.2f} < abs_floor {abs_floor}"
+        else:
+            reason = f"within {z_threshold}σ of pilot {b_mean:.2f}±{b_std:.2f}  (z={z:.2f})"
     else:
         passed = mean >= min_score
+        reason = f"min_score {min_score} (no pilot baseline)"
 
     status = "PASS" if passed else "FAIL"
     logger.info(

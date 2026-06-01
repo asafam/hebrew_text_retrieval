@@ -159,5 +159,12 @@ qa:
   sample_size: 100
   workers: 32
   sleep_time: 3
-  min_score: 3.5       # ladder pipeline: absolute floor regardless of baseline
   sample_seed: 42      # base random seed for sampling; actual seed = sample_seed + stage_idx
+  # ── Gate (ladder): per-dataset, relative to each dataset's pilot μ±σ ──────────
+  baseline_from_pilot: true  # gate vs the pilot baseline (progress.batch.json) not a flat number
+  z_threshold: 1.5           # fail if ladder score is > this many σ below the pilot mean
+  sigma_floor: 0.5           # clamp pilot σ so zero/tiny-variance datasets don't false-trip
+  abs_floor: 2.5             # absolute backstop regardless of pilot (catches an over-low pilot)
+  min_score: 3.5             # fallback gate only when no pilot baseline exists
+  # Degradation thresholds (z-score / absolute drop) live in qa_phase.py:
+  #   DEGRADATION_Z_THRESHOLD = 1.5, DEGRADATION_ABS_THRESHOLD = 0.5
