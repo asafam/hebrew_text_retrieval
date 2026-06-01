@@ -75,26 +75,31 @@ def translate(system_prompt: str,
 
 # ── Repair: re-translate failed / truncated rows ───────────────────────────────
 
+# Below this source length the Hebrew/English ratio is unreliable (a short
+# query can legitimately be terse), so the truncation check is skipped.
+_MIN_LEN_FOR_RATIO = 200
+
+
 def _is_failed_translation(english, hebrew, text_type: str, ratio_floor: float) -> bool:
     """Heuristic failure detector for a translated row.
 
     A row is considered failed when:
       - the Hebrew is empty/NaN, OR
-      - (documents only) the Hebrew is suspiciously short vs. the English.
-        gemini-3.1-flash-lite reproducibly truncates some long document
-        segments mid-text while still reporting finishReason=STOP, so length
-        ratio is the only reliable signal. Queries are too short for a ratio
-        test, so only emptiness counts there.
+      - the source is long (>= _MIN_LEN_FOR_RATIO chars) and the Hebrew is
+        suspiciously short vs. the English. gemini-3.1-flash-lite reproducibly
+        truncates long text mid-segment while still reporting finishReason=STOP,
+        so length ratio is the only reliable signal. The check is gated on
+        source length, not text_type, so essay-length "queries" (e.g. arguana
+        counter-arguments) are caught while short queries are not false-flagged.
     """
     if hebrew is None or (isinstance(hebrew, float) and pd.isna(hebrew)):
         return True
     he = str(hebrew).strip()
     if not he:
         return True
-    if text_type == "document":
-        en = str(english).strip()
-        if en and len(he) < ratio_floor * len(en):
-            return True
+    en = str(english).strip()
+    if len(en) >= _MIN_LEN_FOR_RATIO and len(he) < ratio_floor * len(en):
+        return True
     return False
 
 
