@@ -6,7 +6,7 @@
 #   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml submit --yes
 #   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml collect
 
-run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite"
+run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531"
 
 # ── Per-type model and prompt configuration ────────────────────────────────────
 
@@ -14,7 +14,7 @@ queries:
   model: "gemini-3.1-flash-lite"
   temperature: 0.7
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
     type: "query"
     text_col: "text"              # CSV column with source text
     english_key: "Text"           # template variable: source text
@@ -26,7 +26,7 @@ documents:
   model: "gemini-3.1-flash-lite"
   temperature: 0.7
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
     type: "document"
     text_col: "segment_text"
     english_key: "Text"
@@ -36,7 +36,7 @@ titles:
   model: "gemini-3.1-flash-lite"
   temperature: 0.7
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20250220.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
     type: "document"
     text_col: "segment_text"
     english_key: "Text"
