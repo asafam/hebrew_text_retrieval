@@ -229,6 +229,72 @@ def _cadence_shards_for_step(step: int, start: int, mode: str) -> int:
         return start
 
 
+def _cadence_partition(all_indices: list, start: int, mode: str) -> list:
+    """Partition shard indices into cadence steps → [(step, [shard,...]), ...]."""
+    steps, cursor, step = [], 0, 0
+    while cursor < len(all_indices):
+        n = _cadence_shards_for_step(step, start, mode)
+        steps.append((step, all_indices[cursor:cursor + n]))
+        cursor += n
+        step += 1
+    return steps
+
+
+def _build_ladder_table(slug: str, config: dict, entry: dict, q_by_idx: dict,
+                        d_by_idx: dict, running_step: int = None) -> Table:
+    """Cumulative step-oriented status grid for one dataset's ladder run.
+
+    One row per cadence step: shards, queries/documents state, judge score
+    (mean±std) once that step is gated, and cumulative cost. Done steps stay
+    visible with their scores; the current step shows running; future steps
+    pending.
+    """
+    ladder_cfg = config.get("ladder", {})
+    start = int(ladder_cfg.get("cadence_start", 1))
+    mode = ladder_cfg.get("cadence", "static")
+    all_indices = sorted(set(q_by_idx) | set(d_by_idx))
+    steps = _cadence_partition(all_indices, start, mode)
+    scores = entry.get("ladder_stage_scores", {})
+    cur_step = entry.get("ladder_cadence_step", 0)
+    stopped = entry.get("ladder_stopped", False)
+    all_done = entry.get("ladder_all_done", False)
+
+    overall = "✓ all done" if all_done else ("✗ stopped" if stopped else "⟳ running")
+    title = f"[{slug}] ladder  ·  {len(steps)} cadence steps  ·  {overall}"
+    if entry.get("total_cost_usd") is not None:
+        title += f"  ·  ${entry['total_cost_usd']:.4f} (batch)"
+    table = Table(title=title, show_header=True, header_style="bold", expand=True)
+    table.add_column("Step")
+    table.add_column("Shards")
+    table.add_column("Queries QA")
+    table.add_column("Documents QA")
+    table.add_column("Cum. cost", justify="right")
+
+    def _cell(sc, key_mean, key_std, key_pass):
+        m = sc.get(key_mean) if sc else None
+        if isinstance(m, (int, float)):
+            s = sc.get(key_std)
+            mark = "✓" if sc.get(key_pass, True) else "✗"
+            return f"{mark} {m:.2f}" + (f"±{s:.2f}" if isinstance(s, (int, float)) else "")
+        return None
+
+    for step, shards in steps:
+        sc = scores.get(str(step))
+        if sc:                       # gated → show scores
+            q = _cell(sc, "q_score_mean", "q_score_std", "q_passed") or "—"
+            d = _cell(sc, "d_score_mean", "d_score_std", "d_passed") or "—"
+            cost = f"${sc.get('cumulative_cost_usd'):.4f}" if sc.get("cumulative_cost_usd") is not None else "—"
+            style = "bold green"
+            if (sc.get("q_passed") is False) or (sc.get("d_passed") is False):
+                style = "bold red"
+        elif step == cur_step and not all_done and not stopped:
+            q = d = "⟳ running"; cost = "—"; style = "bold cyan"
+        else:
+            q = d = "· pending"; cost = "—"; style = "dim"
+        table.add_row(str(step), str(shards), q, d, cost, style=style)
+    return table
+
+
 def _existing_job_info(
     job_name: str,
     shard_csv: str,
@@ -489,6 +555,7 @@ def _poll_until_all_complete(
     max_wait_seconds: int,
     cumulative_cost_usd: float = None,
     slug: str = None,
+    ladder_ctx: dict = None,
 ) -> None:
     """
     Poll all jobs until every one reaches a terminal state.
@@ -515,6 +582,12 @@ def _poll_until_all_complete(
                 info = jobs[key].get("info") or {"state": jobs[key].get("status", "?")}
             snapshot.append((key, info))
 
+        # Cumulative step view first (completed steps + scores + pending),
+        # then the current step's per-job detail.
+        if ladder_ctx:
+            _poll_console.print(_build_ladder_table(
+                ladder_ctx["slug"], ladder_ctx["config"], ladder_ctx["entry"],
+                ladder_ctx["q_by_idx"], ladder_ctx["d_by_idx"]))
         _render_poll_table(
             snapshot, poll_idx, waited, len(pending), len(jobs), poll_interval, now,
             cumulative_cost_usd=cumulative_cost_usd, slug=slug,
@@ -1006,6 +1079,8 @@ def run_ladder(
                 _poll_until_all_complete(
                     pending_jobs, gemini_client, poll_interval, max_wait_seconds,
                     cumulative_cost_usd=cumulative_cost_usd, slug=slug,
+                    ladder_ctx={"slug": slug, "config": config, "entry": entry,
+                                "q_by_idx": q_by_idx, "d_by_idx": d_by_idx},
                 )
             except RuntimeError as e:
                 logger.error(f"[{slug}] Poll failed: {e}")
