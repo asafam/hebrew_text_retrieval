@@ -339,14 +339,15 @@ def _run_dataset_qa(
     text_type: str,
     config: dict,
     run_dir: str,
-) -> bool:
+) -> dict:
     """
     Sample translated rows and run LLM-as-a-judge. Compare against baseline.
-    Returns True if QA passes, False if degradation detected.
+    Returns {"passed": bool, "mean": float|None, "std": float|None, "n": int}.
     """
+    _skip = {"passed": True, "mean": None, "std": None, "n": 0}
     qa_cfg = config.get("qa", {})
     if not qa_cfg.get("enabled", False):
-        return True
+        return _skip
 
     # The baseline is only used for degradation comparison. Its absence must NOT
     # skip the judge — without a baseline we still score and gate on min_score.
@@ -372,7 +373,7 @@ def _run_dataset_qa(
     df = df[df["translation"].notna()]
     if df.empty:
         _log(f"  [qa] No translated rows to evaluate in {translated_csv}.")
-        return True
+        return _skip
 
     sample = df.sample(n=min(sample_size, len(df)), random_state=42)
     suffix = "_queries.csv" if text_type == "query" else "_documents.csv"
@@ -418,12 +419,12 @@ def _run_dataset_qa(
 
     if evaluated is None or "score" not in evaluated.columns:
         _log(f"  [qa] Evaluation returned no scores — skipping comparison.")
-        return True
+        return _skip
 
     valid = evaluated["score"].dropna()
     if valid.empty:
         _log(f"  [qa] All scores null — skipping comparison.")
-        return True
+        return _skip
 
     sample_mean = float(valid.mean())
     sample_std = float(valid.std())
@@ -436,7 +437,7 @@ def _run_dataset_qa(
         _log(f"  [qa] {dataset_slug}/{text_type}: [{status}] "
              f"score={sample_mean:.3f}±{sample_std:.3f}  (min_score={min_score}, no baseline)")
         _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, passed)
-        return passed
+        return {"passed": passed, "mean": sample_mean, "std": sample_std, "n": int(len(valid))}
 
     baseline_df = load_baseline(baseline_csv, baseline_model, baseline_prompt_slug, judge_model)
     baseline_stats = (
@@ -447,7 +448,7 @@ def _run_dataset_qa(
     if idx not in baseline_stats.index:
         _log(f"  [qa] No baseline for {dataset_slug}/{text_type} — reporting score only: {sample_mean:.3f}±{sample_std:.3f}")
         _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, True)
-        return True
+        return {"passed": True, "mean": sample_mean, "std": sample_std, "n": int(len(valid))}
 
     baseline_mean = float(baseline_stats.loc[idx, "mean"])
     baseline_std_val = float(baseline_stats.loc[idx, "std"])
@@ -458,7 +459,7 @@ def _run_dataset_qa(
          f"sample={sample_mean:.3f}±{sample_std:.3f}  baseline={baseline_mean:.3f}±{baseline_std_val:.3f}"
          + (f"  ← {reason}" if reason else ""))
     _save_qa_history(run_dir, config, dataset_slug, text_type, len(valid), sample_mean, sample_std, not degraded)
-    return not degraded
+    return {"passed": not degraded, "mean": sample_mean, "std": sample_std, "n": int(len(valid))}
 
 
 # ── Deduplication helpers ─────────────────────────────────────────────────────
@@ -1026,7 +1027,7 @@ def _process_dataset(
         if pilot_n > 0 and pilot_qa and not entry.get(pilot_qa_key, False):
             _set_phase(f"QA pilot {phase_label}")
             tt = "query" if "quer" in phase_label else "document"
-            passed = _run_dataset_qa(translated_csv, dataset_slug, tt, config, run_dir)
+            passed = _run_dataset_qa(translated_csv, dataset_slug, tt, config, run_dir)["passed"]
             entry[pilot_qa_key] = passed
             save_progress(run_dir, progress)
             if not passed:
@@ -1074,7 +1075,7 @@ def _process_dataset(
         if qa_enabled and not entry.get(qa_key, False):
             _set_phase(f"QA {phase_label}")
             tt = "query" if "quer" in phase_label else "document"
-            passed = _run_dataset_qa(translated_csv, dataset_slug, tt, config, run_dir)
+            passed = _run_dataset_qa(translated_csv, dataset_slug, tt, config, run_dir)["passed"]
             entry[qa_key] = passed
             save_progress(run_dir, progress)
             if not passed:

@@ -306,16 +306,27 @@ def _render_pilot_table(dataset_names: list, progress: dict, config: dict, curre
     table.add_column("Queries QA")
     table.add_column("Documents QA")
 
-    def _qa(entry, key):
-        v = entry.get(key)
-        return "✓ PASS" if v is True else ("✗ FAIL" if v is False else "—")
+    def _qa(entry, passed_key, score_key, std_key):
+        v = entry.get(passed_key)
+        if v is None:
+            return "—"
+        mark = "✓" if v else "✗"
+        score = entry.get(score_key)
+        if isinstance(score, (int, float)):
+            std = entry.get(std_key)
+            std_s = f"±{std:.2f}" if isinstance(std, (int, float)) else ""
+            return f"{mark} {score:.2f}{std_s}"
+        return f"{mark} {'PASS' if v else 'FAIL'}"
 
     for n in dataset_names:
         slug = _dataset_slug(n)
         e = progress["datasets"].get(slug, {})
         st = statuses[n]
-        table.add_row(n, f"{_PILOT_STATUS_ICON[st]} {st}", _qa(e, "queries_pilot_qa_passed"),
-                      _qa(e, "documents_pilot_qa_passed"), style=_PILOT_STATUS_STYLE.get(st, ""))
+        table.add_row(
+            n, f"{_PILOT_STATUS_ICON[st]} {st}",
+            _qa(e, "queries_pilot_qa_passed", "queries_pilot_qa_score", "queries_pilot_qa_std"),
+            _qa(e, "documents_pilot_qa_passed", "documents_pilot_qa_score", "documents_pilot_qa_std"),
+            style=_PILOT_STATUS_STYLE.get(st, ""))
     _console.print(table)
 
 
@@ -496,8 +507,11 @@ def run_pilot(
             if not os.path.exists(queries_translated):
                 _console.print(f"    [yellow]SKIP queries QA[/yellow] — no translated file")
             else:
-                q_pass = _run_dataset_qa(queries_translated, slug, "query", config, run_dir)
+                q_res = _run_dataset_qa(queries_translated, slug, "query", config, run_dir)
+                q_pass = q_res["passed"]
                 entry["queries_pilot_qa_passed"] = q_pass
+                entry["queries_pilot_qa_score"] = q_res["mean"]
+                entry["queries_pilot_qa_std"] = q_res["std"]
                 q_score = "[green]PASS[/green]" if q_pass else "[red]FAIL[/red]"
                 save_progress(run_dir, progress)
                 if not q_pass:
@@ -513,8 +527,11 @@ def run_pilot(
             if not os.path.exists(documents_translated):
                 _console.print(f"    [yellow]SKIP documents QA[/yellow] — no translated file")
             else:
-                d_pass = _run_dataset_qa(documents_translated, slug, "document", config, run_dir)
+                d_res = _run_dataset_qa(documents_translated, slug, "document", config, run_dir)
+                d_pass = d_res["passed"]
                 entry["documents_pilot_qa_passed"] = d_pass
+                entry["documents_pilot_qa_score"] = d_res["mean"]
+                entry["documents_pilot_qa_std"] = d_res["std"]
                 d_score = "[green]PASS[/green]" if d_pass else "[red]FAIL[/red]"
                 save_progress(run_dir, progress)
                 if not d_pass:
@@ -858,8 +875,8 @@ def run_collect(
                     _merge_title_translations(documents_translated, titles_translated)
 
                 if config.get("qa", {}).get("enabled"):
-                    q_pass = _run_dataset_qa(queries_translated, slug, "query", config, run_dir)
-                    d_pass = _run_dataset_qa(documents_translated, slug, "document", config, run_dir)
+                    q_pass = _run_dataset_qa(queries_translated, slug, "query", config, run_dir)["passed"]
+                    d_pass = _run_dataset_qa(documents_translated, slug, "document", config, run_dir)["passed"]
                     entry["queries_qa_passed"] = q_pass
                     entry["documents_qa_passed"] = d_pass
                     save_progress(run_dir, progress)
