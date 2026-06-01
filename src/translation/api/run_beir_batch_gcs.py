@@ -285,14 +285,42 @@ def _pilot_status(entry: dict, pilot_qa: bool) -> str:
     return "done" if (done_tr and done_qa) else "pending"
 
 
-def _build_pilot_table(dataset_names: list, progress: dict, config: dict, current: str = None) -> Table:
+def _load_qa_history(run_dir: str) -> dict:
+    """Read the cross-run qa_history.csv → {(slug, text_type): [mean, ... chrono]}.
+
+    Lets the pilot table show each dataset's judge-score trend across runs
+    (e.g. old prompt → new prompt), not just the current run.
+    """
+    import csv as _csv
+    hist_path = str(Path(run_dir).parent.parent / "qa_history.csv")
+    rows = []
+    if not os.path.exists(hist_path):
+        return {}
+    with open(hist_path) as f:
+        for r in _csv.DictReader(f):
+            rows.append(r)
+    rows.sort(key=lambda r: r.get("timestamp", ""))
+    hist = {}
+    for r in rows:
+        key = (r["dataset_slug"], r["text_type"])
+        try:
+            hist.setdefault(key, []).append(float(r["score_mean"]))
+        except (TypeError, ValueError):
+            pass
+    return hist
+
+
+def _build_pilot_table(dataset_names: list, progress: dict, config: dict,
+                       current: str = None, run_dir: str = None) -> Table:
     """Ladder-style status grid for the pilot: model + prompt in the title,
-    one row per dataset with status and per-type QA verdict/score."""
+    one row per dataset with status, per-type QA verdict/score, and the
+    cross-run score history (oldest → newest) when run_dir is given."""
     q, d = config["queries"], config["documents"]
     model = q["model"] if q["model"] == d["model"] else f'{q["model"]} / {d["model"]}'
     prompt = os.path.basename(q["prompt"]["file"])
     pilot_qa = config.get("progression", {}).get("pilot_qa", True)
     pilot_n = config.get("progression", {}).get("pilot_n", 0)
+    hist = _load_qa_history(run_dir) if run_dir else {}
 
     statuses = {n: _pilot_status(progress["datasets"].get(_dataset_slug(n), {}), pilot_qa) for n in dataset_names}
     if current:  # `current` is a dataset slug; mark its row running
@@ -309,17 +337,23 @@ def _build_pilot_table(dataset_names: list, progress: dict, config: dict, curren
     table.add_column("Queries QA")
     table.add_column("Documents QA")
 
-    def _qa(entry, passed_key, score_key, std_key):
+    def _qa(entry, passed_key, score_key, std_key, hist_key):
         v = entry.get(passed_key)
-        if v is None:
-            return "—"
-        mark = "✓" if v else "✗"
         score = entry.get(score_key)
         if isinstance(score, (int, float)):
             std = entry.get(std_key)
             std_s = f"±{std:.2f}" if isinstance(std, (int, float)) else ""
-            return f"{mark} {score:.2f}{std_s}"
-        return f"{mark} {'PASS' if v else 'FAIL'}"
+            mark = "✓" if v else "✗"
+            cell = f"{mark} {score:.2f}{std_s}"
+        elif v is not None:
+            cell = f"{'✓' if v else '✗'} {'PASS' if v else 'FAIL'}"
+        else:
+            cell = "—"
+        # cross-run trend (oldest → newest); current run is the last entry
+        series = hist.get(hist_key, [])
+        if len(series) > 1:
+            cell += "\nhist " + " → ".join(f"{m:.2f}" for m in series[-4:])
+        return cell
 
     for n in dataset_names:
         slug = _dataset_slug(n)
@@ -327,8 +361,8 @@ def _build_pilot_table(dataset_names: list, progress: dict, config: dict, curren
         st = statuses[n]
         table.add_row(
             n, f"{_PILOT_STATUS_ICON[st]} {st}",
-            _qa(e, "queries_pilot_qa_passed", "queries_pilot_qa_score", "queries_pilot_qa_std"),
-            _qa(e, "documents_pilot_qa_passed", "documents_pilot_qa_score", "documents_pilot_qa_std"),
+            _qa(e, "queries_pilot_qa_passed", "queries_pilot_qa_score", "queries_pilot_qa_std", (slug, "query")),
+            _qa(e, "documents_pilot_qa_passed", "documents_pilot_qa_score", "documents_pilot_qa_std", (slug, "document")),
             style=_PILOT_STATUS_STYLE.get(st, ""))
     return table
 
@@ -373,7 +407,7 @@ def run_pilot(
     os.environ["TRANSLATE_QUIET"] = "1"
     os.environ["EVAL_TRANSLATIONS_QUIET"] = "1"
 
-    _live = Live(_build_pilot_table(dataset_names, progress, config),
+    _live = Live(_build_pilot_table(dataset_names, progress, config, run_dir=run_dir),
                  console=_console, refresh_per_second=4, transient=False)
     _live.start()
 
@@ -382,7 +416,7 @@ def run_pilot(
         entry = progress["datasets"].setdefault(slug, _empty_dataset_entry(dataset_name))
         _patch_gcs_keys(progress)
         # Live status grid: mark current dataset running; prior results stay visible.
-        _live.update(_build_pilot_table(dataset_names, progress, config, current=slug))
+        _live.update(_build_pilot_table(dataset_names, progress, config, current=slug, run_dir=run_dir))
 
         dataset_run_dir = os.path.join(run_dir, "pilot", slug)
         queries_translated = os.path.join(dataset_run_dir, "queries_translated.csv")
@@ -559,7 +593,7 @@ def run_pilot(
 
         _console.print(f"    queries QA: {q_score}   documents QA: {d_score}")
 
-    _live.update(_build_pilot_table(dataset_names, progress, config))
+    _live.update(_build_pilot_table(dataset_names, progress, config, run_dir=run_dir))
     _live.stop()
     for _k, _v in _prev_env.items():
         if _v is None:
