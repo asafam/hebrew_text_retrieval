@@ -39,6 +39,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from google import genai
 from rich.console import Console
+from rich.live import Live
 from rich.table import Table
 
 load_dotenv()
@@ -284,9 +285,9 @@ def _pilot_status(entry: dict, pilot_qa: bool) -> str:
     return "done" if (done_tr and done_qa) else "pending"
 
 
-def _render_pilot_table(dataset_names: list, progress: dict, config: dict, current: str = None) -> None:
+def _build_pilot_table(dataset_names: list, progress: dict, config: dict, current: str = None) -> Table:
     """Ladder-style status grid for the pilot: model + prompt in the title,
-    one row per dataset with status and per-type QA verdict."""
+    one row per dataset with status and per-type QA verdict/score."""
     q, d = config["queries"], config["documents"]
     model = q["model"] if q["model"] == d["model"] else f'{q["model"]} / {d["model"]}'
     prompt = os.path.basename(q["prompt"]["file"])
@@ -294,8 +295,10 @@ def _render_pilot_table(dataset_names: list, progress: dict, config: dict, curre
     pilot_n = config.get("progression", {}).get("pilot_n", 0)
 
     statuses = {n: _pilot_status(progress["datasets"].get(_dataset_slug(n), {}), pilot_qa) for n in dataset_names}
-    if current and statuses.get(current) == "pending":
-        statuses[current] = "running"
+    if current:  # `current` is a dataset slug; mark its row running
+        for n in dataset_names:
+            if _dataset_slug(n) == current and statuses[n] == "pending":
+                statuses[n] = "running"
     done = sum(1 for s in statuses.values() if s == "done")
 
     title = (f"Pilot — {config.get('run_id', '')}\n"
@@ -327,7 +330,7 @@ def _render_pilot_table(dataset_names: list, progress: dict, config: dict, curre
             _qa(e, "queries_pilot_qa_passed", "queries_pilot_qa_score", "queries_pilot_qa_std"),
             _qa(e, "documents_pilot_qa_passed", "documents_pilot_qa_score", "documents_pilot_qa_std"),
             style=_PILOT_STATUS_STYLE.get(st, ""))
-    _console.print(table)
+    return table
 
 
 def run_pilot(
@@ -361,12 +364,25 @@ def run_pilot(
     mode_label = "QA only" if qa_only else f"{pilot_n} rows per dataset, synchronous"
     _console.print(f"\n[bold]Pilot Phase[/bold] — {mode_label}\n")
 
+    # Silence inner progress output so the single Live status table stays clean.
+    # (quiet flags are read dynamically by translate.py / evaluate_translations.py)
+    import logging as _logging
+    for _n in ("google.genai", "google_genai", "httpx", "httpcore", "google.api_core", "urllib3"):
+        _logging.getLogger(_n).setLevel(_logging.WARNING)
+    _prev_env = {k: os.environ.get(k) for k in ("TRANSLATE_QUIET", "EVAL_TRANSLATIONS_QUIET")}
+    os.environ["TRANSLATE_QUIET"] = "1"
+    os.environ["EVAL_TRANSLATIONS_QUIET"] = "1"
+
+    _live = Live(_build_pilot_table(dataset_names, progress, config),
+                 console=_console, refresh_per_second=4, transient=False)
+    _live.start()
+
     for dataset_name in dataset_names:
         slug = _dataset_slug(dataset_name)
         entry = progress["datasets"].setdefault(slug, _empty_dataset_entry(dataset_name))
         _patch_gcs_keys(progress)
-        # Ladder-style status grid: model + prompt + per-dataset done/pending/QA.
-        _render_pilot_table(dataset_names, progress, config, current=slug)
+        # Live status grid: mark current dataset running; prior results stay visible.
+        _live.update(_build_pilot_table(dataset_names, progress, config, current=slug))
 
         dataset_run_dir = os.path.join(run_dir, "pilot", slug)
         queries_translated = os.path.join(dataset_run_dir, "queries_translated.csv")
@@ -543,7 +559,13 @@ def run_pilot(
 
         _console.print(f"    queries QA: {q_score}   documents QA: {d_score}")
 
-    _render_pilot_table(dataset_names, progress, config)
+    _live.update(_build_pilot_table(dataset_names, progress, config))
+    _live.stop()
+    for _k, _v in _prev_env.items():
+        if _v is None:
+            os.environ.pop(_k, None)
+        else:
+            os.environ[_k] = _v
     _console.print("\n[bold]Pilot complete.[/bold] Run [cyan]submit[/cyan] to fire batch jobs.")
 
 

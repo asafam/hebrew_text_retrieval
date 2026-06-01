@@ -12,7 +12,8 @@ from translation.api.utils import *
 
 # Suppresses the per-row tqdm bars when set (e.g. for the ladder pipeline, which
 # renders QA results in its own rich Table instead of progress bars).
-_QUIET = os.environ.get("EVAL_TRANSLATIONS_QUIET", "").lower() in ("1", "true", "yes")
+def _quiet() -> bool:
+    return os.environ.get("EVAL_TRANSLATIONS_QUIET", "").lower() in ("1", "true", "yes")
 
 
 def evaluate_translation(
@@ -127,7 +128,7 @@ def evaluate_translations_serial(source_df, batch_data, model_name, response_for
 
     _TRANSIENT_CODES = (429, 503, 504)
 
-    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data), disable=_QUIET):
+    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data), disable=_quiet()):
         if sleep_time > 0 and i > 0:
             time.sleep(sleep_time)
         results = {}
@@ -194,7 +195,8 @@ def evaluate_translation_parallel(source_df, batch_data, model_name, response_fo
     if num_workers == 0:
         num_workers = max(1, os.cpu_count() - 1)  # Default to CPU count - 1
 
-    print(f"Translating {len(batch_data)} items in parallel using {num_workers} workers...")
+    if not _quiet():
+        print(f"Translating {len(batch_data)} items in parallel using {num_workers} workers...")
 
     # Prepare arguments for parallel processing
     task_args = [(i, item, model_name, response_format, critique_key, score_key, prompt_file_name, sleep_time) for i, item in enumerate(batch_data)]
@@ -207,7 +209,7 @@ def evaluate_translation_parallel(source_df, batch_data, model_name, response_fo
         futures = {executor.submit(evaluate_translation_batch_item, args): args[0] for args in task_args}
 
         # Collect results asynchronously
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations", disable=_QUIET):
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations", disable=_quiet()):
             try:
                 evaluated_results.append(future.result())
             except Exception as e:

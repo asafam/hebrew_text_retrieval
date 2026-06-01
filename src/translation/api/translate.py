@@ -10,7 +10,17 @@ import re
 import time
 from translation.api.utils import *
 
-    
+# When set, suppress this module's tqdm bars + status prints (e.g. so the pilot
+# can render a clean rich.Live table instead of competing progress output).
+def _quiet() -> bool:
+    return os.environ.get("TRANSLATE_QUIET", "").lower() in ("1", "true", "yes")
+
+
+def _qprint(*a, **k):
+    if not _quiet():
+        print(*a, **k)
+
+
 
 def translate(system_prompt: str,
               user_prompt: str,
@@ -164,7 +174,7 @@ def run_translation_pipeline(source_file_path: str,
                              **kwargs):
     # Determine the output file path
     output_file_path = get_output_file(source_file_path, output_dir, **kwargs).replace('.csv', '_translated.csv')
-    print(f"Target translation output file path: {output_file_path}")
+    _qprint(f"Target translation output file path: {output_file_path}")
 
     # Load the data
     if not force and os.path.exists(output_file_path):
@@ -205,10 +215,10 @@ def run_translation_pipeline(source_file_path: str,
 
 
 def translate_serial(source_df, batch_data, model_name, response_format, prompt_file_name, id_columns, output_file_path):
-    print(f"Translating {len(batch_data)} items serially...")
+    _qprint(f"Translating {len(batch_data)} items serially...")
     # Translate a batch of texts
     translation_datetime = datetime.now()
-    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data)):
+    for i, item in tqdm(enumerate(batch_data), desc="Rows", total=len(batch_data), disable=_quiet()):
         batch_datetime = datetime.now()
         
         # Translate batch item
@@ -263,7 +273,7 @@ def translate_parallel(source_df, batch_data, model_name, response_format, promp
     if num_workers == 0:
         num_workers = max(1, os.cpu_count() - 1)  # Default to CPU count - 1
 
-    print(f"Translating {len(batch_data)} items in parallel using {num_workers} workers...")
+    _qprint(f"Translating {len(batch_data)} items in parallel using {num_workers} workers...")
 
     # Prepare arguments for parallel processing
     task_args = [(i, item, model_name, response_format, prompt_file_name, sleep_time) for i, item in enumerate(batch_data)]
@@ -276,11 +286,11 @@ def translate_parallel(source_df, batch_data, model_name, response_format, promp
         futures = {executor.submit(translate_batch_item, args): args[0] for args in task_args}
 
         # Collect results asynchronously
-        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations"):
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Translations", disable=_quiet()):
             try:
                 translated_results.append(future.result())
             except Exception as e:
-                print(f"Error processing item {futures[future]}: {e}")
+                _qprint(f"Error processing item {futures[future]}: {e}")
 
     # Convert results to DataFrame and merge
     if translated_results:
@@ -296,7 +306,7 @@ def translate_parallel(source_df, batch_data, model_name, response_format, promp
         # Save results to CSV
         os.makedirs(os.path.dirname(output_file_path), exist_ok=True)
         df.to_csv(output_file_path, encoding='utf-8', index=False)
-        print(f"Translation results saved to {output_file_path}")
+        _qprint(f"Translation results saved to {output_file_path}")
 
     return df
 
