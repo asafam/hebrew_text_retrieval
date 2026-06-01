@@ -331,11 +331,12 @@ def _build_pilot_table(dataset_names: list, progress: dict, config: dict,
 
     title = (f"Pilot — {config.get('run_id', '')}\n"
              f"model {model}  ·  prompt {prompt}  ·  pilot_n={pilot_n}  ·  {done}/{len(dataset_names)} done")
-    table = Table(title=title, show_header=True, header_style="bold", expand=False)
-    table.add_column("Dataset")
-    table.add_column("Status", min_width=10)
-    table.add_column("Queries QA")
-    table.add_column("Documents QA")
+    table = Table(title=title, show_header=True, header_style="bold",
+                  expand=True, pad_edge=True)
+    table.add_column("Dataset", min_width=22, no_wrap=True)
+    table.add_column("Status", min_width=11, no_wrap=True)
+    table.add_column("Queries QA", min_width=30)
+    table.add_column("Documents QA", min_width=30)
 
     def _qa(entry, passed_key, score_key, std_key, hist_key):
         v = entry.get(passed_key)
@@ -349,10 +350,13 @@ def _build_pilot_table(dataset_names: list, progress: dict, config: dict,
             cell = f"{'✓' if v else '✗'} {'PASS' if v else 'FAIL'}"
         else:
             cell = "—"
-        # cross-run trend (oldest → newest); current run is the last entry
+        # cross-run trend (oldest → newest) + delta vs the previous pilot run
         series = hist.get(hist_key, [])
         if len(series) > 1:
-            cell += "\nhist " + " → ".join(f"{m:.2f}" for m in series[-4:])
+            delta = series[-1] - series[-2]
+            arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "▬")
+            cell += ("\nhist " + " → ".join(f"{m:.2f}" for m in series[-4:])
+                     + f"   {arrow}{delta:+.2f} vs prev")
         return cell
 
     for n in dataset_names:
