@@ -80,11 +80,13 @@ def _setup_logging(run_dir: str) -> None:
     if not root.handlers:
         root.addHandler(logging.FileHandler(log_path, encoding="utf-8"))
         root.addHandler(logging.StreamHandler(sys.stdout))
-    # Silence the SDK-level HTTP request chatter so the console only shows
-    # pipeline-level events (poll tables, QA summary, errors).
-    for noisy in ("httpx", "httpcore", "google.genai", "google.api_core",
-                  "google.auth", "urllib3"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    # Silence the SDK-level chatter so the console only shows pipeline-level
+    # events (poll tables, QA summary, errors). "google_genai*" (underscore) is
+    # the new SDK's logger that emits the "AFC is enabled…" line per call —
+    # the repair step makes one call per sentence, so it floods without this.
+    for noisy in ("httpx", "httpcore", "google.genai", "google_genai",
+                  "google_genai.models", "google.api_core", "google.auth", "urllib3"):
+        logging.getLogger(noisy).setLevel(logging.ERROR)
 
 
 # ── Config helpers ─────────────────────────────────────────────────────────────
