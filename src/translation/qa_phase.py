@@ -31,18 +31,18 @@ import pandas as pd
 
 # Dataset category → evaluation prompt
 DATASET_EVAL_PROMPTS = {
-    "BeIR_msmarco":        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml",
-    "BeIR_fever":          "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml",
-    "BeIR_climate-fever":  "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml",
-    "BeIR_scifact":        "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20250406.yaml",
-    "BeIR_scidocs":        "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20250406.yaml",
-    "BeIR_quora":          "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20250406.yaml",
-    "BeIR_arguana":        "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20250406.yaml",
-    "BeIR_nq":             "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20250406.yaml",
-    "BeIR_hotpotqa":       "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20250406.yaml",
-    "BeIR_trec-covid":     "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20250406.yaml",
-    "BeIR_nfcorpus":       "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20250406.yaml",
-    "BeIR_dbpedia-entity": "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml",
+    "BeIR_msmarco":        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml",
+    "BeIR_fever":          "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml",
+    "BeIR_climate-fever":  "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml",
+    "BeIR_scifact":        "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20260531.yaml",
+    "BeIR_scidocs":        "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20260531.yaml",
+    "BeIR_quora":          "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20260531.yaml",
+    "BeIR_arguana":        "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20260531.yaml",
+    "BeIR_nq":             "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20260531.yaml",
+    "BeIR_hotpotqa":       "prompts/translation/api/evaluation/translation_evaluation_nogold_qa_v20260531.yaml",
+    "BeIR_trec-covid":     "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20260531.yaml",
+    "BeIR_nfcorpus":       "prompts/translation/api/evaluation/translation_evaluation_nogold_technical_v20260531.yaml",
+    "BeIR_dbpedia-entity": "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml",
 }
 
 # Degradation thresholds
@@ -95,7 +95,7 @@ def _evaluate_sample(translated_csv: str, dataset_slug: str, text_type: str,
         tmp_path = tmp.name
 
     prompt_file = DATASET_EVAL_PROMPTS.get(dataset_slug,
-        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml")
+        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml")
 
     # Output goes to a temp dir
     tmp_out_dir = tempfile.mkdtemp()

@@ -382,7 +382,7 @@ def _run_dataset_qa(
 
     prompt_file = DATASET_EVAL_PROMPTS.get(
         dataset_slug,
-        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20250406.yaml",
+        "prompts/translation/api/evaluation/translation_evaluation_nogold_v20260531.yaml",
     )
     tmp_out_dir = tempfile.mkdtemp()
     text_col = "text" if text_type == "query" else "segment_text"

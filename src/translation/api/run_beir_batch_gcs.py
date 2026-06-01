@@ -236,19 +236,32 @@ def _elapsed_str(start_iso: Optional[str], end_iso: Optional[str] = None) -> str
         return ""
 
 
-def _flatten_shards_to_csv(slug_dir: str, prefix: str, out_csv: str) -> bool:
+def _flatten_shards_to_csv(slug_dir: str, prefix: str, out_csv: str, max_rows: int = None) -> bool:
     """Concatenate the ladder's sharded candidates into one flat CSV.
 
     {prefix}_shard_000.csv, _001.csv, … → out_csv (e.g. queries.csv). This lets
     the pilot reuse the exact same candidate rows the corpus ladder uses — one
     source of truth — instead of re-fetching/rebuilding from HuggingFace.
-    Returns True if shards were found and flattened.
+
+    max_rows caps how many rows are read (the pilot only translates the first
+    pilot_n). Without it, flattening msmarco's ~8.8M-row corpus to sample 25
+    rows would write a multi-GB CSV and stall. Reads shards in order and stops
+    once max_rows is reached. Returns True if shards were found.
     """
     import glob
     shards = sorted(glob.glob(os.path.join(slug_dir, f"{prefix}_shard_*.csv")))
     if not shards:
         return False
-    df = pd.concat([pd.read_csv(s) for s in shards], ignore_index=True)
+    frames, total = [], 0
+    for s in shards:
+        chunk = pd.read_csv(s)
+        frames.append(chunk)
+        total += len(chunk)
+        if max_rows is not None and total >= max_rows:
+            break
+    df = pd.concat(frames, ignore_index=True)
+    if max_rows is not None:
+        df = df.head(max_rows)
     df.to_csv(out_csv, index=False, encoding="utf-8")
     return True
 
@@ -331,8 +344,10 @@ def run_pilot(
                 elif os.path.exists(os.path.join(slug_dir, "shard_manifest.json")):
                     # Reuse the corpus ladder's sharded candidates (single source
                     # of truth) — flatten them into queries.csv/documents.csv.
-                    _flatten_shards_to_csv(slug_dir, "queries", queries_csv)
-                    _flatten_shards_to_csv(slug_dir, "documents", documents_csv)
+                    # Cap at pilot_n rows: the pilot only translates the first N,
+                    # so don't flatten multi-million-row corpora (e.g. msmarco).
+                    _flatten_shards_to_csv(slug_dir, "queries", queries_csv, max_rows=pilot_n)
+                    _flatten_shards_to_csv(slug_dir, "documents", documents_csv, max_rows=pilot_n)
                     entry["candidates_built"] = True
                     save_progress(run_dir, progress)
                     _console.print(f"    [dim]candidates flattened from shards[/dim]")

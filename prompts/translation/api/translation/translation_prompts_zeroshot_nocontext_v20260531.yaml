@@ -1,0 +1,23 @@
+document:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English document into Hebrew, faithfully and accurately.
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Reproduce all non-prose elements as written: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, punctuation (keep -- not —), and numbers exactly — keep numerals as digits (1, not "one"/"אחד").
+
+  user_prompt_template: |
+    {english_key}: {segment_text}
+    {hebrew_key}:
+
+query:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English query into Hebrew, faithfully and accurately.
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Reproduce all non-prose elements as written: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, punctuation (keep -- not —), and numbers exactly — keep numerals as digits (1, not "one"/"אחד").
+
+  user_prompt_template: |
+    {english_key}: {text}
+    {hebrew_key}:
