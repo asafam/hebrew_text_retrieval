@@ -4,7 +4,7 @@ document:
 
   user_prompt_prefix: |
     Translate the following English document into Hebrew, faithfully and accurately.
-    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Reproduce all non-prose elements as written: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, punctuation (keep -- not —), and numbers exactly — keep numerals as digits (1, not "one"/"אחד").
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Translate foreign and Latin terms and proper nouns into Hebrew, transliterating when there is no Hebrew equivalent (e.g. Dendrobium → דנדרוביום, Python → פייתון). Reproduce non-linguistic elements exactly: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, code, abbreviations/identifiers (e.g. PrP, 6MP), punctuation (keep -- not —), and numbers as digits (1, not "one"/"אחד").
 
   user_prompt_template: |
     {english_key}: {segment_text}
@@ -16,7 +16,7 @@ query:
 
   user_prompt_prefix: |
     Translate the following English query into Hebrew, faithfully and accurately.
-    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Reproduce all non-prose elements as written: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, punctuation (keep -- not —), and numbers exactly — keep numerals as digits (1, not "one"/"אחד").
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Translate foreign and Latin terms and proper nouns into Hebrew, transliterating when there is no Hebrew equivalent (e.g. Dendrobium → דנדרוביום, Python → פייתון). Reproduce non-linguistic elements exactly: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, code, abbreviations/identifiers (e.g. PrP, 6MP), punctuation (keep -- not —), and numbers as digits (1, not "one"/"אחד").
 
   user_prompt_template: |
     {english_key}: {text}
