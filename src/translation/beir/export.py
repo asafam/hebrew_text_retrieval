@@ -98,10 +98,10 @@ def _export_corpus(
 
         # Original English fields
         title_en = str(group["title"].iloc[0]) if "title" in group.columns and pd.notna(group["title"].iloc[0]) else ""
-        text_en = segment_separator.join(group["segment_text"].tolist()) if "segment_text" in group.columns else ""
+        text_en = segment_separator.join(str(t) if pd.notna(t) else "" for t in group["segment_text"]) if "segment_text" in group.columns else ""
 
         # Hebrew translations
-        text_he = segment_separator.join(group["translation"].tolist())
+        text_he = segment_separator.join(str(t) if pd.notna(t) else "" for t in group["translation"])
 
         # Title translation: use title_translation column if available, else fall back to English
         has_title_translation = "title_translation" in group.columns
