@@ -1396,6 +1396,26 @@ def run_ladder(
             entry["ladder_all_done"] = True
             save_progress(run_dir, progress)
             logger.info(f"[{slug}] All {len(all_indices)} shards completed.")
+
+            # ── Title translation ─────────────────────────────────────────
+            if config.get("datasets", {}).get("translate_titles") and \
+               not entry.get("titles_translated"):
+                from translation.api.translate_titles import translate_titles
+                d_cfg = config.get("documents", {})
+                acc = os.path.join(corpus_dir, slug, "documents_accumulated.csv")
+                logger.info(f"[{slug}] Translating titles ...")
+                try:
+                    stats = translate_titles(
+                        docs_csv=acc,
+                        model_name=d_cfg.get("model", "gemini-3.1-flash-lite"),
+                        prompt_file=d_cfg["prompt"]["file"],
+                        n_workers=config.get("qa", {}).get("workers", 32),
+                    )
+                    logger.info(f"[{slug}] Title translation: {stats}")
+                    entry["titles_translated"] = True
+                except Exception as e:
+                    logger.warning(f"[{slug}] Title translation failed: {e}")
+                save_progress(run_dir, progress)
         elif dataset_paused:
             logger.info(f"[{slug}] Paused at stage {entry['ladder_current_stage']}.")
 
