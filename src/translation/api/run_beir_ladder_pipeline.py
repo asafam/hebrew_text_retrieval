@@ -72,8 +72,8 @@ logger = logging.getLogger(__name__)
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 
-def _setup_logging(run_dir: str) -> None:
-    log_path = os.path.join(run_dir, "run.log")
+def _setup_logging(run_dir: str, log_filename: str = "run.log") -> None:
+    log_path = os.path.join(run_dir, log_filename)
     fmt = "%(asctime)s %(levelname)s %(message)s"
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -130,8 +130,9 @@ def _empty_ladder_entry(dataset_name: str) -> dict:
     }
 
 
-def _load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
-    path = os.path.join(run_dir, "progress.json")
+def _load_or_init_progress(run_dir: str, config: dict, run_id: str,
+                           filename: str = "progress.json") -> dict:
+    path = os.path.join(run_dir, filename)
     if os.path.exists(path):
         with open(path) as f:
             p = json.load(f)
@@ -148,7 +149,7 @@ def _load_or_init_progress(run_dir: str, config: dict, run_id: str) -> dict:
         },
     }
     os.makedirs(run_dir, exist_ok=True)
-    save_progress(run_dir, p)
+    save_progress(run_dir, p, filename)
     return p
 
 
@@ -1008,8 +1009,9 @@ def _append_qa_scores(
     d_output_tokens: int = 0,
     shard_cost_usd: float = 0.0,
     cumulative_cost_usd: float = 0.0,
+    scores_filename: str = "qa_scores.csv",
 ) -> None:
-    scores_path = os.path.join(run_dir, "qa_scores.csv")
+    scores_path = os.path.join(run_dir, scores_filename)
     overall = q_result.get("passed", True) and d_result.get("passed", True)
 
     def _fmt(v):
@@ -1087,7 +1089,12 @@ def run_ladder(
     gcs_client,
     bucket: str,
     max_cadence_steps: int = 0,
+    progress_filename: str = "progress.json",
+    scores_filename: str = "qa_scores.csv",
 ) -> None:
+    # Closure so every save uses the right filename — avoids threading a param
+    # through 12+ call sites and makes a missed site impossible to introduce.
+    _save = lambda: save_progress(run_dir, progress, filename=progress_filename)
     run_id = progress["run_id"]
     candidates_base = os.path.join(run_dir, _phase_dir(config, "candidates"))
     corpus_base     = os.path.join(run_dir, _phase_dir(config, "corpus"))
@@ -1192,7 +1199,7 @@ def run_ladder(
                                 "job_name":     pending_jobs[(shard_idx, text_type)]["job_name"],
                                 "submitted_at": datetime.now(timezone.utc).isoformat(),
                             }
-                            save_progress(run_dir, progress)
+                            _save()
                     except Exception as e:
                         submit_error = f"shard {shard_idx}: {text_type} submit failed: {e}"
                         break
@@ -1203,7 +1210,7 @@ def run_ladder(
                 logger.error(f"[{slug}] {submit_error}")
                 entry["ladder_stopped"] = True
                 entry["ladder_stop_reason"] = submit_error
-                save_progress(run_dir, progress)
+                _save()
                 dataset_stopped = True
                 break
 
@@ -1219,7 +1226,7 @@ def run_ladder(
                 logger.error(f"[{slug}] Poll failed: {e}")
                 entry["ladder_stopped"] = True
                 entry["ladder_stop_reason"] = str(e)
-                save_progress(run_dir, progress)
+                _save()
                 dataset_stopped = True
                 break
 
@@ -1230,7 +1237,7 @@ def run_ladder(
                 logger.error(f"[{slug}] Collect failed: {e}")
                 entry["ladder_stopped"] = True
                 entry["ladder_stop_reason"] = str(e)
-                save_progress(run_dir, progress)
+                _save()
                 dataset_stopped = True
                 break
 
@@ -1263,7 +1270,7 @@ def run_ladder(
                                 f"{rr['still_failed']} still failed "
                                 + (f"(ids: {rr['failed_ids']})" if rr["failed_ids"] else "")
                             )
-                        save_progress(run_dir, progress)
+                        _save()
 
             # ── Accumulate + token tracking ───────────────────────────────────
             # Idempotent: skip shards already appended on a prior run. Their tokens
@@ -1284,7 +1291,7 @@ def run_ladder(
                     rec["appended"]      = True
                     rec["input_tokens"]  = r["input_tokens"]
                     rec["output_tokens"] = r["output_tokens"]
-                    save_progress(run_dir, progress)
+                    _save()
                     if text_type == "queries":
                         cumulative_q = cumulative
                         q_in_tok  += r["input_tokens"]
@@ -1298,7 +1305,7 @@ def run_ladder(
             shard_cost = _compute_cost(q_in_tok + d_in_tok, q_out_tok + d_out_tok, config)
             cumulative_cost_usd += shard_cost
             progress["total_cost_usd"] = round(cumulative_cost_usd, 6)
-            save_progress(run_dir, progress)
+            _save()
             logger.info(
                 f"[{slug}] Step {cadence_step} cost: ${shard_cost:.4f}  "
                 f"(run total: ${cumulative_cost_usd:.4f})"
@@ -1341,6 +1348,7 @@ def run_ladder(
                 q_input_tokens=q_in_tok, q_output_tokens=q_out_tok,
                 d_input_tokens=d_in_tok, d_output_tokens=d_out_tok,
                 shard_cost_usd=shard_cost, cumulative_cost_usd=cumulative_cost_usd,
+                scores_filename=scores_filename,
             )
             entry["ladder_stage_scores"][str(cadence_step)] = {
                 "shards_in_step":   len(batch_indices),
@@ -1358,7 +1366,7 @@ def run_ladder(
             }
             entry["ladder_current_stage"] = batch_indices[-1] + 1
             entry["ladder_cadence_step"]  = cadence_step + 1
-            save_progress(run_dir, progress)
+            _save()
 
             # ── Plots ─────────────────────────────────────────────────────────
             try:
@@ -1374,7 +1382,7 @@ def run_ladder(
                 entry["ladder_stop_reason"] = (
                     f"cadence step {cadence_step} QA failed (q={qm}, d={dm})"
                 )
-                save_progress(run_dir, progress)
+                _save()
                 logger.warning(f"[{slug}] Ladder stopped: {entry['ladder_stop_reason']}")
                 dataset_stopped = True
                 break
@@ -1394,7 +1402,7 @@ def run_ladder(
 
         if not dataset_stopped and not dataset_paused:
             entry["ladder_all_done"] = True
-            save_progress(run_dir, progress)
+            _save()
             logger.info(f"[{slug}] All {len(all_indices)} shards completed.")
 
             # ── Title translation ─────────────────────────────────────────
@@ -1415,7 +1423,7 @@ def run_ladder(
                     entry["titles_translated"] = True
                 except Exception as e:
                     logger.warning(f"[{slug}] Title translation failed: {e}")
-                save_progress(run_dir, progress)
+                _save()
         elif dataset_paused:
             logger.info(f"[{slug}] Paused at stage {entry['ladder_current_stage']}.")
 
@@ -1462,16 +1470,29 @@ def main() -> None:
         _dry_run(config, args.dataset)
         return
 
+    # Per-dataset isolation: when --dataset is given each process writes its own
+    # progress / log / qa_scores files so multiple datasets can run in parallel
+    # without clobbering each other's state.
+    if args.dataset:
+        slug = _dataset_slug(args.dataset)
+        progress_filename = f"progress.{slug}.json"
+        scores_filename   = f"qa_scores.{slug}.csv"
+        log_filename      = f"run.{slug}.log"
+    else:
+        progress_filename = "progress.json"
+        scores_filename   = "qa_scores.csv"
+        log_filename      = "run.log"
+
     # Unified layout: one run dir per run_id (no timestamp prefix). Phases
     # (candidates/pilot/corpus) live as subdirs inside it.
     run_dir = os.path.join(runs_base, run_id)
-    existing = run_dir if os.path.isfile(os.path.join(run_dir, "progress.json")) else None
+    existing = run_dir if os.path.isfile(os.path.join(run_dir, progress_filename)) else None
 
     if args.resume:
         if existing is None:
             print(
                 f"ERROR: --resume specified but no existing run found for "
-                f"run_id='{run_id}' at {run_dir}",
+                f"run_id='{run_id}' at {run_dir} (looking for {progress_filename})",
                 file=sys.stderr,
             )
             sys.exit(1)
@@ -1490,7 +1511,7 @@ def main() -> None:
             sys.exit(1)
 
     os.makedirs(run_dir, exist_ok=True)
-    _setup_logging(run_dir)
+    _setup_logging(run_dir, log_filename)
     logger.info(f"Ladder pipeline started. Run dir: {run_dir}")
 
     _validate_gcs_auth()
@@ -1501,11 +1522,13 @@ def main() -> None:
     gcs_client    = get_gcs_client(project)
     logger.info(f"GCS batch: project={project}, bucket={bucket}, location={location}")
 
-    progress = _load_or_init_progress(run_dir, config, run_id)
+    progress = _load_or_init_progress(run_dir, config, run_id, filename=progress_filename)
     run_ladder(
         config, run_dir, progress, args.dataset,
         gemini_client, gcs_client, bucket,
         max_cadence_steps=args.max_cadence_steps,
+        progress_filename=progress_filename,
+        scores_filename=scores_filename,
     )
 
     total_cost = progress.get("total_cost_usd", 0.0)

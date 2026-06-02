@@ -10,12 +10,18 @@
 #               batch, judging after each cadence step (run_beir_ladder_pipeline).
 #
 # Usage:
-#   bash scripts/translation/translate.sh                              # full corpus, all datasets
+#   bash scripts/translation/translate.sh                              # full corpus, all datasets (serial)
 #   bash scripts/translation/translate.sh --dataset BeIR/nfcorpus      # single dataset
 #   bash scripts/translation/translate.sh --resume                     # resume an interrupted run
 #   bash scripts/translation/translate.sh --dry-run                    # show the shard plan, no work
 #   bash scripts/translation/translate.sh --pilot                      # pilot all datasets
 #   bash scripts/translation/translate.sh --pilot --dataset BeIR/nfcorpus --yes
+#
+# Parallel datasets (each gets its own progress.<slug>.json / run.<slug>.log):
+#   for d in trec-covid webis-touche2020 cqadupstack quora; do
+#     bash scripts/translation/translate.sh --dataset BeIR/$d --resume &
+#   done
+#   wait
 #
 # Auth: uses Vertex AI (gcloud ADC). GEMINI_API_KEY is force-unset below —
 # the batch/pilot path requires ADC, not an API key. Run once if needed:
