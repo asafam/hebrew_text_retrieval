@@ -252,18 +252,29 @@ def write_translated_csv(
     pending_mask = df["translation"].isna()
     pending_indices = df.index[pending_mask].tolist()
 
-    if len(translations) != len(pending_indices):
-        raise ValueError(
-            f"Result count mismatch: received {len(translations)} translations "
-            f"but {len(pending_indices)} rows are still pending in "
-            f"{output_csv if os.path.exists(output_csv) else source_csv}. "
-            f"The file may have been modified between submit and collect."
-        )
-
     # Match by composite _id when the result objects carry one — Vertex doesn't
     # guarantee output order matches input order. Fall back to positional zip
     # only when no _id is present (sync / inline path).
     have_ids = translations and all(t.get("_id") for t in translations)
+
+    if len(translations) != len(pending_indices):
+        if have_ids:
+            # Id-based matching tolerates a short count: corrupted/skipped GCS
+            # lines leave those rows as NaN and they flow through repair.
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                f"Result count mismatch (id-match, tolerated): received "
+                f"{len(translations)} translations but {len(pending_indices)} "
+                f"rows pending — {len(pending_indices) - len(translations)} "
+                f"rows will be left as NaN and repaired."
+            )
+        else:
+            raise ValueError(
+                f"Result count mismatch: received {len(translations)} translations "
+                f"but {len(pending_indices)} rows are still pending in "
+                f"{output_csv if os.path.exists(output_csv) else source_csv}. "
+                f"The file may have been modified between submit and collect."
+            )
     if have_ids:
         # Composite id is "<_id>" for queries, "<_id>__<segment_id>" for docs.
         df_composite = df["_id"].astype(str)
