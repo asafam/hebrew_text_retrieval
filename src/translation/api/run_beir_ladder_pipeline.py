@@ -188,7 +188,11 @@ def _download_shard_results(gcs_client, bucket: str, gcs_output_prefix: str) -> 
         for raw_line in blob.download_as_text(encoding="utf-8").splitlines():
             if not raw_line.strip():
                 continue
-            obj = json.loads(raw_line)
+            try:
+                obj = json.loads(raw_line)
+            except json.JSONDecodeError:
+                logger.warning(f"Skipping malformed JSON line in {blob.name}: {raw_line[:80]!r}")
+                continue
             composite_id = obj.get("_id", "")
             try:
                 text = obj["response"]["candidates"][0]["content"]["parts"][0]["text"]
