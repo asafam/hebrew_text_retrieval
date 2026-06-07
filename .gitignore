@@ -170,3 +170,5 @@ embeddings
 wandb/
 *.wandb
 .slurm/
+.claude/
+logs/
