@@ -157,8 +157,10 @@ def _export_queries(
 
 def _export_qrels(dataset_name: str, qrels_dir: str) -> None:
     """
-    Download qrels from HuggingFace and write one TSV per split (no header).
-    Format:  query-id\tcorpus-id\tscore
+    Download qrels from HuggingFace and write one JSONL per split.
+    Format:  {"query-id": "...", "corpus-id": "...", "score": N}
+    JSONL is used (not TSV) because HF datasets-server reliably parses JSONL
+    regardless of whether IDs are strings, integers, or hashes.
     """
     try:
         qrels_dataset = load_dataset(f"{dataset_name}-qrels")
@@ -167,14 +169,17 @@ def _export_qrels(dataset_name: str, qrels_dir: str) -> None:
         return
 
     for split_name, split_data in qrels_dataset.items():
-        tsv_path = os.path.join(qrels_dir, f"{split_name}.tsv")
-        with open(tsv_path, "w", encoding="utf-8") as f:
+        jsonl_path = os.path.join(qrels_dir, f"{split_name}.jsonl")
+        with open(jsonl_path, "w", encoding="utf-8") as f:
             for row in split_data:
                 query_id = row.get("query-id", row.get("query_id", ""))
                 corpus_id = row.get("corpus-id", row.get("corpus_id", ""))
                 score = row.get("score", 1)
-                f.write(f"{query_id}\t{corpus_id}\t{score}\n")
-        print(f"  [export] Wrote qrels/{split_name}.tsv ({len(split_data)} rows)")
+                f.write(json.dumps({"query-id": str(query_id),
+                                    "corpus-id": str(corpus_id),
+                                    "score": int(score)},
+                                   ensure_ascii=False) + "\n")
+        print(f"  [export] Wrote qrels/{split_name}.jsonl ({len(split_data)} rows)")
 
 
 def _write_run_metadata(output_dir: str, metadata: dict) -> None:
