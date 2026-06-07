@@ -38,15 +38,30 @@ class InfoNCEDualEncoder(PreTrainedModel):
         else:
             raise ValueError("Unknown pooling type")
 
-    def forward(self, query_input_ids, query_attention_mask, doc_input_ids, doc_attention_mask, labels=None):
+    def forward(self, query_input_ids, query_attention_mask, doc_input_ids, doc_attention_mask,
+                neg_input_ids=None, neg_attention_mask=None, labels=None):
         q_out = self.query_encoder(input_ids=query_input_ids, attention_mask=query_attention_mask)
         d_out = self.doc_encoder(input_ids=doc_input_ids, attention_mask=doc_attention_mask)
 
-        q_emb = F.normalize(self._pool(q_out, query_attention_mask), dim=-1)
-        d_emb = F.normalize(self._pool(d_out, doc_attention_mask), dim=-1)
+        q_emb = F.normalize(self._pool(q_out, query_attention_mask), dim=-1)  # (B, H)
+        d_emb = F.normalize(self._pool(d_out, doc_attention_mask), dim=-1)    # (B, H)
 
-        logits = torch.matmul(q_emb, d_emb.T) / self.temperature
-        targets = torch.arange(logits.size(0), device=logits.device)
+        if neg_input_ids is not None:
+            # neg_input_ids: (B, K, seq_len) for K hard negs per query
+            B, K, seq_len = neg_input_ids.shape
+            neg_out = self.doc_encoder(
+                input_ids=neg_input_ids.view(B * K, seq_len),
+                attention_mask=neg_attention_mask.view(B * K, seq_len),
+            )
+            neg_emb = F.normalize(
+                self._pool(neg_out, neg_attention_mask.view(B * K, seq_len)), dim=-1
+            )  # (B*K, H)
+            all_docs = torch.cat([d_emb, neg_emb], dim=0)  # (B*(K+1), H)
+        else:
+            all_docs = d_emb
+
+        logits = torch.matmul(q_emb, all_docs.T) / self.temperature
+        targets = torch.arange(q_emb.size(0), device=logits.device)  # positives at [0..B-1]
         loss = F.cross_entropy(logits, targets)
 
         return {"loss": loss, "logits": logits}
@@ -77,8 +92,8 @@ class InfoNCEDualEncoder2(nn.Module):
                  doc_model_name=None, 
                  pooling='cls'):
         super().__init__()
-        self.query_encoder = AutoModel.from_pretrained(query_model_name)
-        self.doc_encoder = AutoModel.from_pretrained(doc_model_name or query_model_name)
+        self.query_encoder = AutoModel.from_pretrained(query_model_name, trust_remote_code=True)
+        self.doc_encoder = AutoModel.from_pretrained(doc_model_name or query_model_name, trust_remote_code=True)
         self.pooling = pooling
 
     def encode(self, encoder, input_ids, attention_mask):

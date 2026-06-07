@@ -1,8 +1,16 @@
 #!/bin/bash -i
+#SBATCH --job-name=dualenc_dictaneobert
+#SBATCH --output=logs/slurm/dualenc_dictaneobert_%j.out
+#SBATCH --error=logs/slurm/dualenc_dictaneobert_%j.err
+#SBATCH --partition=A100-4h
+#SBATCH --time=4:00:00
+#SBATCH --gres=gpu:1
+#SBATCH --mem=64G
+#SBATCH --cpus-per-task=8
 
 # Activate the htr conda environment
 echo "Activating Conda environment: htr"
-source "$(conda info --base)/etc/profile.d/conda.sh"  # Ensure Conda is properly initialized
+source /home/nlp/achimoa/miniconda3/etc/profile.d/conda.sh
 conda activate htr
 
 # Add src folder to PYTHONPATH
