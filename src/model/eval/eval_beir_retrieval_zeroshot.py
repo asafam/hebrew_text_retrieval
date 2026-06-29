@@ -189,19 +189,26 @@ def load_beir_local(corpus_dir):
 
     qrels_dir = os.path.join(corpus_dir, "qrels")
     qrels_loaded = False
-    for fname in ["test.tsv", "dev.tsv", "validation.tsv"]:
+    for fname in ["test.jsonl", "dev.jsonl", "validation.jsonl", "test.tsv", "dev.tsv", "validation.tsv"]:
         qrels_path = os.path.join(qrels_dir, fname)
         if not os.path.exists(qrels_path):
             continue
         with open(qrels_path) as f:
             for line in f:
-                parts = line.strip().split("\t")
-                if len(parts) < 3:
+                line = line.strip()
+                if not line:
                     continue
-                try:
-                    qid, docid, score = parts[0], parts[1], int(float(parts[2]))
-                except ValueError:
-                    continue
+                if fname.endswith(".jsonl"):
+                    rec = json.loads(line)
+                    qid, docid, score = str(rec["query-id"]), str(rec["corpus-id"]), int(rec["score"])
+                else:
+                    parts = line.split("\t")
+                    if len(parts) < 3:
+                        continue
+                    try:
+                        qid, docid, score = parts[0], parts[1], int(float(parts[2]))
+                    except ValueError:
+                        continue
                 if qid not in qrels:
                     qrels[qid] = {}
                 qrels[qid][docid] = score

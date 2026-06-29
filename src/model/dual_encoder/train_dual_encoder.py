@@ -26,7 +26,9 @@ def load_beir_hard_negatives(corpora_root=None, corpus_dirs=None, val_size=0.05,
     if corpus_dirs is None:
         if corpora_root is None:
             raise ValueError("Provide corpora_root or corpus_dirs")
-        train_tsvs = glob(os.path.join(corpora_root, "**/qrels/train.tsv"), recursive=True)
+        train_tsvs = glob(os.path.join(corpora_root, "**/qrels/train.jsonl"), recursive=True)
+        if not train_tsvs:
+            train_tsvs = glob(os.path.join(corpora_root, "**/qrels/train.tsv"), recursive=True)
         corpus_dirs = [os.path.dirname(os.path.dirname(f)) for f in sorted(train_tsvs)]
 
     queries_all, positives_all, hard_negs_all = [], [], []
@@ -74,15 +76,19 @@ def load_beir_dataset(corpora_root=None, corpus_dirs=None, val_size=0.05, seed=4
     if corpus_dirs is None:
         if corpora_root is None:
             raise ValueError("Provide --beir_corpora_root or corpus_dirs")
-        train_tsvs = glob(os.path.join(corpora_root, "**/qrels/train.tsv"), recursive=True)
-        corpus_dirs = [os.path.dirname(os.path.dirname(f)) for f in sorted(train_tsvs)]
+        train_files = glob(os.path.join(corpora_root, "**/qrels/train.jsonl"), recursive=True)
+        if not train_files:
+            train_files = glob(os.path.join(corpora_root, "**/qrels/train.tsv"), recursive=True)
+        corpus_dirs = [os.path.dirname(os.path.dirname(f)) for f in sorted(train_files)]
 
     queries_all, docs_all = [], []
 
     for corpus_dir in corpus_dirs:
         corpus_path = os.path.join(corpus_dir, "corpus.jsonl")
         queries_path = os.path.join(corpus_dir, "queries.jsonl")
-        qrels_path = os.path.join(corpus_dir, "qrels", "train.tsv")
+        qrels_jsonl = os.path.join(corpus_dir, "qrels", "train.jsonl")
+        qrels_tsv = os.path.join(corpus_dir, "qrels", "train.tsv")
+        qrels_path = qrels_jsonl if os.path.exists(qrels_jsonl) else qrels_tsv
         if not all(os.path.exists(p) for p in [corpus_path, queries_path, qrels_path]):
             continue
 
@@ -103,13 +109,20 @@ def load_beir_dataset(corpora_root=None, corpus_dirs=None, val_size=0.05, seed=4
         loaded = 0
         with open(qrels_path) as f:
             for line in f:
-                parts = line.strip().split("\t")
-                if len(parts) < 3:
+                line = line.strip()
+                if not line:
                     continue
-                try:
-                    qid, docid, score = parts[0], parts[1], int(float(parts[2]))
-                except ValueError:
-                    continue
+                if qrels_path.endswith(".jsonl"):
+                    rec = json.loads(line)
+                    qid, docid, score = str(rec["query-id"]), str(rec["corpus-id"]), int(rec["score"])
+                else:
+                    parts = line.split("\t")
+                    if len(parts) < 3:
+                        continue
+                    try:
+                        qid, docid, score = parts[0], parts[1], int(float(parts[2]))
+                    except ValueError:
+                        continue
                 if score > 0 and qid in queries and docid in corpus:
                     queries_all.append(queries[qid])
                     docs_all.append(corpus[docid])
