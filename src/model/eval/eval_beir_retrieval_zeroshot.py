@@ -284,9 +284,40 @@ def _st_encode_fn(model):
     return fn
 
 
-def encode_all(model, query_texts, doc_texts, batch_size, embeddings_dir, force_reencode):
+def _model_mtime(model_path):
+    """Newest mtime among a model's weight/config files (None if not found).
+
+    Used to auto-invalidate cached embeddings: if the model is newer than the
+    cache, the cache was produced by a different/older model and is stale.
+    """
+    if not model_path or not os.path.exists(model_path):
+        return None
+    candidates = []
+    for root, _dirs, files in os.walk(model_path):
+        for fn in files:
+            if fn.endswith((".safetensors", ".bin", ".pt", ".json")):
+                try:
+                    candidates.append(os.path.getmtime(os.path.join(root, fn)))
+                except OSError:
+                    pass
+    return max(candidates) if candidates else None
+
+
+def encode_all(model, query_texts, doc_texts, batch_size, embeddings_dir, force_reencode, model_path=None):
     q_cache = os.path.join(embeddings_dir, "query_embeddings.pt") if embeddings_dir else None
     d_cache = os.path.join(embeddings_dir, "doc_embeddings.pt") if embeddings_dir else None
+
+    # Auto-invalidate stale caches: if the model is newer than a cached embedding
+    # file, that cache came from a different model version -> must re-encode.
+    model_mtime = _model_mtime(model_path)
+
+    def _stale(cache_file):
+        if model_mtime is None or not cache_file or not os.path.exists(cache_file):
+            return False
+        if os.path.getmtime(cache_file) < model_mtime:
+            print(f"[stale-cache] {cache_file} is older than the model — re-encoding.")
+            return True
+        return False
 
     # Build encode functions — dual encoder uses separate query/doc encoders
     if isinstance(model, InfoNCEWrapper):
@@ -298,14 +329,14 @@ def encode_all(model, query_texts, doc_texts, batch_size, embeddings_dir, force_
         encode_q = encode_d = _st_encode_fn(model)
 
     print(f"Encoding {len(query_texts):,} queries...")
-    if not force_reencode and q_cache and os.path.exists(q_cache):
+    if not force_reencode and not _stale(q_cache) and q_cache and os.path.exists(q_cache):
         q_emb = torch.load(q_cache, weights_only=False)
         print(f"Loaded query embeddings from {q_cache}")
     else:
         q_emb = batched_encode_st(encode_q, query_texts, batch_size=batch_size, cache_file=q_cache)
 
     print(f"Encoding {len(doc_texts):,} documents...")
-    if not force_reencode and d_cache and os.path.exists(d_cache):
+    if not force_reencode and not _stale(d_cache) and d_cache and os.path.exists(d_cache):
         d_emb = torch.load(d_cache, weights_only=False)
         print(f"Loaded doc embeddings from {d_cache}")
     else:
@@ -466,7 +497,7 @@ def main():
     # Encode
     print()
     q_emb, d_emb = encode_all(model, query_texts, doc_texts, args.batch_size,
-                               embeddings_dir, args.force_reencode)
+                               embeddings_dir, args.force_reencode, model_path=args.model_name_or_path)
     print(f"Query embeddings: {tuple(q_emb.shape)} | Doc embeddings: {tuple(d_emb.shape)}")
 
     # Normalize InfoNCEWrapper embeddings (already normalized for ST models)
