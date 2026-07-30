@@ -4,7 +4,7 @@ What each translated BeIR dataset actually asks a retriever to do, what counts a
 
 All statistics below were measured directly on the exported Hebrew data in
 `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531/corpus/BeIR_<name>/beir/`
-(not copied from the BeIR paper). Companion docs: `BEIR_TRANSLATION.md` (translation status/ledger), `EVALUATION.md` (retrieval results).
+(not copied from the BeIR paper). Companion docs: `../translation/ledger.md` (translation status/ledger), `results.md` (retrieval results).
 
 ---
 
@@ -37,7 +37,7 @@ Queries originate as NutritionFacts.org video titles; documents are the studies 
 | test | 12,334 | 323 | 11,758 | 576 | 38.2 / 16 |
 
 - **Score 2** = the abstract is directly cited as evidence for the claim. **Score 1** = merely topically linked.
-- The distribution is ~95% / 5% skewed toward the weak tier — a random qrels pair is almost certainly a *loose* topical match, not a tight one. This is what caused the sample-spreadsheet confusion documented in `BEIR_TRANSLATION.md`.
+- The distribution is ~95% / 5% skewed toward the weak tier — a random qrels pair is almost certainly a *loose* topical match, not a tight one. This is what caused the sample-spreadsheet confusion documented in `../translation/ledger.md`.
 - **The train split has no grade-2 judgments at all.** Training treats "topically related" as positive; test rewards graded ranking. Don't assume train and test define relevance the same way.
 - ~38 relevant docs per query out of a 3,633-doc corpus means **>1% of the entire corpus is relevant to any given query**. Recall@100 is close to meaningless here, and NDCG is the only metric worth reading.
 
@@ -120,7 +120,7 @@ So the leakage shows up as *near*-duplicates rather than exact ones. That makes 
 | **0 (explicit negatives)** | 25,000 | exactly 25 |
 | 1 (positives) | 4,928 | ~5 |
 
-SciDocs was built as a **reranking** benchmark: each query comes with a fixed candidate pool of ~5 cited papers plus 25 deliberately-chosen non-cited ones. The score-0 rows are that negative pool — **they are not relevance judgments, and treating them as pairs is wrong.** This is exactly the trap that put 21 of 25 scidocs rows in the review spreadsheet on non-relevant pairs (see `BEIR_TRANSLATION.md`, "Fix applied (pass 1)").
+SciDocs was built as a **reranking** benchmark: each query comes with a fixed candidate pool of ~5 cited papers plus 25 deliberately-chosen non-cited ones. The score-0 rows are that negative pool — **they are not relevance judgments, and treating them as pairs is wrong.** This is exactly the trap that put 21 of 25 scidocs rows in the review spreadsheet on non-relevant pairs (see `../translation/ledger.md`, "Fix applied (pass 1)").
 
 Two consequences:
 
@@ -143,13 +143,13 @@ Status: **fixed** in `src/model/eval/eval_beir_retrieval_zeroshot.py`. The metri
 
 **Bonus fix:** the metric previously reported as `recall_at_100` was actually *hit rate* — `any(relevant in top-100)`, which saturates near 1.0 on nfcorpus (38 positives/query) and carries almost no signal. It is now true recall (`|relevant ∩ top-k| / |all relevant|`), with the old figure retained as `hit_rate_at_100` so previously-saved `results.json` files remain interpretable.
 
-Net effect on existing numbers: **nfcorpus NDCG was inflated and will drop; arguana was depressed and will rise; recall_at_100 changes meaning on every dataset.** All results in `EVALUATION.md` / `MODEL_EVALUATIONS.md` predate these fixes and need regenerating before they can be compared against published BeIR figures. scidocs remains slightly pessimistic due to its 115 missing gold documents — that's a translation-coverage gap, not a metric bug.
+Net effect on existing numbers: **nfcorpus NDCG was inflated and will drop; arguana was depressed and will rise; recall_at_100 changes meaning on every dataset.** All results in `results.md` / `runbook.md` predate these fixes and need regenerating before they can be compared against published BeIR figures. scidocs remains slightly pessimistic due to its 115 missing gold documents — that's a translation-coverage gap, not a metric bug.
 
 ---
 
 ## Not yet translated (10 / 15)
 
-From upstream BeIR — task definitions only, to be re-verified against our export when each lands. Blocked on the approval gate in `BEIR_TRANSLATION.md`.
+From upstream BeIR — task definitions only, to be re-verified against our export when each lands. Blocked on the approval gate in `../translation/ledger.md`.
 
 | Dataset | Query → Document | Notes |
 |---|---|---|

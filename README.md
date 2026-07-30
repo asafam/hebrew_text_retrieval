@@ -4,6 +4,21 @@ This project translates the [BeIR](https://github.com/beir-cellar/beir) informat
 
 ---
 
+## Documentation
+
+Full documentation lives in **[docs/](docs/README.md)**. Common entry points:
+
+| I want to… | Read |
+|---|---|
+| Understand what each translated dataset asks a retriever to do | [docs/benchmark/tasks.md](docs/benchmark/tasks.md) |
+| See model scores and which model to ship | [docs/benchmark/results.md](docs/benchmark/results.md) |
+| Run or re-run an evaluation | [docs/benchmark/runbook.md](docs/benchmark/runbook.md) |
+| Check which datasets are translated and what's blocked | [docs/translation/ledger.md](docs/translation/ledger.md) |
+| Translate a new dataset | [docs/translation/pipeline.md](docs/translation/pipeline.md) |
+| Reproduce the experiments below step by step | [docs/experiments.md](docs/experiments.md) |
+
+---
+
 ## Experiments
 
 ### Experiment 1 — Translation quality: single-dataset baseline (2025-02)

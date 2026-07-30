@@ -1,6 +1,6 @@
 # Long-Context Retrieval Evaluation — Hard-Negative Patching
 
-Companion to [EVALUATION.md](EVALUATION.md) (standard BeIR retrieval eval).
+Companion to [results.md](results.md) (standard BeIR retrieval eval).
 
 ## What this measures
 
@@ -27,7 +27,7 @@ This stress-tests two things:
 
 ## Datasets
 
-Same five BeIR datasets used in the standard eval (see EVALUATION.md):
+Same five BeIR datasets used in the standard eval (see results.md):
 
 | Dataset | Domain | Test queries | Corpus |
 |---------|--------|-------------:|-------:|
@@ -150,7 +150,7 @@ Each JSON:
 
 ## Results
 
-> Fill in after running. K=0 should match EVALUATION.md NDCG@10 figures (different metric, expect same ranking).
+> Fill in after running. K=0 should match results.md NDCG@10 figures (different metric, expect same ranking).
 
 | Model | Dataset | K=0 Acc@1 | K=1 Acc@1 | K=3 Acc@1 | K=5 Acc@1 |
 |-------|---------|----------:|----------:|----------:|----------:|

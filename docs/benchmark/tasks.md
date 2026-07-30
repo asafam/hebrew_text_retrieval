@@ -10,8 +10,8 @@ These are the 5 datasets translated so far. The remaining 10 (msmarco, nq, hotpo
 fever, climate-fever, quora, trec-covid, dbpedia-entity, cqadupstack,
 webis-touche2020) are planned.
 
-Detailed statistics and known issues: `BEIR_DATASETS.md`. Translation status:
-`BEIR_TRANSLATION.md`.
+Detailed statistics and known issues: `datasets.md`. Translation status:
+`../translation/ledger.md`.
 
 ---
 

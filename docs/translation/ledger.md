@@ -1,6 +1,6 @@
 # BeIR → Hebrew Translation Ledger
 
-Running ledger of translation progress for the [BeIR](https://github.com/beir-cellar/beir) benchmark → Hebrew. Update this file as datasets move through the pipeline. See `README.md` ("Experiment 4") for the full experiment writeup and `EVALUATION.md` for downstream retrieval results on the translated data.
+Running ledger of translation progress for the [BeIR](https://github.com/beir-cellar/beir) benchmark → Hebrew. Update this file as datasets move through the pipeline. See `README.md` ("Experiment 4") for the full experiment writeup and `../benchmark/results.md` for downstream retrieval results on the translated data.
 
 ## Pipeline
 

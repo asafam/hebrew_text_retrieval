@@ -3,7 +3,7 @@
 Zero-shot BEIR benchmark comparing Hebrew-specific retrieval models against multilingual baselines.
 
 > **Numbers regenerated 2026-07-30** after two metric bugs were fixed. All figures are post-fix and verified
-> against `pytrec_eval`. Analysis, per-dataset commentary and decisions live in **`EVALUATION.md`** — this
+> against `pytrec_eval`. Analysis, per-dataset commentary and decisions live in **`results.md`** — this
 > file is the results table and the runbook.
 
 ## Benchmark Design
@@ -39,7 +39,7 @@ All models evaluated on the same 5 translated Hebrew BeIR datasets (NDCG@10 prim
 | HMB random init (control / floor) | 0.001 | 0.004 | 0.190 | 0.002 | 0.223 | 0.084 |
 | HMB HeQ (discarded) | 0.001 | 0.058 | 0.037 | 0.002 | 0.012 | 0.022 |
 
-Bold = best per column. Full 24-model table and all metrics: `EVALUATION.md`.
+Bold = best per column. Full 24-model table and all metrics: `results.md`.
 
 **Reading the table:** the random-init control scores 0.190 on nfcorpus and 0.223 on scifact without any
 training, so those two columns have a high free baseline. **arguana and scidocs are the columns that actually
@@ -67,7 +67,7 @@ decision. See `outputs/eval/beir_zeroshot/` for all of them.
 ## Datasets
 
 All 5 translated BeIR corpora (`gemini-3.1-flash-lite`, prompt v20260531). Counts measured from the export.
-What each task actually asks: `BEIR_TASKS_SIMPLE.md`.
+What each task actually asks: `tasks.md`.
 
 | Dataset | Docs | Test queries | Positives/query | Note |
 |---------|-----:|-------------:|----------------:|------|

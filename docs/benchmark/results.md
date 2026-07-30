@@ -129,7 +129,7 @@ then `eval_beir_hmb_generic.sh`. The pipeline (BeIR hard-neg SFT at lr=2e-5 + ev
   but **fails to generalize to zero-shot domains** (arguana 0.10, scidocs 0.034 — datasets with no train data,
   where NDB scored 0.451 / 0.093). This points to the base model: HebrewModernBERT's representations do not
   transfer for retrieval the way NeoDictaBERT's do.
-- **Translation quality is not the bottleneck.** A separate controlled analysis (`BEIR_FAILURE_ANALYSIS.md`)
+- **Translation quality is not the bottleneck.** A separate controlled analysis (`failure-analysis.md`)
   found 63% of Hebrew failures also fail on the English source, and the Hebrew-only failures show no
   translation defect. The lever is the encoder, not the translation.
 
@@ -191,7 +191,7 @@ that published BeIR used it. Cross-checking against `pytrec_eval` showed `trec_e
 ## Datasets
 
 Five BeIR datasets translated to Hebrew (`gemini-3.1-flash-lite`, prompt v20260531). Corpus/query counts are
-measured from the exported files. See `BEIR_TASKS_SIMPLE.md` for what each task asks, and `BEIR_DATASETS.md`
+measured from the exported files. See `tasks.md` for what each task asks, and `datasets.md`
 for full statistics.
 
 | Dataset | Domain | Train pairs | Test queries | Corpus size | Positives/query |
