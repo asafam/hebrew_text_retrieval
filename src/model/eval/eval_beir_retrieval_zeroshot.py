@@ -374,6 +374,11 @@ def _gains(relevance, gain_mode):
     return np.power(2.0, rel) - 1.0 if gain_mode == "exponential" else rel
 
 
+# Fraction of query ids that must also be document ids before `--exclude_self auto`
+# treats the overlap as structural (ArguAna: 92%) rather than coincidental (fiqa: 9%).
+SELF_OVERLAP_THRESHOLD = 0.5
+
+
 def _dcg(gains):
     if len(gains) == 0:
         return 0.0
@@ -404,14 +409,26 @@ def compute_metrics(retrieved_scores, retrieved_indices, doc_ids, qrels, query_i
     exclude_self controls removal of the document whose id equals the query id
     (ArguAna ships its query arguments inside the corpus, so a model retrieves the
     query's own near-duplicate at rank 1 and demotes the true counterargument):
-      auto   — drop it unless qrels judges it relevant for that query. Safe for
-               datasets like fiqa where query and corpus ids share an integer
-               namespace by coincidence rather than by identity.
-      always — drop it unconditionally (strict BEIR ArguAna protocol).
+      auto   — apply id-based exclusion only when the dataset shows *structural*
+               query-in-corpus overlap (>= SELF_OVERLAP_THRESHOLD of query ids
+               present as documents, as in ArguAna's 92%). Datasets where query
+               and corpus ids merely share an integer namespace by coincidence —
+               fiqa overlaps on 9% of ids, with entirely different text — are left
+               untouched, so genuine documents are not dropped from the ranking.
+      always — drop the same-id document unconditionally (strict BEIR protocol).
       never  — keep it.
+    A document that qrels judge relevant for the query is never dropped.
     """
     ndcg10, ndcg100, recall, hit, mrr_scores = [], [], [], [], []
     num_self_excluded = 0
+
+    if exclude_self == "auto":
+        overlap = len(set(query_ids) & set(doc_ids)) / max(1, len(query_ids))
+        structural = overlap >= SELF_OVERLAP_THRESHOLD
+        print(f"[self-exclusion] {overlap:.1%} of query ids appear as document ids -> "
+              f"{'structural leakage, excluding' if structural else 'coincidental, keeping'}")
+        if not structural:
+            exclude_self = "never"
 
     for i, qid in enumerate(query_ids):
         judged = qrels.get(qid)
