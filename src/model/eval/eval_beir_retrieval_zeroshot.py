@@ -35,7 +35,6 @@ from pathlib import Path
 import numpy as np
 import torch
 import faiss
-from sklearn.metrics import ndcg_score
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer, models
 from transformers import AutoTokenizer
@@ -362,43 +361,123 @@ def faiss_search(q_emb, d_emb, top_k):
 # Metrics
 # ---------------------------------------------------------------------------
 
-def compute_metrics(retrieved_scores, retrieved_indices, doc_ids, qrels, query_ids):
-    """Compute NDCG@10, NDCG@100, R@100, MRR from FAISS top-K results."""
-    ndcg_y_true = []
-    ndcg_y_score = []
-    r_at_100 = []
-    mrr_scores = []
+def _gains(relevance, gain_mode):
+    """Map raw relevance grades to DCG gains.
+
+    'linear' (gain = rel) is the trec_eval `ndcg_cut` convention, which is what
+    pytrec_eval and therefore published BEIR numbers use — verified to match
+    pytrec_eval to <1e-12 on graded nfcorpus qrels. 'exponential' (2^rel - 1) is
+    the Burges/Kaggle variant; it is NOT what BEIR reports. The two only differ
+    where grades exceed 1 (nfcorpus, trec-covid, dbpedia-entity, webis-touche2020).
+    """
+    rel = np.asarray(relevance, dtype=float)
+    return np.power(2.0, rel) - 1.0 if gain_mode == "exponential" else rel
+
+
+# Fraction of query ids that must also be document ids before `--exclude_self auto`
+# treats the overlap as structural (ArguAna: 92%) rather than coincidental (fiqa: 9%).
+SELF_OVERLAP_THRESHOLD = 0.5
+
+
+def _dcg(gains):
+    if len(gains) == 0:
+        return 0.0
+    discounts = 1.0 / np.log2(np.arange(2, len(gains) + 2))
+    return float(np.sum(np.asarray(gains, dtype=float) * discounts))
+
+
+def _ndcg_at_k(ranked_relevance, ideal_relevance, k, gain_mode):
+    """NDCG@k with the ideal ranking taken from the FULL qrels, not the retrieved slice.
+
+    Normalizing against only the retrieved documents inflates the score whenever a
+    query has more relevant documents than fit in the retrieved top-k (nfcorpus
+    averages 38 positives/query), so `ideal_relevance` must be every judged grade
+    for the query, sorted descending.
+    """
+    dcg = _dcg(_gains(ranked_relevance[:k], gain_mode))
+    idcg = _dcg(_gains(ideal_relevance[:k], gain_mode))
+    return dcg / idcg if idcg > 0 else 0.0
+
+
+def compute_metrics(retrieved_scores, retrieved_indices, doc_ids, qrels, query_ids,
+                    top_k=100, exclude_self="auto", gain="linear"):
+    """Compute NDCG@10, NDCG@100, R@100, MRR from FAISS results.
+
+    retrieved_* may contain more than `top_k` columns so that self-exclusion can
+    drop a document without shortening the evaluated ranking.
+
+    exclude_self controls removal of the document whose id equals the query id
+    (ArguAna ships its query arguments inside the corpus, so a model retrieves the
+    query's own near-duplicate at rank 1 and demotes the true counterargument):
+      auto   — apply id-based exclusion only when the dataset shows *structural*
+               query-in-corpus overlap (>= SELF_OVERLAP_THRESHOLD of query ids
+               present as documents, as in ArguAna's 92%). Datasets where query
+               and corpus ids merely share an integer namespace by coincidence —
+               fiqa overlaps on 9% of ids, with entirely different text — are left
+               untouched, so genuine documents are not dropped from the ranking.
+      always — drop the same-id document unconditionally (strict BEIR protocol).
+      never  — keep it.
+    A document that qrels judge relevant for the query is never dropped.
+    """
+    ndcg10, ndcg100, recall, hit, mrr_scores = [], [], [], [], []
+    num_self_excluded = 0
+
+    if exclude_self == "auto":
+        overlap = len(set(query_ids) & set(doc_ids)) / max(1, len(query_ids))
+        structural = overlap >= SELF_OVERLAP_THRESHOLD
+        print(f"[self-exclusion] {overlap:.1%} of query ids appear as document ids -> "
+              f"{'structural leakage, excluding' if structural else 'coincidental, keeping'}")
+        if not structural:
+            exclude_self = "never"
 
     for i, qid in enumerate(query_ids):
-        if qid not in qrels or not qrels[qid]:
+        judged = qrels.get(qid)
+        if not judged:
             continue
 
-        top_doc_ids = [doc_ids[idx] for idx in retrieved_indices[i]]
-        top_scores = retrieved_scores[i].astype(float)
-        relevance = np.array([qrels[qid].get(did, 0) for did in top_doc_ids], dtype=float)
+        # Full-qrels ideal ranking (score<=0 rows, e.g. scidocs' negative pool,
+        # contribute zero gain and are dropped from the denominator).
+        ideal = sorted((g for g in judged.values() if g > 0), reverse=True)
+        num_relevant = len(ideal)
 
-        ndcg_y_true.append(relevance)
-        ndcg_y_score.append(top_scores)
+        ranked_ids, ranked_rel = [], []
+        for rank_pos, idx in enumerate(retrieved_indices[i]):
+            did = doc_ids[idx]
+            if did == qid and exclude_self != "never":
+                if exclude_self == "always" or judged.get(did, 0) <= 0:
+                    num_self_excluded += 1
+                    continue
+            ranked_ids.append(did)
+            ranked_rel.append(judged.get(did, 0))
+            if len(ranked_ids) >= top_k:
+                break
 
-        r_at_100.append(float(any(relevance > 0)))
+        ndcg10.append(_ndcg_at_k(ranked_rel, ideal, 10, gain))
+        ndcg100.append(_ndcg_at_k(ranked_rel, ideal, 100, gain))
 
-        relevant_positions = np.where(relevance > 0)[0]
-        mrr_scores.append(1.0 / (relevant_positions[0] + 1) if len(relevant_positions) > 0 else 0.0)
+        rel_arr = np.asarray(ranked_rel, dtype=float)
+        num_found = int(np.sum(rel_arr > 0))
+        recall.append(num_found / num_relevant if num_relevant else 0.0)
+        hit.append(float(num_found > 0))
 
-    if not ndcg_y_true:
+        positions = np.where(rel_arr > 0)[0]
+        mrr_scores.append(1.0 / (positions[0] + 1) if len(positions) > 0 else 0.0)
+
+    if not ndcg10:
         warnings.warn("No queries with valid qrels found — cannot compute metrics.")
         return {}
 
-    Y_true = np.vstack(ndcg_y_true)
-    Y_score = np.vstack(ndcg_y_score)
-    k_max = Y_true.shape[1]
-
     return {
-        "ndcg_at_10": float(ndcg_score(Y_true, Y_score, k=min(10, k_max))),
-        "ndcg_at_100": float(ndcg_score(Y_true, Y_score, k=min(100, k_max))),
-        "recall_at_100": float(np.mean(r_at_100)),
+        "ndcg_at_10": float(np.mean(ndcg10)),
+        "ndcg_at_100": float(np.mean(ndcg100)),
+        # True recall: fraction of a query's judged-relevant docs found in top-k.
+        # `hit_rate_at_100` is the previously-reported "any relevant retrieved"
+        # figure, kept so older results.json files stay comparable.
+        "recall_at_100": float(np.mean(recall)),
+        "hit_rate_at_100": float(np.mean(hit)),
         "mrr": float(np.mean(mrr_scores)),
-        "num_queries_evaluated": len(ndcg_y_true),
+        "num_queries_evaluated": len(ndcg10),
+        "num_self_excluded": num_self_excluded,
     }
 
 
@@ -432,6 +511,15 @@ def main():
                         help="Pooling for plain HF models. Ignored for ST/dual-encoder checkpoints.")
     parser.add_argument("--top_k", type=int, default=100,
                         help="Number of documents to retrieve per query (default: 100).")
+    parser.add_argument("--exclude_self", default="auto", choices=["auto", "always", "never"],
+                        help="Drop the corpus doc whose id equals the query id before scoring. "
+                             "Required for correct ArguAna numbers (its queries are in the corpus). "
+                             "auto (default) keeps it when qrels judge it relevant; never = pre-fix behavior.")
+    parser.add_argument("--ndcg_gain", default="linear", choices=["linear", "exponential"],
+                        help="DCG gain function. linear (default, gain=rel) matches trec_eval/"
+                             "pytrec_eval and published BEIR numbers. exponential (2^rel-1) is the "
+                             "Burges variant and is NOT BEIR-comparable. Only differs on graded "
+                             "qrels (nfcorpus, trec-covid, dbpedia-entity, webis-touche2020).")
     parser.add_argument("--force_reencode", action="store_true",
                         help="Re-encode even if cached .pt files exist.")
     parser.add_argument("--instruction_prefix_query", default=None,
@@ -505,12 +593,18 @@ def main():
         q_emb = torch.nn.functional.normalize(q_emb, dim=-1)
         d_emb = torch.nn.functional.normalize(d_emb, dim=-1)
 
-    # Search
-    print(f"\nSearching top-{args.top_k} with FAISS IndexFlatIP...")
-    scores, indices = faiss_search(q_emb, d_emb, args.top_k)
+    # Search one extra document so self-exclusion cannot shorten the top-k ranking.
+    search_k = min(args.top_k + 1, len(doc_ids)) if args.exclude_self != "never" else args.top_k
+    print(f"\nSearching top-{search_k} with FAISS IndexFlatIP...")
+    scores, indices = faiss_search(q_emb, d_emb, search_k)
 
     # Metrics
-    metrics = compute_metrics(scores, indices, doc_ids, qrels, query_ids)
+    metrics = compute_metrics(scores, indices, doc_ids, qrels, query_ids,
+                              top_k=args.top_k, exclude_self=args.exclude_self,
+                              gain=args.ndcg_gain)
+    if metrics.get("num_self_excluded"):
+        print(f"Self-exclusion: removed the query's own document for "
+              f"{metrics['num_self_excluded']:,} queries.")
 
     result = {
         "model": model_slug,
@@ -522,6 +616,8 @@ def main():
             "max_length": args.max_length,
             "batch_size": args.batch_size,
             "top_k": args.top_k,
+            "exclude_self": args.exclude_self,
+            "ndcg_gain": args.ndcg_gain,
             "query_prefix": query_prefix,
             "doc_prefix": doc_prefix,
         },
