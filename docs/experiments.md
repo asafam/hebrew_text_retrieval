@@ -1,4 +1,4 @@
-# EXPERIMENTS.md
+# experiments.md
 
 Step-by-step guide for running the BeIR Hebrew translation experiments.
 
@@ -216,7 +216,7 @@ outputs/translation/BeIR/
 
 - **Interrupted run**: just re-run the same command. `FORCE=false` (default) skips rows that already have output.
 - **Force re-score everything**: set `FORCE=true` in the config file.
-- **Single file**: see `TRANSLATIONS.md` for manual per-file commands.
+- **Single file**: see `translation/prompt-experiments.md` for manual per-file commands.
 
 ---
 
