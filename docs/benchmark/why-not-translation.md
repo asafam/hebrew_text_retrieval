@@ -198,11 +198,28 @@ changes applied first. The first two **reduce** cost:
 1. **Cache translations by source-text hash.** Translate each unique string once so a
    term cannot be rendered two ways. Fixes the terminology drift and the arguana
    near-duplicates, and cuts spend because queries and documents share many strings.
+   ✅ **Implemented 2026-08-01** — `dedup.enabled` in `config/translation/full_corpus.yaml`
+   wires a shared SQLite cache into the shard ladder, which previously had no cache at
+   all. Tests in `tests/test_translation_dedup.py`.
 2. **Lower the temperature** from 0.7. Sampling diversity has no value in translation and
    is what makes the two passes diverge.
+   ✅ **Implemented 2026-08-01** — queries, documents, titles and the repair pass all
+   translate at temperature 0.0.
 3. **Pin a per-dataset glossary** of domain terms and acronyms, especially for fiqa,
    scidocs and scifact. Prefer keeping established English acronyms (ECMO) over
    transliterating them.
+   ⬜ **Not done.** Needs a term list per dataset and a prompt change, so it should be
+   QA-gated on nfcorpus before the large tier.
+
+One residual after (1) and (2), documented in
+`src/translation/api/ladder_dedup_INTEGRATION.md`: the cache unifies a query and a
+document only when one pass finalizes before the other prefills, and within a single
+shard step the two are submitted in parallel. Temperature 0.0 covers that case in
+practice, but the query and document prompt variants still differ by one word
+(`...English query` vs `...English document`), so identical source text can still yield
+slightly different Hebrew. Unifying the two prompt variants — already 98.9% identical,
+with byte-identical system prompts — would close it completely and is the cheapest
+remaining fix.
 
 **Put the effort into the Hebrew encoder.** That is where the remaining ~31% lives.
 
