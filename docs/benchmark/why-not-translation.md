@@ -11,10 +11,8 @@ translation. It isn't — and this document is the evidence.
 
 **Recommendation: invest in the Hebrew encoder, not in re-translating.**
 
-*Measured on the 5 datasets translated in Run A (mE5-base, 3,672 queries). The ~2% has
-since been fixed at the pipeline level — see [The 2%](#the-2-and-why-it-was-a-setting-not-a-quality-problem)
-below. Method detail: [failure-analysis.md](failure-analysis.md). Pipeline status:
-[../translation/ledger.md](../translation/ledger.md).*
+*Measured on the 5 translated datasets, 3,672 queries, using mE5-base. Method detail:
+[failure-analysis.md](failure-analysis.md).*
 
 ---
 
@@ -144,10 +142,18 @@ damage is *relational*, invisible to any measure that looks at one text at a tim
 directly: **38% of source strings got different Hebrew from those two words alone**, even
 at temperature 0.
 
-**Fixed for Run B** — unified prompt, temperature 0.0, shared translation cache. Measured
-effect: query/document agreement went 47% → 100% with no quality change (p = 0.79).
-Details in [../translation/ledger.md](../translation/ledger.md). The ~2% above is
-therefore the **pre-fix** figure and should be re-measured once Run B produces a corpus.
+**This is now fixed in the pipeline** — one prompt for both passes, temperature 0.0, and
+a shared translation cache. Query/document agreement went from 47% to 100% with no
+quality change (p = 0.79).
+
+**What that means for the numbers above:** the 2% is accurate for the 5 datasets we have
+— they were translated with the old settings and still carry the defect; nothing was
+re-translated. Datasets translated from now on should not have it. Whether that actually
+drops the 2% to zero is unmeasured, because no dataset has been translated with the new
+settings yet. The other two rows (63%, ~31%) are properties of the task and the model and
+are unaffected by any of this.
+
+Settings and how to re-measure: [../translation/ledger.md](../translation/ledger.md).
 
 ---
 
