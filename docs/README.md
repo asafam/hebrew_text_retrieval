@@ -8,7 +8,8 @@
 | [benchmark/datasets.md](benchmark/datasets.md) | Detailed per-dataset reference: relevance scales, judgment counts, length profiles, splits, hard negatives, per-dataset pitfalls. Includes the 10 pending datasets as a forward checklist. |
 | [benchmark/results.md](benchmark/results.md) | Model scores, standings, and the analysis behind the "ship NeoDictaBERT" decision. |
 | [benchmark/runbook.md](benchmark/runbook.md) | Summary results table plus how to run or re-run an evaluation. |
-| [benchmark/failure-analysis.md](benchmark/failure-analysis.md) | Controlled Hebrew-vs-English study: are the failures caused by translation or by the model? (Answer: the model.) |
+| [benchmark/why-not-translation.md](benchmark/why-not-translation.md) | **The case that translation is not what limits our Hebrew scores** — the evidence, assembled, and the one narrow place where it is. Read this for the argument and the decision. |
+| [benchmark/failure-analysis.md](benchmark/failure-analysis.md) | The lab notebook behind the above: method, per-dataset breakdowns, statistics, scripts. |
 | [benchmark/long-context.md](benchmark/long-context.md) | Long-context retrieval evaluation with hard-negative patching. |
 
 ## Translation — building the Hebrew corpora

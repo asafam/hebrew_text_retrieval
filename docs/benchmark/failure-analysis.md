@@ -4,6 +4,19 @@
 Hebrew-only failures show no sign of bad translation. Re-translating would buy
 almost nothing; a stronger Hebrew encoder would.
 
+> **Confirmed by LLM judge (§10).** A blind, controlled judge run over 1,254 items found
+> translation quality **identical** between failures and controls (53.5% vs 54.6%,
+> p=0.70) — but did isolate one real defect worth ~2% of failures: the same English term
+> rendered differently in the query and the document (`ECMO` → `אקמו` vs `ECMO`), because
+> the two were translated in separate passes at temperature 0.7. The fix is a caching and
+> temperature change that **costs nothing and reduces spend** — worth applying before the
+> remaining 10 datasets. The main recommendation is unchanged.
+
+> **Looking for the argument rather than the method?** See
+> [why-not-translation.md](why-not-translation.md), which assembles the case and the
+> resulting recommendation. This document is the underlying method, statistics and
+> per-dataset detail.
+
 Date: 2026-07-30 · Model tested: `intfloat/multilingual-e5-base` · 3,672 queries across the 5 translated datasets
 
 ---
@@ -176,3 +189,114 @@ translation quality is not what is limiting the scores.
 4. **English is an upper bound, not a ceiling to aim at.** Part of the 12-point
    gap is mE5 simply being trained on far more English than Hebrew. That portion
    is unreachable by any amount of translation work.
+
+---
+
+## 10. LLM judge follow-up (2026-07-30) — closing the semantic gap
+
+Limitation 1 above said the mechanical checks cannot see semantics, and that an LLM
+reading the failures would close the gap. That was done.
+
+**Method.** `gemini-3.1-pro-preview` judged 1,254 items: 626 Hebrew-only failures and
+**628 blind controls** — queries Hebrew answered correctly, drawn from the same
+datasets, shuffled together. The judge saw neither the group label nor any retrieval
+outcome. Judging failures alone would have been uninterpretable: translation noise
+exists everywhere, so only an *elevated* rate implicates translation.
+
+Scripts: `scripts/analysis/llm_judge_failures.py`, `analyze_judge_verdicts.py`.
+Raw verdicts: `outputs/analysis/judge/verdicts.jsonl`.
+
+### The headline conclusion survives
+
+| Measure | Failures | Controls | Difference |
+|---|---:|---:|---|
+| **Any translation fault** | 53.5% | 54.6% | **−1.1 pts (p=0.70)** |
+| Query translation not faithful | 24.0% | 24.5% | −0.6 (p=0.82) |
+| Document translation not faithful | 40.3% | 42.4% | −2.1 (p=0.45) |
+
+Overall translation quality is **identical** in the two groups. The semantic judge
+confirms what the mechanical signals found: most Hebrew failures are not caused by bad
+translation. Per dataset, the fault rate difference is non-significant everywhere
+(arguana −0.9, fiqa −4.4, nfcorpus −4.7, scidocs −0.6, scifact +9.8; all p>0.35).
+
+### But it found one real, specific defect the mechanical checks missed
+
+| Measure | Failures | Controls | Difference |
+|---|---:|---:|---|
+| **Judge-rated HIGH retrieval risk** | **11.3%** | **5.6%** | **+5.8 pts, RR 2.04, p=2.4e-4** |
+| Key term lost | 9.3% | 5.7% | +3.5 (p=0.018) |
+
+Failures are **twice as likely** to carry a translation issue the judge considers
+likely to break retrieval, even though overall faithfulness is unchanged. This
+survives Bonferroni correction across the ~10 metrics tested (threshold 0.005); the
+weaker `key_term_lost` signal (p=0.018) does not.
+
+The excess is **~5.8 pts ≈ 36 of 626 judged failures**, i.e. roughly **6% of
+Hebrew-only failures**, or ~2% of all Hebrew failures. Concentrated in the technical
+datasets — fiqa +11.9, scifact +9.8, scidocs +7.3, nfcorpus +7.0 — and **entirely
+absent from arguana (+0.0)**, which is prose rather than terminology.
+
+### The mechanism: queries and documents were translated independently
+
+Reading the judge's notes on the high-risk cases, one cause dominates. It is not
+mistranslation — it is the *same English term rendered differently* in the query and in
+the document, which destroys the lexical overlap retrieval depends on:
+
+| English term | In the query | In the document |
+|---|---|---|
+| ECMO | `אקמו` (transliterated) | `ECMO` (left in English) |
+| short (sale) | `שורט` (loanword) | `מכירה בחסר` (formal term) |
+| margin account | `חשבון מרווח` (literal) | `חשבון ביטחונות` (financial term) |
+| evolvability | `יכולת התפתחות` | `יכולת אבולוציונית` |
+| sketch | `שרבוט` (scribble) | `שרטוט` (drafting) |
+| debit / credit | `חיוב` / `זיכוי` (banking) | `חובה` / `זכות` (accounting) |
+| New START | `ניו סטארט` (transliterated) | `New START` (left in English) |
+
+Each rendering is defensible in isolation, so no faithfulness check flags it — which is
+exactly why both the mechanical signals and the per-text quality ratings missed it.
+Mentioned in 18.7% of failure notes vs 13.4% of control notes (+5.3 pts, p=0.010), and
+in 33 of the 71 high-risk failures.
+
+**Root cause:** queries and documents were translated in **separate passes at
+temperature 0.7**, with no shared glossary and no context. Nothing tied the two
+renderings of a term together. This is the same mechanism found earlier in arguana,
+where the identical English argument produced different Hebrew as a query and as a
+document (only 125 of 954 duplicated pairs were byte-identical).
+
+### An expected finding that at first looks like a problem
+
+`pair_relevance` is judged from the **English** text, so it should not differ between
+groups — yet it does: 37.9% of failures have a loose or unrelated answer key vs 29.1%
+of controls (p=1.1e-3). This is not a leak. A marginal query–document pair is a fragile
+match: it clears the top-10 bar in the model's stronger language and falls below it in
+the weaker one. Fragile items flipping first in Hebrew is exactly the signature of a
+model-capability gap, and it independently corroborates the main conclusion. It also
+means **a substantial share of the "failures" are answer-key noise rather than failures
+at all.**
+
+### Revised bottom line
+
+| Cause | Share of Hebrew failures |
+|---|---|
+| Fails in English too — hard query or noisy qrels | **63%** |
+| Model weaker in Hebrew (semantics fine, no defect found) | **~31%** |
+| **Translation defect — terminology drift between query and document** | **~2%** |
+
+**The recommendation does not change: invest in the encoder, not re-translation.** A
+full re-translation would address ~2% of failures.
+
+**But one cheap, targeted fix is now justified** for the remaining 10 datasets — and it
+is a pipeline change, not a quality change:
+
+1. **Translate each unique source string once and cache by text hash.** Queries and
+   documents share terminology and often whole strings; today the same English produces
+   different Hebrew in each pass. This also fixes the arguana near-duplicate problem and
+   *reduces* cost.
+2. **Lower the temperature** from 0.7 for translation. There is no benefit to sampling
+   diversity here, and it is what makes the two passes diverge.
+3. **Pin a glossary** of domain terms and acronyms per dataset, especially for fiqa,
+   scidocs and scifact where the effect concentrates. Prefer keeping established English
+   acronyms (ECMO) over transliterating them.
+
+Expected gain is small in absolute terms (~2% of failures), but items 1 and 2 cost
+nothing and reduce spend, so they are worth applying before the msmarco run.
