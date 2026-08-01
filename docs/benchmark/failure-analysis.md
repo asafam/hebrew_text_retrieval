@@ -12,6 +12,11 @@ almost nothing; a stronger Hebrew encoder would.
 > temperature change that **costs nothing and reduces spend** — worth applying before the
 > remaining 10 datasets. The main recommendation is unchanged.
 
+> **Looking for the argument rather than the method?** See
+> [why-not-translation.md](why-not-translation.md), which assembles the case and the
+> resulting recommendation. This document is the underlying method, statistics and
+> per-dataset detail.
+
 Date: 2026-07-30 · Model tested: `intfloat/multilingual-e5-base` · 3,672 queries across the 5 translated datasets
 
 ---
