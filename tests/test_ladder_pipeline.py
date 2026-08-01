@@ -1,18 +1,21 @@
-"""
-Tests for the fixed-shard ladder translation pipeline.
+"""Tests for the fixed-shard ladder translation pipeline.
 
-All LLM calls (translation + QA judge) are mocked so the tests run
-locally without any API keys or internet access.
+All network calls are mocked, so these run locally with no API keys or GCP access.
+
+The pipeline translates each shard through Vertex batch in three stages —
+submit → poll → collect. The fakes below replace those three functions while
+preserving their contracts, so everything downstream (repair, accumulate, QA
+gating, progress persistence, resume) runs for real.
 
 Scenarios covered:
-  1. Happy path  — all shards pass QA → dataset marked ladder_all_done
-  2. QA failure  — shard fails threshold → ladder_stopped, no further shards
-  3. Resume      — progress.json survives a simulated kill; re-running picks up
-                   from ladder_current_stage (completed shards are not re-run)
-  4. Kill guard  — starting without --resume when a run exists exits with an error
-  5. Manifest missing — dataset is skipped gracefully
-  6. qa_scores.csv  — rows are appended after every shard with correct columns
-  7. Plots          — render_plots is called after every shard; non-fatal on error
+  1. Happy path     — all shards pass QA → dataset marked ladder_all_done
+  2. QA failure     — a shard fails the gate → ladder_stopped, later shards never submitted
+  3. Resume         — completed shards are not re-submitted on a second run
+  4. Kill guard     — starting without --resume when a run exists exits with an error
+  5. Missing manifest — dataset skipped without crashing
+  6. qa_scores.csv  — one row per shard with the expected columns
+  7. Dataset filter — only the requested dataset runs
+  8. Dedup cache    — a fully-cached shard skips batch submission entirely
 """
 
 import json
@@ -20,586 +23,441 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-# Make sure src/ is on the path so imports resolve without installing the package
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from translation.api.run_beir_ladder_pipeline import (
     _append_to_accumulated,
-    _empty_ladder_entry,
     _find_existing_run_dir,
     _load_or_init_progress,
     run_ladder,
 )
-from translation.api.run_beir_translation_pipeline import save_progress
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-DATASET_NAME  = "BeIR/nfcorpus"
-DATASET_SLUG  = "BeIR_nfcorpus"
-SHARD_ROWS    = 5   # small so tests are fast
-NUM_SHARDS    = 3   # three shards total
+DATASET_NAME = "BeIR/nfcorpus"
+DATASET_SLUG = "BeIR_nfcorpus"
+OTHER_NAME   = "BeIR/scifact"
+OTHER_SLUG   = "BeIR_scifact"
+SHARD_ROWS   = 5
+NUM_SHARDS   = 3
+BUCKET       = "fake-bucket"
+RUN_ID       = "test_ladder_run"
+
+MOD = "translation.api.run_beir_ladder_pipeline"
 
 MINIMAL_CONFIG = {
-    "run_id": "test_ladder_run",
+    "run_id": RUN_ID,
     "queries": {
         "model": "fake-model",
         "temperature": 0.0,
-        "prompt": {
-            "file": "fake/prompts.yaml",
-            "type": "query",
-            "text_col": "text",
-            "english_key": "Text",
-            "hebrew_key": "Hebrew Query",
-        },
+        "prompt": {"file": "fake/prompts.yaml", "type": "query", "text_col": "text",
+                   "english_key": "Text", "hebrew_key": "Hebrew"},
     },
     "documents": {
         "model": "fake-model",
         "temperature": 0.0,
-        "prompt": {
-            "file": "fake/prompts.yaml",
-            "type": "document",
-            "text_col": "segment_text",
-            "english_key": "Text",
-            "hebrew_key": "Hebrew Document",
-        },
+        "prompt": {"file": "fake/prompts.yaml", "type": "document", "text_col": "segment_text",
+                   "english_key": "Text", "hebrew_key": "Hebrew"},
     },
-    "datasets": {
-        "names": [DATASET_NAME],
-        "default_shard_size": SHARD_ROWS,
-        "shard_sizes": {DATASET_SLUG: SHARD_ROWS},
-    },
-    "execution": {
-        "num_workers": 1,
-        "sleep_time": 0,
-        "force_translation": True,
-    },
-    "qa": {
-        "enabled": True,
-        "min_score": 3.5,
-        "sample_size": 3,
-        "sample_seed": 42,
-        "judge_model": "fake-judge",
-        "judge_location": None,
-        "sleep_time": 0,
-        "baseline_csv": "",   # no baseline — uses absolute min_score
-    },
-    "paths": {
-        "ladder_candidates_base": "",   # overridden per test
-        "ladder_runs_base": "",         # overridden per test
-    },
+    "datasets": {"names": [DATASET_NAME], "default_shard_size": SHARD_ROWS,
+                 "shard_sizes": {DATASET_SLUG: SHARD_ROWS}},
+    "execution": {"num_workers": 1, "sleep_time": 0, "force_translation": True},
+    "ladder": {"cadence": "static", "cadence_start": 1},
+    "batch": {"poll_interval_seconds": 0, "max_wait_hours": 1},
+    # Repair needs a live client; the fake translations have no failures anyway.
+    "repair": {"enabled": False},
+    "dedup": {"enabled": False},
+    "qa": {"enabled": True, "min_score": 3.5, "sample_size": 3, "sample_seed": 42,
+           "judge_model": "fake-judge", "judge_location": None, "sleep_time": 0,
+           "baseline_csv": ""},
+    "gcs": {"project": "fake-project", "bucket": BUCKET, "location": "global"},
 }
 
 
-def _make_shard_csv(path: str, n_rows: int = SHARD_ROWS, text_col: str = "text") -> None:
-    """Write a minimal candidate shard CSV (no translations yet)."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    pd.DataFrame({
-        "_id": [str(i) for i in range(n_rows)],
-        text_col: [f"sentence {i}" for i in range(n_rows)],
-        "segment_text": [f"segment {i}" for i in range(n_rows)],
-        "dataset_name": DATASET_NAME,
-        "tokenizer": "fake-tokenizer",
-    }).to_csv(path, index=False)
-
-
-def _make_manifest(slug_dir: str, num_shards: int = NUM_SHARDS) -> dict:
-    """Write a shard_manifest.json and return its dict."""
-    q_shards, d_shards = [], []
-    for i in range(num_shards):
-        qf = f"queries_shard_{i:03d}.csv"
-        df = f"documents_shard_{i:03d}.csv"
-        _make_shard_csv(os.path.join(slug_dir, qf))
-        _make_shard_csv(os.path.join(slug_dir, df), text_col="segment_text")
-        q_shards.append({"index": i, "file": qf, "rows": SHARD_ROWS})
-        d_shards.append({"index": i, "file": df, "rows": SHARD_ROWS})
-
-    manifest = {"shard_size": SHARD_ROWS, "types": {"queries": q_shards, "documents": d_shards}}
-    with open(os.path.join(slug_dir, "shard_manifest.json"), "w") as f:
-        json.dump(manifest, f)
-    return manifest
-
-
-def _make_translated_csv(path: str, n_rows: int = SHARD_ROWS) -> None:
-    """Write a fake translated shard CSV (has 'translation' column)."""
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    pd.DataFrame({
-        "_id": [str(i) for i in range(n_rows)],
-        "text": [f"sentence {i}" for i in range(n_rows)],
-        "segment_text": [f"segment {i}" for i in range(n_rows)],
-        "translation": [f"תרגום {i}" for i in range(n_rows)],
-    }).to_csv(path, index=False)
-
-
-def _passing_qa(*args, **kwargs):
-    return {"passed": True, "score_mean": 4.5, "score_std": 0.3, "n": 3}
-
-
-def _failing_qa(*args, **kwargs):
-    return {"passed": False, "score_mean": 2.0, "score_std": 0.5, "n": 3}
-
-
-def _fake_translate_shard(shard_csv, output_dir, type_cfg, exec_cfg):
-    """Fake translation: writes a translated CSV and returns its path."""
-    basename = os.path.basename(shard_csv).replace(".csv", "_translated.csv")
-    out_path = os.path.join(output_dir, basename)
-    n = len(pd.read_csv(shard_csv))
-    _make_translated_csv(out_path, n_rows=n)
-    return out_path
-
-
-def _config_with_dirs(candidates_base: str, runs_base: str) -> dict:
+def _config(**overrides):
     import copy
     cfg = copy.deepcopy(MINIMAL_CONFIG)
-    cfg["paths"]["ladder_candidates_base"] = candidates_base
-    cfg["paths"]["ladder_runs_base"] = runs_base
+    for k, v in overrides.items():
+        if isinstance(v, dict) and isinstance(cfg.get(k), dict):
+            cfg[k].update(v)
+        else:
+            cfg[k] = v
     return cfg
 
 
-# ── Helpers to load outputs ───────────────────────────────────────────────────
+def _make_shard_csv(path, n_rows=SHARD_ROWS, start=0, translated=False):
+    """A candidate shard. `start` offsets the ids so shards don't collide —
+    without that, duplicate-row checks can't tell a real double-append from the
+    fixture reusing ids."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ids = range(start, start + n_rows)
+    d = {"_id": [str(i) for i in ids],
+         "text": [f"sentence {i}" for i in ids],
+         "segment_text": [f"segment {i}" for i in ids],
+         "dataset_name": DATASET_NAME}
+    if translated:
+        d["translation"] = [f"תרגום מלא מספר {i}" for i in ids]
+    pd.DataFrame(d).to_csv(path, index=False, encoding="utf-8")
 
-def _load_progress(run_dir: str) -> dict:
-    with open(os.path.join(run_dir, "progress.json")) as f:
-        return json.load(f)
+
+def _make_manifest(candidates_base, slug, num_shards=NUM_SHARDS):
+    """Write shard CSVs + manifest under <candidates_base>/<slug>/."""
+    slug_dir = os.path.join(candidates_base, slug)
+    q, d = [], []
+    for i in range(num_shards):
+        qf, df = f"queries_shard_{i:03d}.csv", f"documents_shard_{i:03d}.csv"
+        _make_shard_csv(os.path.join(slug_dir, qf), start=i * SHARD_ROWS)
+        _make_shard_csv(os.path.join(slug_dir, df), start=i * SHARD_ROWS)
+        q.append({"index": i, "file": qf, "rows": SHARD_ROWS})
+        d.append({"index": i, "file": df, "rows": SHARD_ROWS})
+    with open(os.path.join(slug_dir, "shard_manifest.json"), "w") as f:
+        json.dump({"shard_size": SHARD_ROWS, "types": {"queries": q, "documents": d}}, f)
 
 
-def _load_qa_scores(run_dir: str) -> pd.DataFrame:
-    p = os.path.join(run_dir, "qa_scores.csv")
-    return pd.read_csv(p) if os.path.exists(p) else pd.DataFrame()
+# ── Fake batch flow: submit → poll → collect ──────────────────────────────────
+# Mirrors the real contracts. _submit_shard_job writes what the batch job would
+# have produced; poll is a no-op; collect reports the paths back with token counts.
+
+SUBMITTED = []   # (slug, shard_idx, text_type) for each job actually submitted
+
+
+def _fake_submit(shard_csv, output_path, text_type, type_cfg, run_id, slug,
+                 shard_idx, gemini_client, gcs_client, bucket):
+    """Stand in for the batch job: copy the shard through, filling `translation`.
+
+    Reads the real source rather than regenerating, so ids and row order survive
+    exactly as they would in production."""
+    SUBMITTED.append((slug, shard_idx, text_type))
+    df = pd.read_csv(shard_csv)
+    col = type_cfg["prompt"]["text_col"]
+    df["translation"] = [f"תרגום מלא של {v}" for v in df[col]]
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    df.to_csv(output_path, index=False, encoding="utf-8")
+    return {"job_name": f"fake-job-{slug}-{shard_idx}-{text_type}",
+            "shard_csv": shard_csv, "output_path": output_path,
+            "gcs_output_prefix": f"gs://{bucket}/{slug}/{shard_idx}/{text_type}/output"}
+
+
+def _fake_poll(jobs, gemini_client, poll_interval, max_wait_seconds, **kwargs):
+    return None
+
+
+def _fake_collect(jobs, gcs_client, bucket, config=None):
+    return {k: {"output_path": v["output_path"], "input_tokens": 100, "output_tokens": 100}
+            for k, v in jobs.items()}
+
+
+def _passing_qa(*a, **k):
+    return {"passed": True, "score_mean": 4.5, "score_std": 0.3, "n": 3}
+
+
+def _failing_qa(*a, **k):
+    return {"passed": False, "score_mean": 2.0, "score_std": 0.5, "n": 3}
+
+
+class _Harness:
+    """Temp run dir with candidates in place, plus the patched batch flow."""
+
+    def __init__(self, qa=_passing_qa, num_shards=NUM_SHARDS, slugs=(DATASET_SLUG,), **cfg):
+        self.qa, self.num_shards, self.datasets, self.cfg_over = qa, num_shards, slugs, cfg
+
+    def __enter__(self):
+        SUBMITTED.clear()
+        self._tmp = tempfile.TemporaryDirectory()
+        tmp = self._tmp.name
+        self.config = _config(**self.cfg_over)
+        self.run_dir = os.path.join(tmp, "runs", f"20990101_000000_{RUN_ID}")
+        candidates = os.path.join(self.run_dir, "candidates")
+        for slug in self.datasets:
+            _make_manifest(candidates, slug, self.num_shards)
+        self.progress = _load_or_init_progress(self.run_dir, self.config, RUN_ID)
+        self._patches = [
+            patch(f"{MOD}._submit_shard_job", side_effect=_fake_submit),
+            patch(f"{MOD}._poll_until_all_complete", side_effect=_fake_poll),
+            patch(f"{MOD}._collect_shard_results", side_effect=_fake_collect),
+            patch(f"{MOD}._ladder_qa", side_effect=self.qa),
+            patch(f"{MOD}.render_plots"),
+        ]
+        for p in self._patches:
+            p.start()
+        return self
+
+    def run(self, dataset_filter=None, max_cadence_steps=0):
+        run_ladder(self.config, self.run_dir, self.progress, dataset_filter,
+                   MagicMock(), MagicMock(), BUCKET,
+                   max_cadence_steps=max_cadence_steps)
+
+    def state(self, slug=DATASET_SLUG):
+        with open(os.path.join(self.run_dir, "progress.json")) as f:
+            return json.load(f)["datasets"][slug]
+
+    def qa_scores(self):
+        p = os.path.join(self.run_dir, "qa_scores.csv")
+        return pd.read_csv(p) if os.path.exists(p) else pd.DataFrame()
+
+    def accumulated(self, kind="queries", slug=DATASET_SLUG):
+        p = os.path.join(self.run_dir, "corpus", slug, f"{kind}_accumulated.csv")
+        return pd.read_csv(p) if os.path.exists(p) else pd.DataFrame()
+
+    def __exit__(self, *a):
+        for p in self._patches:
+            p.stop()
+        self._tmp.cleanup()
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 class TestHappyPath:
-    """All shards pass QA → dataset is marked ladder_all_done."""
-
     def test_all_shards_complete(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            slug_dir        = os.path.join(candidates_base, DATASET_SLUG)
-            _make_manifest(slug_dir, num_shards=NUM_SHARDS)
+        with _Harness() as h:
+            h.run()
+            s = h.state()
+            assert s["ladder_all_done"] is True
+            assert s["ladder_stopped"] is False
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
+    def test_every_shard_submitted_once(self):
+        with _Harness() as h:
+            h.run()
+            assert len(SUBMITTED) == NUM_SHARDS * 2          # queries + documents
+            assert len(set(SUBMITTED)) == len(SUBMITTED)     # no duplicates
 
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            state = _load_progress(run_dir)["datasets"][DATASET_SLUG]
-            assert state["ladder_all_done"] is True
-            assert state["ladder_stopped"] is False
-            assert state["ladder_current_stage"] == NUM_SHARDS
-
-    def test_all_shards_written_to_qa_scores(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=NUM_SHARDS)
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            df = _load_qa_scores(run_dir)
-            assert len(df) == NUM_SHARDS        # one row per shard
+    def test_qa_row_per_shard(self):
+        with _Harness() as h:
+            h.run()
+            df = h.qa_scores()
+            assert len(df) == NUM_SHARDS
             assert list(df["stage"]) == list(range(NUM_SHARDS))
             assert df["overall_passed"].all()
 
-    def test_accumulated_csv_grows_per_shard(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=2)
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            accumulated = pd.read_csv(
-                os.path.join(run_dir, DATASET_SLUG, "queries_accumulated.csv")
-            )
-            assert len(accumulated) == 2 * SHARD_ROWS
+    def test_accumulated_grows_per_shard(self):
+        with _Harness(num_shards=2) as h:
+            h.run()
+            assert len(h.accumulated("queries")) == 2 * SHARD_ROWS
+            assert len(h.accumulated("documents")) == 2 * SHARD_ROWS
 
 
 class TestQaGating:
-    """Ladder stops when QA fails; subsequent shards are never translated."""
-
     def test_stops_at_first_failing_shard(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=3)
+        with _Harness(qa=_failing_qa) as h:
+            h.run()
+            s = h.state()
+            assert s["ladder_stopped"] is True
+            assert s["ladder_all_done"] is False
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            # Shard 0 passes, shard 1 fails
-            qa_results = [_passing_qa(), _passing_qa(), _failing_qa(), _failing_qa()]
-            translate_calls = []
-
-            def _counting_translate(shard_csv, output_dir, type_cfg, exec_cfg):
-                translate_calls.append(shard_csv)
-                return _fake_translate_shard(shard_csv, output_dir, type_cfg, exec_cfg)
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_counting_translate), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=qa_results), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            state = _load_progress(run_dir)["datasets"][DATASET_SLUG]
-            assert state["ladder_stopped"] is True
-            assert state["ladder_all_done"] is False
-            # current_stage is set to idx+1 before the gate fires, so after
-            # shard 1 (idx=1) fails the stage is 2 and shard 2 is never reached.
-            assert state["ladder_current_stage"] == 2
-
-            # Shard 2 (index 2) must never be translated
-            translated_shards = [os.path.basename(p) for p in translate_calls]
-            assert not any("shard_002" in s for s in translated_shards)
+    def test_later_shards_never_submitted(self):
+        with _Harness(qa=_failing_qa) as h:
+            h.run()
+            # only shard 0 should ever have been sent to the batch API
+            assert {idx for _, idx, _ in SUBMITTED} == {0}
 
     def test_stop_reason_recorded(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=1)
+        with _Harness(qa=_failing_qa) as h:
+            h.run()
+            assert h.state().get("ladder_stop_reason")
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_failing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            state = _load_progress(run_dir)["datasets"][DATASET_SLUG]
-            assert state["ladder_stop_reason"] is not None
-            assert "QA failed" in state["ladder_stop_reason"]
-
-    def test_qa_score_logged_on_fail(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=1)
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_failing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            df = _load_qa_scores(run_dir)
+    def test_failing_score_logged(self):
+        with _Harness(qa=_failing_qa) as h:
+            h.run()
+            df = h.qa_scores()
             assert len(df) == 1
-            assert df.iloc[0]["overall_passed"] == False
-            assert df.iloc[0]["q_score_mean"] == pytest.approx(2.0)
+            assert not df["overall_passed"].iloc[0]
 
 
 class TestResume:
-    """After a simulated kill, re-running with existing progress.json resumes correctly."""
+    def test_partial_run_resumes_without_resubmitting(self):
+        """The real resume path: a dataset that stopped part-way must re-submit
+        only the shards it never finished.
 
-    def test_completed_shards_skipped_on_resume(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=3)
+        Note this is NOT the same as re-running a finished dataset — that exits at
+        the dataset level via ladder_all_done and never reaches the shard loop.
+        Here the dataset is deliberately left incomplete.
+        """
+        with _Harness(num_shards=3) as h:
+            h.run(max_cadence_steps=1)          # stop after the first cadence step
+            done = sorted(SUBMITTED)
+            assert {idx for _, idx, _ in done} == {0}, "only shard 0 should have run"
+            assert not h.state().get("ladder_all_done")
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
+            SUBMITTED.clear()
+            h.run()                              # resume
+            resumed = {idx for _, idx, _ in SUBMITTED}
+            assert 0 not in resumed, "shard 0 was already appended — must not re-submit"
+            assert resumed == {1, 2}
+            assert h.state()["ladder_all_done"] is True
 
-            # Simulate: shard 0 was already done
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-            progress["datasets"][DATASET_SLUG]["ladder_current_stage"] = 1
-            progress["datasets"][DATASET_SLUG]["ladder_stage_scores"]["0"] = {
-                "q_score_mean": 4.5, "q_score_std": 0.2,
-                "d_score_mean": 4.3, "d_score_std": 0.3,
-                "passed": True, "cumulative_q_rows": SHARD_ROWS,
-                "cumulative_d_rows": SHARD_ROWS, "timestamp": "2099-01-01T00:00:00",
-            }
-            # Pre-populate accumulated CSV so appending works from shard 1 onward
-            acc_q = os.path.join(run_dir, DATASET_SLUG, "queries_accumulated.csv")
-            acc_d = os.path.join(run_dir, DATASET_SLUG, "documents_accumulated.csv")
-            os.makedirs(os.path.dirname(acc_q), exist_ok=True)
-            _make_translated_csv(acc_q)
-            _make_translated_csv(acc_d)
-            save_progress(run_dir, progress)
+            # The data check, which is what a broken resume actually corrupts:
+            # re-processing shard 0 would append its rows a second time.
+            for kind in ("queries", "documents"):
+                acc = h.accumulated(kind)
+                assert len(acc) == 3 * SHARD_ROWS, (
+                    f"{kind}: expected {3*SHARD_ROWS} rows, got {len(acc)} — "
+                    "a shard was appended twice")
+                assert acc["_id"].duplicated().sum() == 0, f"{kind}: duplicate ids"
 
-            translate_calls = []
+    def test_crash_between_submit_and_append_does_not_duplicate(self):
+        """The case the per-shard guards exist for.
 
-            def _counting_translate(shard_csv, output_dir, type_cfg, exec_cfg):
-                translate_calls.append(os.path.basename(shard_csv))
-                return _fake_translate_shard(shard_csv, output_dir, type_cfg, exec_cfg)
+        A normal resume never revisits a finished shard — the cadence cursor has
+        moved past it. The guards matter when a shard was submitted and appended
+        but the process died before the cursor advanced, so the ladder comes back
+        to a shard whose rows are already in the accumulated file.
+        """
+        with _Harness(num_shards=2) as h:
+            h.run(max_cadence_steps=1)
+            before = {k: len(h.accumulated(k)) for k in ("queries", "documents")}
+            assert before["queries"] == SHARD_ROWS
 
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_counting_translate), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
+            # Rewind the cursor as a crash would, leaving shard 0's per-shard
+            # records intact. The ladder must re-examine shard 0 and not re-append.
+            entry = h.progress["datasets"][DATASET_SLUG]
+            entry["ladder_current_stage"] = 0
+            SUBMITTED.clear()
+            h.run()
 
-            # Only shards 1 and 2 should have been translated
-            assert not any("shard_000" in s for s in translate_calls), \
-                "Shard 0 was already done and must not be re-translated"
-            assert any("shard_001" in s for s in translate_calls)
-            assert any("shard_002" in s for s in translate_calls)
+            for kind in ("queries", "documents"):
+                acc = h.accumulated(kind)
+                assert len(acc) == 2 * SHARD_ROWS, (
+                    f"{kind}: {len(acc)} rows — shard 0 was appended twice")
+                assert acc["_id"].duplicated().sum() == 0, f"{kind}: duplicate ids"
 
-    def test_already_done_dataset_skipped(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG))
+    def test_finished_dataset_short_circuits(self):
+        with _Harness() as h:
+            h.run()
+            assert len(SUBMITTED) == NUM_SHARDS * 2
+            SUBMITTED.clear()
+            h.run()
+            assert SUBMITTED == []
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-            progress["datasets"][DATASET_SLUG]["ladder_all_done"] = True
-            save_progress(run_dir, progress)
-
-            translate_spy = MagicMock()
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=translate_spy), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            translate_spy.assert_not_called()
+    def test_done_dataset_skipped(self):
+        with _Harness() as h:
+            h.progress["datasets"][DATASET_SLUG]["ladder_all_done"] = True
+            h.run()
+            assert SUBMITTED == []
 
     def test_stopped_dataset_skipped(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG))
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-            progress["datasets"][DATASET_SLUG]["ladder_stopped"] = True
-            progress["datasets"][DATASET_SLUG]["ladder_stop_reason"] = "pre-set in test"
-            save_progress(run_dir, progress)
-
-            translate_spy = MagicMock()
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=translate_spy), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            translate_spy.assert_not_called()
-
-
-class TestKillGuard:
-    """Starting without --resume when a run exists must exit with an error."""
-
-    def test_exits_when_run_exists(self, capsys):
-        with tempfile.TemporaryDirectory() as tmp:
-            runs_base = os.path.join(tmp, "runs")
-            existing  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            os.makedirs(existing)
-            with open(os.path.join(existing, "progress.json"), "w") as f:
-                json.dump({"run_id": "test_ladder_run"}, f)
-
-            found = _find_existing_run_dir(runs_base, "test_ladder_run")
-            assert found == existing
-
-    def test_no_existing_run_returns_none(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            runs_base = os.path.join(tmp, "runs")
-            found = _find_existing_run_dir(runs_base, "test_ladder_run")
-            assert found is None
-
-    def test_resume_picks_latest_run(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            runs_base = os.path.join(tmp, "runs")
-            for ts in ["20990101_000000", "20990102_000000", "20990103_000000"]:
-                d = os.path.join(runs_base, f"{ts}_test_ladder_run")
-                os.makedirs(d)
-                with open(os.path.join(d, "progress.json"), "w") as f:
-                    json.dump({"run_id": "test_ladder_run"}, f)
-
-            found = _find_existing_run_dir(runs_base, "test_ladder_run")
-            assert "20990103" in found   # latest timestamp wins
-
-
-class TestMissingManifest:
-    """Dataset with no shard_manifest.json is skipped gracefully."""
-
-    def test_skipped_without_crash(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            # Deliberately no manifest
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            translate_spy = MagicMock()
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=translate_spy):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            translate_spy.assert_not_called()
-            # Progress should still be valid JSON
-            state = _load_progress(run_dir)["datasets"][DATASET_SLUG]
-            assert state["ladder_all_done"] is False
-            assert state["ladder_stopped"] is False
-
-
-class TestProgressPersistence:
-    """progress.json is written atomically after every shard."""
-
-    def test_progress_updated_after_each_shard(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=2)
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            stages_seen = []
-
-            def _qa_and_capture(*args, **kwargs):
-                stages_seen.append(
-                    _load_progress(run_dir)["datasets"][DATASET_SLUG]["ladder_current_stage"]
-                )
-                return _passing_qa()
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_qa_and_capture), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            # _ladder_qa is called twice per shard (queries + documents).
-            # current_stage is saved to disk *after* both QA calls for that shard,
-            # so the captured values reflect the stage at the start of each shard:
-            #   shard 0 (idx=0): stage still 0 in file → two 0s captured
-            #   shard 1 (idx=1): stage updated to 1 in file → two 1s captured
-            assert 0 in stages_seen
-            assert 1 in stages_seen
-            assert stages_seen == sorted(stages_seen)  # monotonically non-decreasing
-
-    def test_progress_json_is_valid_after_run(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=1)
-
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            config   = _config_with_dirs(candidates_base, runs_base)
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
-
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_fake_translate_shard), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=None)
-
-            # Must be valid JSON and have the expected keys
-            data = _load_progress(run_dir)
-            assert "run_id" in data
-            assert "datasets" in data
-            assert DATASET_SLUG in data["datasets"]
-
-
-class TestAppendToAccumulated:
-    """_append_to_accumulated grows the CSV correctly across multiple calls."""
-
-    def test_first_call_creates_file_with_header(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            shard_out = os.path.join(tmp, "shard_translated.csv")
-            accumulated = os.path.join(tmp, "accumulated.csv")
-            _make_translated_csv(shard_out, n_rows=5)
-
-            count = _append_to_accumulated(shard_out, accumulated)
-            assert count == 5
-            df = pd.read_csv(accumulated)
-            assert len(df) == 5
-            assert "translation" in df.columns
-
-    def test_subsequent_calls_append_without_duplicate_header(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            accumulated = os.path.join(tmp, "accumulated.csv")
-            for i in range(3):
-                shard = os.path.join(tmp, f"shard_{i}.csv")
-                _make_translated_csv(shard, n_rows=4)
-                _append_to_accumulated(shard, accumulated)
-
-            df = pd.read_csv(accumulated)
-            assert len(df) == 12            # 3 shards × 4 rows, no header duplication
-            assert "translation" in df.columns
+        with _Harness() as h:
+            h.progress["datasets"][DATASET_SLUG]["ladder_stopped"] = True
+            h.run()
+            assert SUBMITTED == []
 
 
 class TestDatasetFilter:
-    """--dataset filter runs only the named dataset."""
+    def test_filter_runs_only_target(self):
+        with _Harness(slugs=(DATASET_SLUG, OTHER_SLUG),
+                      datasets={"names": [DATASET_NAME, OTHER_NAME],
+                                "default_shard_size": SHARD_ROWS,
+                                "shard_sizes": {DATASET_SLUG: SHARD_ROWS,
+                                                OTHER_SLUG: SHARD_ROWS}}) as h:
+            h.run(dataset_filter=OTHER_SLUG)
+            assert {slug for slug, _, _ in SUBMITTED} == {OTHER_SLUG}
+            assert h.state(OTHER_SLUG)["ladder_all_done"] is True
+            # the non-target dataset must be untouched
+            assert not h.state(DATASET_SLUG).get("ladder_all_done")
 
-    def test_filter_by_slug_runs_only_target(self):
-        second_dataset = "BeIR/scifact"
-        second_slug    = "BeIR_scifact"
 
+class TestMissingManifest:
+    def test_skipped_without_crash(self):
+        with _Harness() as h:
+            os.remove(os.path.join(h.run_dir, "candidates", DATASET_SLUG,
+                                   "shard_manifest.json"))
+            h.run()          # must not raise
+            assert SUBMITTED == []
+
+
+class TestProgressPersistence:
+    def test_progress_json_valid_after_run(self):
+        with _Harness() as h:
+            h.run()
+            with open(os.path.join(h.run_dir, "progress.json")) as f:
+                p = json.load(f)          # must parse
+            assert p["run_id"] == RUN_ID
+            assert DATASET_SLUG in p["datasets"]
+
+    def test_token_counts_recorded(self):
+        with _Harness(num_shards=1) as h:
+            h.run()
+            rec = h.state()["shards"]["0"]["queries"]
+            assert rec["appended"] is True
+            assert rec["input_tokens"] == 100
+
+
+class TestDedupCache:
+    """With dedup on, a shard already in the cache must skip batch submission."""
+
+    def test_fully_cached_shard_skips_submission(self):
+        from translation.api.ladder_dedup import SqliteTranslationCache
+        with _Harness(num_shards=1, dedup={"enabled": True}) as h:
+            # Pre-populate the cache with every source string in shard 0.
+            cache_path = os.path.join(h.run_dir, "translation_cache.sqlite")
+            os.makedirs(h.run_dir, exist_ok=True)
+            cache = SqliteTranslationCache(cache_path)
+            for kind, col in (("queries", "text"), ("documents", "segment_text")):
+                src = os.path.join(h.run_dir, "candidates", DATASET_SLUG,
+                                   f"{kind}_shard_000.csv")
+                for t in pd.read_csv(src)[col]:
+                    cache.store("fake-model", "fake/prompts.yaml", str(t), "", f"HE::{t}")
+            cache.close()
+
+            h.run()
+
+            assert SUBMITTED == [], "a fully cached shard must not be submitted"
+            assert h.state()["ladder_all_done"] is True
+            acc = h.accumulated("queries")
+            assert len(acc) == SHARD_ROWS
+            assert all(str(v).startswith("HE::") for v in acc["translation"])
+
+
+class TestAppendToAccumulated:
+    def test_first_call_creates_file_with_header(self):
         with tempfile.TemporaryDirectory() as tmp:
-            candidates_base = os.path.join(tmp, "candidates")
-            runs_base       = os.path.join(tmp, "runs")
-            _make_manifest(os.path.join(candidates_base, DATASET_SLUG), num_shards=1)
-            _make_manifest(os.path.join(candidates_base, second_slug),   num_shards=1)
+            src = os.path.join(tmp, "s.csv"); acc = os.path.join(tmp, "a.csv")
+            _make_shard_csv(src, translated=True)
+            n = _append_to_accumulated(src, acc)
+            assert n == SHARD_ROWS
+            assert len(pd.read_csv(acc)) == SHARD_ROWS
 
-            import copy
-            config = _config_with_dirs(candidates_base, runs_base)
-            config["datasets"]["names"] = [DATASET_NAME, second_dataset]
+    def test_append_without_duplicate_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "s.csv"); acc = os.path.join(tmp, "a.csv")
+            _make_shard_csv(src, translated=True)
+            _append_to_accumulated(src, acc)
+            n = _append_to_accumulated(src, acc)
+            assert n == 2 * SHARD_ROWS
+            df = pd.read_csv(acc)
+            assert len(df) == 2 * SHARD_ROWS
+            assert "_id" not in list(df["_id"].astype(str))   # header not re-written as data
 
-            run_dir  = os.path.join(runs_base, "20990101_000000_test_ladder_run")
-            progress = _load_or_init_progress(run_dir, config, "test_ladder_run")
 
-            translated_slugs = []
+class TestKillGuard:
+    def test_no_existing_run_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            assert _find_existing_run_dir(tmp, RUN_ID) is None
 
-            def _spy_translate(shard_csv, output_dir, type_cfg, exec_cfg):
-                for s in [DATASET_SLUG, second_slug]:
-                    if s in shard_csv:
-                        translated_slugs.append(s)
-                return _fake_translate_shard(shard_csv, output_dir, type_cfg, exec_cfg)
+    def test_finds_existing_run(self):
+        """A run dir only counts once it has a progress.json — a bare directory
+        left behind by a crashed setup must not be mistaken for a resumable run."""
+        with tempfile.TemporaryDirectory() as tmp:
+            d = os.path.join(tmp, f"20990101_000000_{RUN_ID}")
+            os.makedirs(d)
+            assert _find_existing_run_dir(tmp, RUN_ID) is None
+            with open(os.path.join(d, "progress.json"), "w") as f:
+                json.dump({"run_id": RUN_ID, "datasets": {}}, f)
+            assert _find_existing_run_dir(tmp, RUN_ID) == d
 
-            with patch("translation.api.run_beir_ladder_pipeline._translate_shard",
-                       side_effect=_spy_translate), \
-                 patch("translation.api.run_beir_ladder_pipeline._ladder_qa",
-                       side_effect=_passing_qa), \
-                 patch("translation.api.run_beir_ladder_pipeline.render_plots"):
-                run_ladder(config, run_dir, progress, dataset_filter=DATASET_SLUG)
+    def test_picks_latest_of_several_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for stamp in ("20990101_000000", "20990301_000000", "20990201_000000"):
+                d = os.path.join(tmp, f"{stamp}_{RUN_ID}")
+                os.makedirs(d)
+                with open(os.path.join(d, "progress.json"), "w") as f:
+                    json.dump({"run_id": RUN_ID, "datasets": {}}, f)
+            assert _find_existing_run_dir(tmp, RUN_ID).endswith(f"20990301_000000_{RUN_ID}")
 
-            assert all(s == DATASET_SLUG for s in translated_slugs), \
-                f"Expected only {DATASET_SLUG}, got: {set(translated_slugs)}"
+
+if __name__ == "__main__":
+    sys.exit(pytest.main([__file__, "-v"]))
