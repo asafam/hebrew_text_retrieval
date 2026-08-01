@@ -1,0 +1,50 @@
+# HebrewModernBERT — quality-heavy ANNEAL corpus (phase-2 only).
+#
+# The anneal is short + recency-dominant, so it's where the limited curated data gets the
+# most leverage. Built small (~15B) so curated can be ~40% (books/news/wiki/tzenzura at
+# ~4-5 epochs of their ~0.8B unique). Phase-2 trains ~1 epoch over this. No NLI bloat, no
+# short fragments, no tweets — only clean/curated Hebrew.
+#
+# Resulting mix (~15B): curated (books+news+wiki+tzenzura) ~40% | HeC4 clean ~46% | Yifat-long ~13%.
+
+# --- curated / formal (the point of the anneal) ---
+- name: books
+  type: jsonl
+  files: [data/mafat/hebrew/sources/BooksNLI2-Combined-Deduped.forgpt.jsonl]
+  tokens_target: 2_150_000_000         # ~5 epochs of 0.43B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: tzenzura
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllTzenzuraData-Combined-Deduped-DC4.forgpt.jsonl]
+  tokens_target: 2_000_000_000         # ~3 epochs of 0.66B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: wikipedia
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29-2023.forgpt.jsonl]
+  tokens_target: 1_100_000_000         # ~5 epochs of 0.22B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: news
+  type: jsonl
+  files:
+    - data/mafat/hebrew/sources/YisraelHayomData-Combined-Deduped.forgpt.jsonl
+    - data/mafat/hebrew/sources/GeektimeCorpus-Combined-Deduped.forgpt.jsonl
+  tokens_target: 850_000_000           # ~5 epochs of 0.17B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# --- clean web backbone for the anneal (no raw fragments) ---
+- name: hec4_clean
+  type: jsonl
+  files: [data/mafat/hebrew/sources/HeC4DictaCombined-Clean-Deduped.forgpt.jsonl]
+  tokens_target: 7_000_000_000         # ~0.8 epoch of 8.63B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: yifat_long
+  type: jsonl
+  files:
+    - data/mafat/hebrew/sources/YifatToCombine-Deduped.forgpt.jsonl
+    - data/mafat/hebrew/sources/YifatDataRound2-Deduped.forgpt.jsonl
+  tokens_target: 2_000_000_000         # ~0.2 epoch of 9.45B
+  split_ratio: {train: 0.9, validation: 0.1}

@@ -2,14 +2,73 @@
 
 Running ledger of translation progress for the [BeIR](https://github.com/beir-cellar/beir) benchmark → Hebrew. Update this file as datasets move through the pipeline. See `README.md` ("Experiment 4") for the full experiment writeup and `../benchmark/results.md` for downstream retrieval results on the translated data.
 
+> ## ⚠️ The corpus now spans TWO runs — read this before using or extending it
+>
+> | | Run A — **completed** | Run B — **not started** |
+> |---|---|---|
+> | run_id | `..._promptv20260531` | `..._promptv20260801` |
+> | Datasets | nfcorpus, scifact, arguana, scidocs, fiqa | the remaining 10 |
+> | Prompt | split query / document variants | **unified** — one prompt for both |
+> | Temperature | 0.7 | **0.0** |
+> | Translation cache | none (the ladder had no cache wired in) | **enabled**, shared across both passes |
+>
+> **Nothing about Run A changes.** Its 1.7 GB of output stays where it is and
+> remains the corpus behind every result in `../benchmark/results.md`. The eval
+> scripts glob `outputs/translation/runs/*/corpus/*/beir`, so they pick up both
+> runs automatically once Run B produces output.
+>
+> **Why the split** (full evidence in [../benchmark/why-not-translation.md](../benchmark/why-not-translation.md)):
+> under Run A's settings the same English string received different Hebrew
+> depending on whether it was translated as a query or as a document — `ECMO` →
+> `אקמו` in a query but `ECMO` in a document, "unsupervised" → `ללא פיקוח` vs
+> `בלתי מונחה`. That destroys the lexical overlap retrieval depends on. Measured
+> at **38% of source strings diverging at temperature 0 from the prompt wording
+> alone**, before sampling noise is added on top. Run B's settings drive that to 0%.
+>
+> **Consequence to keep in mind:** the 5 completed datasets carry this defect. It
+> accounts for roughly 2% of Hebrew retrieval failures — real but small, and *not*
+> a reason to re-translate them (see the analysis). If Run A is ever redone, do it
+> under Run B's settings.
+
 ## Pipeline
 
 - **Orchestrator:** `src/translation/api/run_beir_ladder_pipeline.py` — resumable "shard ladder": each dataset is split into growing shards (500 rows → 100K rows depending on dataset size), translated via Gemini batch (Vertex AI/GCS), then QA-judged (`gemini-3.1-pro-preview`, gate: mean score ≥ 3.5/5) before advancing to the next shard. A dataset that fails the gate stops automatically; others continue unaffected.
-- **Model / prompt (current run):** `gemini-3.1-flash-lite`, prompt `prompts/translation/api/translation/translation_prompts_zeroshot_v20260531.yaml` (adds transliteration handling for foreign/Latin terms vs. the earlier v20250220 prompt).
-- **Config:** `config/translation/full_corpus.yaml` (all 15 datasets, per-dataset shard sizes).
+- **Model / prompt (Run B, configured now):** `gemini-3.1-flash-lite` at **temperature 0.0**, prompt `prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260801.yaml` — instruction text byte-identical to v20260531, but the query and document variants now render the *same* prompt.
+- **Config:** `config/translation/full_corpus.yaml` (all 15 datasets, per-dataset shard sizes) and `config/translation/candidates.yaml` — **both carry the run_id; keep them in sync.**
 - **Run scripts:** `bash scripts/translation/translate.sh` (`--pilot` for 100-row samples, `--dry-run` to inspect the shard plan, `--resume` to continue, `--dataset BeIR/<name>` to scope to one).
 - **Export:** `python scripts/translation/build_hf_dataset.py --run-dir outputs/translation/runs/<run_id> --dataset <name>` — produces eval-ready BeIR-format JSONL (`corpus.jsonl`, `queries.jsonl`, qrels).
-- **Current run directory:** `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531/` (gitignored — lives only on the compute host). Cost so far: ~$32.61.
+- **Run A directory (completed, do not modify):** `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531/` (gitignored — lives only on the compute host). 1.7 GB, cost ~$32.61.
+- **Run B directory (will be created):** `outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260801/`. Candidates must be rebuilt into it — CPU only, no API cost.
+
+### Starting Run B
+
+```bash
+# 1. Rebuild sharded candidates into the new run dir (no API cost).
+bash scripts/translation/candidates.sh
+
+# 2. Pilot one small dataset and check the QA gate before the large tier.
+bash scripts/translation/translate.sh --pilot --dataset BeIR/trec-covid
+
+# 3. Ladder the remaining 10, one at a time, smallest first.
+bash scripts/translation/translate.sh --dataset BeIR/trec-covid
+```
+
+Scope every command with `--dataset`. Run B's `progress.json` starts empty, so an
+unscoped run would re-translate the 5 datasets Run A already finished.
+
+**Changes active in Run B**
+
+| Setting | Run A | Run B | Why |
+|---|---|---|---|
+| Translation temperature | 0.7 | **0.0** | Sampling diversity has no value in translation and made repeat passes diverge |
+| Repair temperature | 0.3 | **0.0** | A repaired row should match what the first pass would have produced |
+| Prompt | split query/document | **unified** | Those two words alone changed output for 38% of strings |
+| `hebrew_key` label | `Hebrew Query` / `Hebrew Document` | **`Hebrew`** | Part of the rendered prompt; leaving it split would defeat the unification |
+| `dedup.enabled` | absent (no cache in the ladder) | **true** | Translate each unique string once; also cuts cost on fever ≡ climate-fever |
+
+Guarded by `tests/test_translation_dedup.py` (22 tests), including one asserting
+the query and document passes render a byte-identical prompt, and one asserting
+`run_id` matches the configured prompt version.
 
 ## Prompt & settings used (current run)
 
@@ -74,6 +133,8 @@ msmarco, nq, hotpotqa, fever, climate-fever, quora, trec-covid, dbpedia-entity, 
 
 `progress.json` shows `ladder_all_done: false` (stage 0) for all ten. A 100-row **pilot** sample exists for every one of the 15 datasets under `.../pilot/BeIR_*/{documents,queries}_translated.csv` (earlier all-15 pilot run, commit `aaee44d`), scored 3.72–5.00/5 by the QA judge — so quality is validated at small scale, but no full-corpus run has been executed. `msmarco` is the long pole at ~8.8M documents.
 
+**These ten now belong to Run B** (`..._promptv20260801`) and will be translated with the unified prompt at temperature 0.0 with the cache enabled. Their Run A pilots were produced under the old settings and are no longer representative — re-pilot one small dataset under Run B before committing to the large tier.
+
 ### Known issues / repairs
 
 - Long-document truncation required "repair" rounds (whole-document batch re-translation). E.g. scidocs shard 4 had 68 failed docs → 63 repaired, 5 unresolved; shard 5 needed 3 repair rounds to fully resolve.
@@ -114,8 +175,43 @@ Manual review of the first few rows (nfcorpus, scifact) raised concerns that som
 ## Next steps
 
 - [ ] Get approval on `advisor_sample_pairs.xlsx` (blocking).
-- [ ] Once approved: resume the ladder for the next-smallest pending dataset (of the ten, likely nq/quora/trec-covid-sized ones before msmarco) via `bash scripts/translation/translate.sh --dataset BeIR/<name>`.
-- [ ] Budget/plan specifically for `msmarco` (~8.8M docs) — by far the largest remaining corpus and likely the dominant cost driver of the remaining 10.
+- [ ] Once approved, start Run B: `bash scripts/translation/candidates.sh` to rebuild
+      candidates into the new run dir (CPU only), then **pilot one small dataset**
+      (`translate.sh --pilot --dataset BeIR/trec-covid`) and check the QA gate before
+      the large tier.
+- [ ] Ladder the remaining ten smallest-first, always scoped with `--dataset` —
+      Run B's `progress.json` is empty, so an unscoped run would re-translate the 5
+      Run A already finished.
+- [ ] Budget/plan specifically for `msmarco` (~8.8M docs) — by far the largest remaining corpus and likely the dominant cost driver of the remaining 10. The dedup cache should cut the fever ≡ climate-fever pair substantially; log cache size per dataset to confirm it is hitting.
+- [ ] Optional, not done: pin a per-dataset glossary of domain terms/acronyms
+      (fiqa, scidocs, scifact benefit most). Prefer keeping established English
+      acronyms like ECMO over transliterating them.
+- [ ] **After Run B's first dataset completes:** re-run the failure attribution to
+      replace the pre-fix upper bound with a measured post-fix number. The ~2%
+      translation-defect share in `../benchmark/why-not-translation.md` was measured
+      on Run A and is expected to fall close to zero. Steps are scripted — see
+      "Revisit after Run B" in that document. Hold the model (mE5-base) and the
+      hit@10 threshold fixed or the before/after is not comparable.
+
+### Verification of the Run B settings (2026-08-01)
+
+Paired A/B on 100 real nfcorpus rows (50 queries + 50 documents), same judge and
+rubric as the ladder's QA gate (`gemini-3.1-pro-preview`,
+`translation_evaluation_nogold_technical_v20260531.yaml`). Script:
+`scripts/analysis/pilot_unified_prompt.py`.
+
+| | v20260531 (split) | v20260801 (unified) |
+|---|---:|---:|
+| Query vs document output byte-identical | 47% | **100%** |
+| Judge score (0–5) | 4.530 | 4.510 |
+
+Quality difference is not significant: 86/100 rows scored identically, 6 improved,
+8 regressed, sign test p=0.79. Passes the gate (min_score 3.5). One caveat worth
+re-checking on a second dataset: the query subset was 0-better / 3-worse — the only
+one-directional signal in the data, though not significant at n=3 discordant.
+
+This was run on sampled rows in a scratch path; it did **not** touch any run
+directory, `progress.json`, or accumulated CSV.
 
 ---
 

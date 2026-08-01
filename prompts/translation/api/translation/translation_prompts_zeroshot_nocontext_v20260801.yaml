@@ -1,0 +1,47 @@
+# Unified query/document translation prompt.
+#
+# Successor to v20260531. The instruction text is byte-identical; the ONLY change
+# is that the query and document variants now render to the SAME prompt for the
+# same source string:
+#
+#   v20260531  query    -> "Translate the following English query into Hebrew..."    / "Hebrew Query:"
+#              document -> "Translate the following English document into Hebrew..." / "Hebrew Document:"
+#   v20260801  both     -> "Translate the following English text into Hebrew..."     / "Hebrew:"
+#
+# Why: those two words alone changed the output for 38% of source strings at
+# temperature 0 (35% with a different word set, not just punctuation) — e.g.
+# "unsupervised" rendering as ללא פיקוח in a query but בלתי מונחה in a document,
+# and "car" as מכונית vs רכב. A query and a document containing the same English
+# term therefore ended up with different Hebrew, destroying the lexical overlap
+# retrieval depends on. See docs/benchmark/why-not-translation.md.
+#
+# With identical prompts, identical source text at temperature 0 yields identical
+# Hebrew by construction — no cache hit or pass ordering required.
+#
+# The two blocks below are kept (the pipeline selects by prompt `type`) but are
+# now identical apart from the CSV column placeholder, which is substituted
+# before the model sees it and so does not reach the prompt.
+
+document:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English text into Hebrew, faithfully and accurately.
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Translate foreign and Latin terms and proper nouns into Hebrew, transliterating when there is no Hebrew equivalent (e.g. Dendrobium → דנדרוביום, Python → פייתון). Reproduce non-linguistic elements exactly: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, code, abbreviations/identifiers (e.g. PrP, 6MP), punctuation (keep -- not —), and numbers as digits (1, not "one"/"אחד").
+
+  user_prompt_template: |
+    {english_key}: {segment_text}
+    {hebrew_key}:
+
+query:
+  system_prompt: |
+    You are a precise and concise translation assistant. Your task is to translate sentences from English to Hebrew, providing accurate translations without unnecessary explanations.
+
+  user_prompt_prefix: |
+    Translate the following English text into Hebrew, faithfully and accurately.
+    Render only what the source says — add, omit, or explain nothing (no words or articles not in the source; never answer or fill in blanks). Translate foreign and Latin terms and proper nouns into Hebrew, transliterating when there is no Hebrew equivalent (e.g. Dendrobium → דנדרוביום, Python → פייתון). Reproduce non-linguistic elements exactly: markup (e.g. >, **), citations (e.g. [1]), blanks (e.g. ___), URLs, code, abbreviations/identifiers (e.g. PrP, 6MP), punctuation (keep -- not —), and numbers as digits (1, not "one"/"אחד").
+
+  user_prompt_template: |
+    {english_key}: {text}
+    {hebrew_key}:

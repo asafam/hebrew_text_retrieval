@@ -55,6 +55,11 @@ from translation.api.run_beir_batch_gcs import (
     _validate_gcs_auth,
     _make_gemini_client,
 )
+from translation.api.ladder_dedup import (
+    SqliteTranslationCache,
+    prefill_shard,
+    finalize_shard,
+)
 from translation.api.translate_batch_gemini import TERMINAL_STATES, FAILED_STATES
 from translation.api.translate_batch_gemini_gcs import (
     get_gcs_client,
@@ -1107,6 +1112,32 @@ def run_ladder(
     cadence_mode  = ladder_cfg.get("cadence", "static")
     cadence_start = int(ladder_cfg.get("cadence_start", 1))
 
+    # ── Translation cache (opt-in) ────────────────────────────────────────────
+    # One cache for the whole run, shared by the query and document passes, so a
+    # source string translated for one is reused verbatim by the other instead of
+    # being re-translated into different Hebrew. Disabled by default: when off,
+    # behaviour is byte-identical to before this was added.
+    dedup_cfg = config.get("dedup", {})
+    dedup_enabled = bool(dedup_cfg.get("enabled", False))
+    cache = None
+    if dedup_enabled:
+        cache_path = dedup_cfg.get("cache_path") or os.path.join(run_dir, "translation_cache.sqlite")
+        cache = SqliteTranslationCache(cache_path)
+        logger.info(f"[dedup] enabled — cache at {cache_path} ({len(cache):,} entries)")
+
+    def _dedup_cols(type_cfg: dict, shard_csv: str) -> tuple:
+        """(text_col, context_col) for a pass; context dropped when absent from the CSV."""
+        text_col = type_cfg["prompt"].get("text_col", "text")
+        ctx_col = type_cfg["prompt"].get("context_col") or None
+        if ctx_col:
+            try:
+                header = pd.read_csv(shard_csv, nrows=0, encoding="utf-8").columns
+                if ctx_col not in header:
+                    ctx_col = None
+            except Exception:
+                ctx_col = None
+        return text_col, ctx_col
+
     datasets = config["datasets"]["names"]
     if dataset_filter:
         datasets = [d for d in datasets if _dataset_slug(d) == dataset_filter or d == dataset_filter]
@@ -1158,6 +1189,7 @@ def run_ladder(
 
             # ── Submit all shard jobs in parallel (reuse persisted jobs on resume) ─
             pending_jobs = {}
+            cached_shards = {}      # (shard_idx, text_type) -> result, no batch job
             submit_error = None
             shards_state = entry.setdefault("shards", {})
             for shard_idx in batch_indices:
@@ -1181,6 +1213,54 @@ def run_ladder(
                         )
                         continue
                     try:
+                        # Prefill from cache before deciding whether a job is needed.
+                        # Only for shards with no job already in flight — re-prefilling
+                        # a submitted shard would race the batch output.
+                        if dedup_enabled and not (existing and existing.get("job_name")):
+                            text_col, ctx_col = _dedup_cols(type_cfg, shard_csv)
+                            # Prefill into a staging file. Only a fully-cached shard
+                            # is promoted to out_path; a partially-filled one is
+                            # discarded so the batch output is never merged with a
+                            # half-written file. (Partial shards are re-translated
+                            # whole — see the "partial shards" note below.)
+                            staged = out_path + ".prefill"
+                            stats = prefill_shard(
+                                shard_csv, cache, type_cfg["model"],
+                                type_cfg["prompt"]["file"], text_col, ctx_col,
+                                out_csv=staged,
+                            )
+                            if stats["all_cached"] and os.path.exists(staged):
+                                os.replace(staged, out_path)
+                            elif os.path.exists(staged):
+                                os.remove(staged)
+                            if stats["cache_hits"] or stats["dedup_fills"]:
+                                logger.info(
+                                    f"  [dedup] shard {shard_idx} {text_type}: "
+                                    f"{stats['cache_hits']} cache hits, "
+                                    f"{stats['dedup_fills']} within-shard fills, "
+                                    f"{stats['remaining']} still to translate"
+                                )
+                            if stats["all_cached"]:
+                                # Fully served from cache: no batch job, no cost. The
+                                # shard still flows through repair/accumulate/QA below
+                                # via cached_shards.
+                                logger.info(
+                                    f"  [dedup] shard {shard_idx} {text_type}: "
+                                    f"100% cached — skipping batch submission"
+                                )
+                                cached_shards[(shard_idx, text_type)] = {
+                                    "output_path": out_path,
+                                    "input_tokens": 0,
+                                    "output_tokens": 0,
+                                }
+                                shard_record[text_type] = {
+                                    "job_name": None,
+                                    "cached_only": True,
+                                    "submitted_at": datetime.now(timezone.utc).isoformat(),
+                                }
+                                _save()
+                                continue
+
                         if existing and existing.get("job_name"):
                             logger.info(
                                 f"  Reusing previously-submitted job for "
@@ -1241,6 +1321,11 @@ def run_ladder(
                 dataset_stopped = True
                 break
 
+            # Fully-cached shards had no job to collect — inject them so they
+            # traverse the same repair / accumulate / QA path as translated ones.
+            if cached_shards:
+                shard_results.update(cached_shards)
+
             # ── Repair failed / truncated translations ────────────────────────
             for shard_idx in batch_indices:
                 for text_type, type_cfg in (("queries", q_cfg), ("documents", d_cfg)):
@@ -1287,6 +1372,29 @@ def run_ladder(
                     if rec.get("appended"):
                         continue
                     r = shard_results[(shard_idx, text_type)]
+                    # Store this shard's translations so later shards, the other
+                    # text type, and later datasets reuse them verbatim. Skipped
+                    # for cached_only shards: every row already came from the cache.
+                    if dedup_enabled and not rec.get("cached_only"):
+                        type_cfg = q_cfg if text_type == "queries" else d_cfg
+                        try:
+                            text_col, ctx_col = _dedup_cols(type_cfg, r["output_path"])
+                            fstats = finalize_shard(
+                                r["output_path"], cache, type_cfg["model"],
+                                type_cfg["prompt"]["file"], text_col, ctx_col,
+                            )
+                            logger.info(
+                                f"  [dedup] shard {shard_idx} {text_type}: cached "
+                                f"{fstats['new_entries']} new translations "
+                                f"(cache now {len(cache):,})"
+                            )
+                        except Exception as e:
+                            # Never let a cache write break the run — the shard is
+                            # already translated and correct on disk.
+                            logger.warning(
+                                f"[{slug}] dedup finalize failed for shard "
+                                f"{shard_idx} {text_type}: {e}"
+                            )
                     cumulative = _append_to_accumulated(r["output_path"], acc_path)
                     rec["appended"]      = True
                     rec["input_tokens"]  = r["input_tokens"]
