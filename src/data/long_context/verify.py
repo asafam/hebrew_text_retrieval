@@ -236,15 +236,30 @@ def check_ids_unchanged(built_ids: Iterable[str], source_ids: Iterable[str], rep
 
 
 def check_qrels_reachable(
-    qrels: dict[str, set[str]], built_ids: Iterable[str], rep: Report
+    qrels: dict[str, set[str]], built_ids: Iterable[str], rep: Report,
+    source_ids: Iterable[str] | None = None,
 ) -> None:
-    """Every query must retain at least one reachable gold."""
+    """Welding must not make any query unanswerable that was answerable in the source.
+
+    The absolute count is the wrong test: translated arguana ships 5 of 1,406 queries whose
+    gold is absent from its own corpus, and failing the build for that would reject a dataset
+    over a defect it inherited. What matters is the delta -- a query answerable in the source
+    and unanswerable after welding means welding dropped a gold, which is a real bug.
+    """
     ids = set(built_ids)
-    dead = [q for q, docs in qrels.items() if not (docs & ids)]
+    dead = {q for q, docs in qrels.items() if not (docs & ids)}
+    if source_ids is None:
+        rep.add("every query has a reachable gold", not dead,
+                f"{len(dead)} unanswerable queries of {len(qrels)}")
+        return
+    src = set(source_ids)
+    dead_src = {q for q, docs in qrels.items() if not (docs & src)}
+    introduced = dead - dead_src
     rep.add(
-        "every query has a reachable gold",
-        not dead,
-        f"{len(dead)} unanswerable queries of {len(qrels)}",
+        "welding introduced no unanswerable queries",
+        not introduced,
+        f"{len(introduced)} introduced; {len(dead_src)} already unanswerable in source "
+        f"(of {len(qrels)})",
     )
 
 
@@ -388,7 +403,8 @@ def self_test(verbose: bool = True) -> None:
         check_position_bins_balanced(records, rep)
         check_filler_leakage_free(records, positives, rep)
         check_ids_unchanged((r["_id"] for r in records), gold_texts.keys(), rep)
-        check_qrels_reachable(qrels, (r["_id"] for r in records), rep)
+        check_qrels_reachable(qrels, (r["_id"] for r in records), rep,
+                              source_ids=gold_texts.keys())
         return rep
 
     base = build()
@@ -487,7 +503,8 @@ def verify_dataset_dir(
         check_position_distribution(records, rep)
         check_filler_leakage_free(records, positives, rep)
         check_ids_unchanged((r["_id"] for r in records), source_text.keys(), rep)
-        check_qrels_reachable(qrels, (r["_id"] for r in records), rep)
+        check_qrels_reachable(qrels, (r["_id"] for r in records), rep,
+                              source_ids=source_text.keys())
 
     if counts:
         check_corpus_size_constant(counts, rep)

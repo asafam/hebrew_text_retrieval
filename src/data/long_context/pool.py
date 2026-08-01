@@ -37,7 +37,16 @@ ALL_QREL_SPLITS: tuple[str, ...] = ("test", "train", "validation", "dev")
 #: Datasets that can be welded cleanly. nfcorpus and arguana are excluded on purpose --
 #: see the module docstring for nfcorpus; arguana's queries *are* corpus documents, so a
 #: query's own text can land inside another document as filler and match it for free.
-BENCHMARK_DATASETS: tuple[str, ...] = ("BeIR_scifact", "BeIR_scidocs", "BeIR_fiqa")
+BENCHMARK_DATASETS: tuple[str, ...] = (
+    "BeIR_scifact", "BeIR_scidocs", "BeIR_fiqa", "BeIR_arguana",
+)
+
+#: arguana ships its query arguments inside the corpus (92% of query ids are also document
+#: ids), so a query's own text can appear as filler in an unrelated document and match it for
+#: free. Excluding query texts from the filler pool removes that, which is a far smaller
+#: intervention than dropping the dataset -- arguana is the benchmark's only counter-argument
+#: retrieval task, a genuinely different retrieval skill from the QA-style sets.
+EXCLUDE_QUERY_TEXTS_FROM_FILLER = True
 
 
 @dataclass(frozen=True)
@@ -90,6 +99,20 @@ def find_corpus_dirs(
             f"no BeIR corpus found for {missing} under {runs_root!r}"
         )
     return {name: d for name, (_, d) in sorted(found.items())}
+
+
+def load_corpus_raw_text(beir_dir: str) -> dict[str, str]:
+    """Load only the ``text`` field, unjoined from ``title``.
+
+    Needed to detect query-in-corpus overlap: a corpus entry is stored as "title text" while a
+    query is the bare text, so comparing against the joined string silently matches nothing.
+    """
+    out: dict[str, str] = {}
+    with open(os.path.join(beir_dir, "corpus.jsonl"), encoding="utf-8") as fh:
+        for line in fh:
+            doc = json.loads(line)
+            out[str(doc["_id"])] = (doc.get("text") or "").strip()
+    return out
 
 
 def load_corpus(beir_dir: str) -> dict[str, str]:
@@ -197,11 +220,25 @@ def build_safe_filler_pool(
     """
     corpus = load_corpus(beir_dir)
     positives = positive_doc_ids(beir_dir, splits)
+    # Match on the RAW text field, not the title-joined string used for retrieval -- an
+    # earlier version compared against the joined form and excluded exactly zero documents
+    # while appearing to work.
+    query_ids: set[str] = set()
+    if EXCLUDE_QUERY_TEXTS_FROM_FILLER:
+        qtexts = {q.strip() for q in load_queries(beir_dir).values()}
+        query_ids = {
+            pid for pid, raw in load_corpus_raw_text(beir_dir).items()
+            if raw and raw in qtexts
+        }
 
     pool: list[Passage] = []
     n_short = 0
+    n_is_query = 0
     for pid, text in corpus.items():
         if pid in positives:
+            continue
+        if pid in query_ids:
+            n_is_query += 1
             continue
         if len(text) < min_chars:
             n_short += 1
@@ -214,7 +251,7 @@ def build_safe_filler_pool(
     stats = PoolStats(
         dataset=dataset or os.path.basename(os.path.dirname(beir_dir)),
         n_corpus=len(corpus),
-        n_positive=len(positives),
+        n_positive=len(positives) + n_is_query,
         n_too_short=n_short,
         n_pool=len(pool),
     )
