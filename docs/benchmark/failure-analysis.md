@@ -91,7 +91,7 @@ Hebrew failed on **1,700 queries** in total. Those break down as follows.
 | Failed in English too | **1,070** | **63%** | Not translation. Hard query or imperfect answer key. |
 | Succeeded in English | 630 | 37% | Suspect — possibly translation |
 | *less* the noise floor | −178 | −10% | Measurement jitter (explained below) |
-| **Hebrew-specific failures** | **≈450** | **27%** | The real Hebrew-only problem |
+| **Hebrew-specific failures** | **452** | **27%** | The real Hebrew-only problem |
 
 ### What the "noise floor" is
 
@@ -108,8 +108,15 @@ almost 40% larger than it really is.
 
 ## 6. The decisive test
 
-We now have ~450 genuinely Hebrew-specific failures. **Are their translations
+We estimate 452 genuinely Hebrew-specific failures. **Are their translations
 actually worse?**
+
+> **Which queries this ran on.** The 178 noise subtraction is a headcount, not a
+> list — a noisy failure and a real one are indistinguishable from outside, both
+> being "Hebrew missed it, English found it." So this check and the judge in §10
+> ran on all **630** English-recoverable failures, including the ~178 noisy ones.
+> That dilution biases toward finding no difference, which is why §10 re-tests the
+> result on failures that cannot be borderline.
 
 We compared them against the translations of queries Hebrew got **right**, using
 four mechanical checks — length loss, untranslated Latin text left behind, share
@@ -151,8 +158,9 @@ evidence that translation caused it. That is the pattern the whole analysis poin
    queries from succeeding ones.
 2. **Most Hebrew failures are not Hebrew's fault at all** — 63% fail in English
    too, meaning the query is intrinsically hard or the answer key is imperfect.
-3. **The remaining ~27% reflects the model being weaker in Hebrew than English**,
-   not damaged text.
+3. **The remaining 27% (452 queries) is Hebrew-specific** — and the LLM judge in §10
+   attributes 24% (416) to the model being weaker in Hebrew and only 2% (36) to an
+   actual translation defect.
 
 **Recommendation:** invest in the Hebrew encoder, not in re-translation. This also
 supports continuing with the remaining 10 datasets using the current pipeline —
@@ -169,10 +177,11 @@ translation quality is not what is limiting the scores.
    > `suppositories` → `נרות` — a correct translation, but נרות also means
    > "candles." English rank 1, Hebrew rank 45.
 
-   Nothing we measured would flag this, because nothing is *wrong* with the
-   translation. We cannot say how much of the ~450 is this effect. **An LLM
-   reading those 450 pairs side by side would close this gap** — the obvious next
-   step if a firmer number is needed.
+   Nothing measured in §6 would flag this, because nothing is *wrong* with the
+   translation. **This gap has since been closed** — §10 puts the failures and a
+   matched set of successes in front of an LLM judge, blind. It found no quality
+   difference, and isolated the 2% terminology defect that the mechanical checks
+   could not see.
 
 2. **One model only.** All of this is mE5-base. A Hebrew-specialised encoder
    (e.g. NeoDictaBERT) could show a different profile; "weaker in Hebrew" is a
@@ -197,11 +206,16 @@ translation quality is not what is limiting the scores.
 Limitation 1 above said the mechanical checks cannot see semantics, and that an LLM
 reading the failures would close the gap. That was done.
 
-**Method.** `gemini-3.1-pro-preview` judged 1,254 items: 626 Hebrew-only failures and
-**628 blind controls** — queries Hebrew answered correctly, drawn from the same
-datasets, shuffled together. The judge saw neither the group label nor any retrieval
-outcome. Judging failures alone would have been uninterpretable: translation noise
-exists everywhere, so only an *elevated* rate implicates translation.
+**Method.** `gemini-3.1-pro-preview` judged 1,254 items: **626 of the 630
+English-recoverable failures** (4 dropped for missing gold documents) and **628 blind
+controls** — queries Hebrew answered correctly, drawn from the same datasets, shuffled
+together. The judge saw neither the group label nor any retrieval outcome. Judging
+failures alone would have been uninterpretable: translation noise exists everywhere, so
+only an *elevated* rate implicates translation.
+
+Note this is the full 630, not the 452 estimated in §5. The noise subtraction gives a
+count, not a list of which queries are noisy, so they cannot be excluded — see the
+robustness check below for why that does not change the conclusion.
 
 Scripts: `scripts/analysis/llm_judge_failures.py`, `analyze_judge_verdicts.py`.
 Raw verdicts: `outputs/analysis/judge/verdicts.jsonl`.
@@ -219,6 +233,24 @@ confirms what the mechanical signals found: most Hebrew failures are not caused 
 translation. Per dataset, the fault rate difference is non-significant everywhere
 (arguana −0.9, fiqa −4.4, nfcorpus −4.7, scidocs −0.6, scifact +9.8; all p>0.35).
 
+### Robustness: is that null result just noise dilution?
+
+Because the judge ran on all 630 — ~178 of which are boundary noise — the failure group
+is diluted with queries that have nothing wrong with them. Dilution pushes the two
+groups together, so "no difference" could be an artifact rather than a finding.
+
+Re-running on failures that **cannot** be borderline (English found the answer at rank
+1–3 while Hebrew missed it entirely, not even in the top 100 — a gap of 100+ places):
+
+| Failure subset | n | Any translation fault | Controls | p |
+|---|---:|---:|---:|---:|
+| All English-recoverable | 626 | 53.5% | 54.6% | 0.70 |
+| **English top-3, Hebrew nowhere** | **80** | **50.0%** | 54.6% | **0.44** |
+| English rank 1, Hebrew nowhere | 42 | 59.5% | 54.6% | 0.54 |
+
+Still no difference at any strictness. The null result is not dilution — the clearest
+failures have, if anything, marginally *better* translations than average.
+
 ### But it found one real, specific defect the mechanical checks missed
 
 | Measure | Failures | Controls | Difference |
@@ -230,6 +262,19 @@ Failures are **twice as likely** to carry a translation issue the judge consider
 likely to break retrieval, even though overall faithfulness is unchanged. This
 survives Bonferroni correction across the ~10 metrics tested (threshold 0.005); the
 weaker `key_term_lost` signal (p=0.018) does not.
+
+The same strictness slices used above sharpen this considerably — the defect
+concentrates in exactly the failures least likely to be noise:
+
+| Failure subset | n | HIGH retrieval risk | Controls | p |
+|---|---:|---:|---:|---:|
+| All English-recoverable | 626 | 11.3% | 5.6% | 2.4e-4 |
+| **English top-3, Hebrew nowhere** | **80** | **25.0%** | 5.6% | **<1e-5** |
+| English rank 1, Hebrew nowhere | 42 | **33.3%** | 5.6% | **<1e-5** |
+
+A third of the queries English answers perfectly and Hebrew misses completely carry
+this defect. That concentration is what you would expect if it *causes* failures
+rather than merely co-occurring with them.
 
 The excess is **~5.8 pts ≈ 36 of 626 judged failures**, i.e. roughly **6% of
 Hebrew-only failures**, or ~2% of all Hebrew failures. Concentrated in the technical
@@ -276,11 +321,16 @@ at all.**
 
 ### Revised bottom line
 
-| Cause | Share of Hebrew failures |
-|---|---|
-| Fails in English too — hard query or noisy qrels | **63%** |
-| Model weaker in Hebrew (semantics fine, no defect found) | **~31%** |
-| **Translation defect — terminology drift between query and document** | **~2%** |
+| Cause | Queries | Share |
+|---|---:|---:|
+| Fails in English too — hard query or noisy qrels | 1,070 | 63% |
+| Measurement noise — borderline cases that flip either way | 178 | 10% |
+| Model weaker in Hebrew (semantics fine, no defect found) | 416 | 24% |
+| **Translation defect — terminology drift between query and document** | **36** | **2%** |
+| **Total** | **1,700** | |
+
+Counts sum to exactly 1,700; the percentages are individually rounded, so the column
+reads 99%.
 
 **The recommendation does not change: invest in the encoder, not re-translation.** A
 full re-translation would address ~2% of failures.
