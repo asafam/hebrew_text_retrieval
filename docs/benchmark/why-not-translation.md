@@ -13,6 +13,15 @@ show no detectable translation problem under either mechanical or semantic inspe
 and ~2% trace to a real but narrow defect that is a pipeline setting, not translation
 quality. **Spend on the encoder, not on re-translating.**
 
+> **⚠️ All figures here are PRE-FIX.** They were measured on the Run A corpus
+> (`..._promptv20260531`): split query/document prompts, temperature 0.7, no
+> translation cache. The two settings responsible for the ~2% have since been fixed
+> for Run B — see [§ Where translation *is* at fault](#where-translation-is-at-fault-2-pre-fix-and-it-is-a-setting-not-a-quality-problem)
+> and [../translation/ledger.md](../translation/ledger.md). **The ~2% is therefore an
+> upper bound on what remains**, and is expected to fall toward zero in Run B. It has
+> not been re-measured, because no Run B corpus exists yet. Re-run this analysis on
+> Run B's first completed dataset — see [§ Revisit after Run B](#revisit-after-run-b).
+
 ---
 
 ## The question
@@ -140,7 +149,7 @@ of these "failures" are answer-key noise rather than failures at all.
 
 ---
 
-## Where translation *is* at fault: ~2%, and it is a setting, not a quality problem
+## Where translation *is* at fault: ~2% (pre-fix), and it is a setting, not a quality problem
 
 The judge did find one real signal. Failures are twice as likely to carry an issue it
 considers likely to break retrieval, even though overall faithfulness is unchanged:
@@ -150,7 +159,7 @@ considers likely to break retrieval, even though overall faithfulness is unchang
 | **High retrieval risk** | **11.3%** | **5.6%** | **+5.8 pts · RR 2.04 · p = 2.4e-4** |
 
 That survives Bonferroni correction across the ~10 metrics tested. It amounts to **~36
-of 626 judged failures — roughly 2% of all Hebrew failures.**
+of 626 judged failures — roughly 2% of all Hebrew failures, on the Run A corpus.**
 
 Reading the judge's notes, one cause dominates, and it is not mistranslation. It is the
 **same English term rendered differently in the query and in the document**, which
@@ -183,14 +192,16 @@ arguana (+0.0)**, which is ordinary prose.
 
 ## Conclusion
 
-| Cause of Hebrew failure | Share |
+| Cause of Hebrew failure | Share (Run A corpus, pre-fix) |
 |---|---:|
 | Fails in English too — hard query or noisy answer key | **63%** |
 | Model weaker in Hebrew; no detectable translation problem | **~31%** |
-| Translation defect — terminology drift between query and document | **~2%** |
+| Translation defect — terminology drift between query and document | **~2%** ⚠️ fixed for Run B |
 
 **Do not re-translate.** It would address about 2% of failures, and even that 2% is not a
-translation-*quality* problem — it is two pipeline settings.
+translation-*quality* problem — it is two pipeline settings, both of which are now
+changed for Run B. The first two rows are properties of the task and the model and are
+unaffected by any translation work.
 
 **Do continue with the remaining 10 datasets** on the current pipeline, with three cheap
 changes applied first. The first two **reduce** cost:
@@ -222,6 +233,47 @@ with byte-identical system prompts — would close it completely and is the chea
 remaining fix.
 
 **Put the effort into the Hebrew encoder.** That is where the remaining ~31% lives.
+
+---
+
+## Revisit after Run B
+
+Every number above describes the **Run A** corpus, translated with split
+query/document prompts at temperature 0.7 with no cache. Run B changes all three.
+The analysis should be repeated once Run B has a completed dataset, to replace the
+pre-fix upper bound with a measured post-fix figure.
+
+**The prediction being tested:** the ~2% terminology-drift share should fall close to
+zero, because the mechanism behind it — the same English string receiving different
+Hebrew as a query and as a document — is removed by construction. The 63% and ~31%
+shares should be unchanged, since neither has anything to do with translation. If the
+63% moves, something other than the prompt changed and the comparison is not clean.
+
+**How to repeat it** (roughly one GPU-hour plus judge calls, all scripted):
+
+```bash
+# 1. English mirrors of the Run B export
+python scripts/analysis/build_english_beir.py \
+    --src_root outputs/translation/runs/<run_b_id>/corpus \
+    --out_root outputs/analysis/english_mirror_runB
+
+# 2. Per-query Hebrew vs English with the same model
+sbatch scripts/analysis/run_lang_compare.sh          # edit HE_ROOT/EN_ROOT to run B
+
+# 3. Mechanical defect signals + blind-control LLM judge
+python scripts/analysis/translation_defect_signals.py --he_root <run_b>/corpus
+python scripts/analysis/llm_judge_failures.py
+python scripts/analysis/attribute_failures.py
+python scripts/analysis/analyze_judge_verdicts.py
+```
+
+Keep the blind control group — it is what makes the judge output interpretable, and
+it is also what will show whether the fix worked: a post-fix run should show the
+failure and control groups converging on `retrieval_risk high`, which stood at
+11.3% vs 5.6% pre-fix.
+
+Two things to hold fixed so the comparison is clean: use **mE5-base** again, and the
+same **hit@10** threshold. Changing either makes the before/after incomparable.
 
 ---
 

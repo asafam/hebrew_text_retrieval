@@ -186,6 +186,12 @@ Manual review of the first few rows (nfcorpus, scifact) raised concerns that som
 - [ ] Optional, not done: pin a per-dataset glossary of domain terms/acronyms
       (fiqa, scidocs, scifact benefit most). Prefer keeping established English
       acronyms like ECMO over transliterating them.
+- [ ] **After Run B's first dataset completes:** re-run the failure attribution to
+      replace the pre-fix upper bound with a measured post-fix number. The ~2%
+      translation-defect share in `../benchmark/why-not-translation.md` was measured
+      on Run A and is expected to fall close to zero. Steps are scripted — see
+      "Revisit after Run B" in that document. Hold the model (mE5-base) and the
+      hit@10 threshold fixed or the before/after is not comparable.
 
 ### Verification of the Run B settings (2026-08-01)
 
