@@ -221,6 +221,53 @@ class TestProductionConfig(unittest.TestCase):
         self.assertEqual(self.cfg["queries"]["prompt"]["file"],
                          self.cfg["documents"]["prompt"]["file"])
 
+    def test_query_and_document_render_the_same_prompt(self):
+        """The whole point of prompt v20260801.
+
+        Measured on v20260531: the words "query"/"document" in the prefix and the
+        "Hebrew Query:"/"Hebrew Document:" output label changed the translation for
+        38% of source strings at temperature 0 — e.g. "unsupervised" as ללא פיקוח
+        in a query but בלתי מונחה in a document. Identical rendered prompts remove
+        that by construction.
+        """
+        root = os.path.join(os.path.dirname(__file__), "..")
+        with open(os.path.join(root, self.cfg["queries"]["prompt"]["file"])) as f:
+            prompts = yaml.safe_load(f)
+
+        SRC = "Extracorporeal membrane oxygenation (ECMO) improves survival"
+
+        def rendered(kind, cfg_key, col):
+            pr, pc = prompts[kind], self.cfg[cfg_key]["prompt"]
+            body = (pr["user_prompt_template"]
+                    .replace("{english_key}", pc["english_key"])
+                    .replace("{" + col + "}", SRC)
+                    .replace("{hebrew_key}", pc["hebrew_key"]))
+            return pr["system_prompt"] + "\n" + pr["user_prompt_prefix"] + "\n" + body
+
+        self.assertEqual(
+            rendered("query", "queries", "text"),
+            rendered("document", "documents", "segment_text"),
+            "the query and document passes must send a byte-identical prompt for "
+            "identical source text, otherwise the same term can be translated two ways",
+        )
+
+    def test_run_id_matches_prompt_version(self):
+        """run_id encodes the prompt version so a run directory never mixes two.
+
+        The 5 datasets translated under v20260531 stay in the old run directory;
+        anything translated with the unified prompt belongs to a new one.
+        """
+        import re
+        run_id = self.cfg["run_id"]
+        m = re.search(r"prompt(v\d{8})$", run_id)
+        self.assertIsNotNone(m, f"run_id should end in the prompt version: {run_id}")
+        prompt_version = re.search(r"_(v\d{8})\.yaml$", self.cfg["queries"]["prompt"]["file"])
+        self.assertIsNotNone(prompt_version)
+        self.assertEqual(
+            m.group(1), prompt_version.group(1),
+            "run_id prompt version must match the prompt file actually configured",
+        )
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,0 +1,87 @@
+# HebrewModernBERT — quality-re-weighted Hebrew corpus (MAIN, phase-0 + phase-1).
+#
+# Replaces the old flat `mafat` dump (which was 21% NLI / ~75% raw web / 2.4% curated).
+# tokens_target up/down-samples each source (see DatasetFormatJSONL); the build is sized so
+# phase-0 trains ~1 epoch over it (curated then = ~5 epochs, the overfitting cap).
+# Token figures are the measured uniques (Hebrew ~4.05 chars/token). Tweets dropped; the
+# duplicate Wikipedia file omitted; short Yifat fragments (22-37 tok/doc) demoted to ~1 epoch.
+#
+# Resulting mix (~161B): clean web (HeC4+FineWeb-2) ~40% | Yifat ~30% | NLI ~4% (was 21%)
+#                        | curated (books+news+wiki+tzenzura) ~4.6% (was 2.4%) | tweets 0%.
+# NOTE: curated is volume-capped at ~5% by our ~0.8B unique books/news/wiki — sourcing more
+#       curated Hebrew (Knesset/Ben-Yehuda/Sefaria) is the only way past that.
+
+# --- clean web (primary backbone) ---
+- name: hec4_clean
+  type: jsonl
+  files: [data/mafat/hebrew/sources/HeC4DictaCombined-Clean-Deduped.forgpt.jsonl]
+  tokens_target: 34_500_000_000        # ~4 epochs of 8.63B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# FineWeb-2 (~9.4B net-new clean web after MAFAT dedup) — enabled 2026-07-20.
+- name: fineweb2_hebrew
+  type: jsonl
+  files: [data/fineweb2/hebrew/fineweb2_hebrew_dedup.jsonl]
+  tokens_target: 30_000_000_000        # ~2.9 epochs of ~10.2B (at this file's 4.05 chars/tok accounting)
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# --- Yifat web (longer docs favored; short fragments demoted) ---
+- name: yifat_long                      # 305 & 240 tok/doc
+  type: jsonl
+  files:
+    - data/mafat/hebrew/sources/YifatToCombine-Deduped.forgpt.jsonl
+    - data/mafat/hebrew/sources/YifatDataRound2-Deduped.forgpt.jsonl
+  tokens_target: 28_400_000_000        # ~3 epochs of 9.45B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: yifat_fragments                 # 22-37 tok/doc — demoted, ~1.5 epochs only
+  type: jsonl
+  files:
+    - data/mafat/hebrew/sources/YifatDataBatch3-Round5-DedupedD2.forgpt.jsonl
+    - data/mafat/hebrew/sources/YifatDataBatch2-Round3-Deduped.forgpt.jsonl
+    - data/mafat/hebrew/sources/YifatDataBatch2-Round4-DedupedD2.forgpt.jsonl
+  tokens_target: 19_300_000_000        # ~1.5 epochs of 12.87B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# --- other web ---
+- name: oscar
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllOfHEOscarData-Combined-Deduped-DC4.forgpt.jsonl]
+  tokens_target: 4_900_000_000         # ~4 epochs of 1.22B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# --- NLI (slashed from 21% -> ~4%) ---
+- name: hebnli
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllHebNLIFiles-Deduped-D2.forgpt.jsonl]
+  tokens_target: 6_600_000_000         # ~0.7 epoch of 9.45B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# --- curated / formal (up-weighted to the ~5-epoch cap) ---
+- name: tzenzura                        # historical
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllTzenzuraData-Combined-Deduped-DC4.forgpt.jsonl]
+  tokens_target: 3_300_000_000         # ~5 epochs of 0.66B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: books
+  type: jsonl
+  files: [data/mafat/hebrew/sources/BooksNLI2-Combined-Deduped.forgpt.jsonl]
+  tokens_target: 2_150_000_000         # ~5 epochs of 0.43B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: wikipedia                       # ONE file only (the second is a duplicate)
+  type: jsonl
+  files: [data/mafat/hebrew/sources/AllOfNewHebrewWikipediaWithArticles-Oct29-2023.forgpt.jsonl]
+  tokens_target: 1_100_000_000         # ~5 epochs of 0.22B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+- name: news                            # YisraelHayom + Geektime
+  type: jsonl
+  files:
+    - data/mafat/hebrew/sources/YisraelHayomData-Combined-Deduped.forgpt.jsonl
+    - data/mafat/hebrew/sources/GeektimeCorpus-Combined-Deduped.forgpt.jsonl
+  tokens_target: 850_000_000           # ~5 epochs of 0.17B
+  split_ratio: {train: 0.9, validation: 0.1}
+
+# tweets (hebrew_tweets_*) and the duplicate Wikipedia file are intentionally omitted.

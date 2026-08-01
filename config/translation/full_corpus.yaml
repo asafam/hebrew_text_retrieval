@@ -6,7 +6,7 @@
 #   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml submit --yes
 #   python -m translation.api.run_beir_batch_gcs --config config/translation/full_corpus.yaml collect
 
-run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531"
+run_id: "full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260801"
 
 # ── Per-type model and prompt configuration ────────────────────────────────────
 
@@ -14,11 +14,11 @@ queries:
   model: "gemini-3.1-flash-lite"
   temperature: 0.0
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260801.yaml"
     type: "query"
     text_col: "text"              # CSV column with source text
     english_key: "Text"           # template variable: source text
-    hebrew_key: "Hebrew Query"    # template variable: translation output
+    hebrew_key: "Hebrew"          # template variable: translation output
     context_col: "context_text"   # CSV column for context (leave blank if none)
     context_key: "Context"        # template variable: context
 
@@ -26,21 +26,21 @@ documents:
   model: "gemini-3.1-flash-lite"
   temperature: 0.0
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260801.yaml"
     type: "document"
     text_col: "segment_text"
     english_key: "Text"
-    hebrew_key: "Hebrew Document"
+    hebrew_key: "Hebrew"
 
 titles:
   model: "gemini-3.1-flash-lite"
   temperature: 0.0
   prompt:
-    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
+    file: "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260801.yaml"
     type: "document"
     text_col: "segment_text"
     english_key: "Text"
-    hebrew_key: "Hebrew Document"
+    hebrew_key: "Hebrew"
 
 # ── Datasets ───────────────────────────────────────────────────────────────────
 

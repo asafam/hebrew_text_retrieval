@@ -59,11 +59,11 @@ datasets:
 # run_id sits in one folder (candidates/pilot/corpus). Keep run_id in sync with
 # config/translation/full_corpus.yaml.
 paths:
-  output: "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531/candidates"
-  logs:   "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260531/candidates/logs"
+  output: "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260801/candidates"
+  logs:   "outputs/translation/runs/full_corpus_zeroshot_nocontext_gemini31flashlite_promptv20260801/candidates/logs"
 
 # Prompts that will consume these candidates. The builder scans them and only
 # emits optional columns whose placeholders are referenced. For zeroshot
 # translation (no {context_id}/{context_text}), context columns are dropped.
 prompts:
-  - "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260531.yaml"
+  - "prompts/translation/api/translation/translation_prompts_zeroshot_nocontext_v20260801.yaml"
