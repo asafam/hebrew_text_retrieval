@@ -74,9 +74,20 @@ noise too.
 **630 − 178 = 452 genuinely Hebrew-specific failures (27%).** Without this control we'd
 have overstated the translation effect by nearly 40%.
 
-## Step 3 — Check whether those 452 have bad translations
+> **Important: this is a headcount, not a list.** We know *how many* are noise. We have no
+> way to know *which ones*. A noisy failure and a real one look identical from the outside
+> — both are simply "Hebrew missed it, English found it." So the checks in Steps 3–5 had
+> to run on all **630**, including the ~178 noisy ones.
+>
+> That matters, because noise makes the failure group look *more* like the control group
+> and therefore hides real differences. Step 5 tests whether that hiding actually happened.
 
-**The question:** are the Hebrew-specific failures actually badly translated?
+## Step 3 — Check whether the failures have bad translations
+
+**Which queries:** all **630** English-recoverable failures — see the note above on why
+the 452 cannot be isolated.
+
+**The question:** are these failures actually badly translated?
 
 **How we measured it:** we compared their translations against the translations of
 queries Hebrew got *right*, on four automatic checks — text length lost, English words
@@ -101,10 +112,11 @@ translation that is perfectly correct and still breaks search:
 > `suppositories` → `נרות` — a correct translation. But נרות also means **"candles."**
 > English rank 1, Hebrew rank 45.
 
-**How we measured it:** we had an LLM read the Hebrew against the English and judge it.
-Crucially, we mixed in **628 queries Hebrew answered correctly**, shuffled, with the
-labels hidden. Without that control the result would be meaningless — some translation
-noise exists everywhere, so what matters is whether failures have *more* of it.
+**How we measured it:** we had an LLM read the Hebrew against the English and judge it,
+on **626** of the 630 failures (4 dropped for missing gold documents). Crucially, we mixed
+in **628 queries Hebrew answered correctly**, shuffled, with the labels hidden. Without
+that control the result would be meaningless — some translation noise exists everywhere,
+so what matters is whether failures have *more* of it.
 
 **The answer: they don't.**
 
@@ -115,16 +127,45 @@ noise exists everywhere, so what matters is whether failures have *more* of it.
 Identical, and identical in every dataset taken separately. Even a careful semantic
 reader cannot tell the failures from the successes by translation quality.
 
+## Step 4b — Does the noise hide the answer?
+
+**The objection:** Steps 3 and 4 ran on all 630, of which ~178 are noise. Noise makes the
+two groups look alike, so "no difference" might just be dilution.
+
+**How we tested it:** re-run the comparison on failures that *cannot* be borderline —
+English found the answer at rank 1–3 while Hebrew missed it entirely, not even in the top
+100. A 100-place gap is not measurement jitter.
+
+| Failure subset | n | Translation fault | Controls | p |
+|---|---:|---:|---:|---:|
+| All English-recoverable | 626 | 53.5% | 54.6% | 0.70 |
+| **English top-3, Hebrew nowhere** | **80** | **50.0%** | 54.6% | **0.44** |
+| English rank 1, Hebrew nowhere | 42 | 59.5% | 54.6% | 0.54 |
+
+**Still no difference.** Removing the noise did not reveal a hidden translation problem,
+so the Step 3–4 conclusion is not a dilution artifact. If anything the clearest failures
+have *slightly better* translations than average.
+
 ## Step 5 — One thing the judge did find, worth 2%
 
 The judge flagged failures as twice as likely to have an issue that would specifically
 break *search*, even though overall quality was the same:
 
-| | Failures | Controls | Difference |
-|---|---:|---:|---|
-| Likely to break retrieval | **11.3%** | **5.6%** | **+5.8 points (p = 0.0002)** |
+| Failure subset | Likely to break retrieval | Controls | p |
+|---|---:|---:|---:|
+| All English-recoverable (n=626) | **11.3%** | 5.6% | 0.0002 |
+| **English top-3, Hebrew nowhere (n=80)** | **25.0%** | 5.6% | **<0.00001** |
+| English rank 1, Hebrew nowhere (n=42) | **33.3%** | 5.6% | **<0.00001** |
 
-That's **36 queries — 2% of all failures.**
+This is the mirror image of Step 4b. General translation quality is flat across every
+subset, but this specific defect **concentrates sharply in the clearest failures** — a
+third of the queries English nails and Hebrew misses completely carry it. That pattern is
+what you would expect if the defect is genuinely causing failures rather than just
+co-occurring with them.
+
+Across all failures it accounts for **36 queries — 2%.** (The absolute count is unaffected
+by the noise dilution: noise lowers the measured *rate* but does not remove affected
+queries from the pile.)
 
 The cause wasn't bad translation. It was the **same English word translated differently
 in the query and in the document**, which breaks the word-match that search depends on:
