@@ -3,7 +3,27 @@
 Our Hebrew BeIR scores are lower than the published English ones. The obvious suspect is
 the translation. This document shows it isn't.
 
-**We took all 1,700 queries the model failed on and sorted them by cause:**
+## The short version
+
+Take the Hebrew corpus and ask how much of it is retrievable at all — by any model.
+
+| Reading the **same Hebrew text** | Queries answered | of 3,672 |
+|---|---:|---:|
+| mE5-base alone | 1,972 | **54%** |
+| At least one of six models | 2,946 | **80%** |
+| No model manages it | 726 | 20% |
+
+**The text supports 80%. Our reference model extracts 54%.** That 26-point difference is
+sitting in the corpus already, unreachable only because of the model reading it — nothing
+about the Hebrew has to change to get at it.
+
+That is the whole argument. The rest of this document is how we established it.
+
+---
+
+## Where the failures come from
+
+**We took all 1,700 queries mE5-base failed on and sorted them by cause:**
 
 | Cause | Queries | Share |
 |---|---:|---:|
@@ -12,12 +32,21 @@ the translation. This document shows it isn't.
 | Fails for **every** model we tried | 141 | 8% |
 | **Total** | **1,700** | **100%** |
 
-The first two rows — **92% of all failures** — cannot be caused by translation. The third
-row is genuinely open.
+The first two rows — **92% of failures** — cannot be caused by translation. The third row
+is genuinely open.
+
+> **Read the denominators carefully.** Every percentage in that table is a share of the
+> **1,700 failures**, not of the 3,672 queries. So "63%" means 63% of failures also fail in
+> English — not that the model got 63% of queries wrong. It failed on 46% of queries
+> (1,700 / 3,672).
+>
+> And "92% of failures aren't translation" is a claim about **cause**, not about
+> retrievability. The retrievability number is the 80% in the table above. They answer
+> different questions and are not comparable.
 
 **Recommendation: invest in the Hebrew encoder, not in re-translating.**
 
-*mE5-base, 3,672 queries over the 5 translated datasets. Method:
+*mE5-base as the reference model, 3,672 queries over the 5 translated datasets. Method:
 [failure-analysis.md](failure-analysis.md).*
 
 ---
@@ -129,8 +158,9 @@ of row 3.
 1. **Don't re-translate.** 92% of failures are provably not translation, and the one real
    defect was two config settings, now changed.
 2. **Keep translating the remaining 10 datasets.** Quality was never the limiter.
-3. **Put the effort into the Hebrew encoder.** Row 2 is the proof it pays: swapping
-   mE5-base for a better model recovers 489 queries from text that hasn't changed.
+3. **Put the effort into the Hebrew encoder.** The headroom is measured, not assumed:
+   the corpus already supports **80%** while our reference model reaches **54%**. Closing
+   that gap needs no new translation — the answers are in the text now.
 
 ## What this doesn't prove
 
