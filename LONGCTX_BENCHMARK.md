@@ -64,12 +64,21 @@ advantage is over **mE5 only**, and is not a general Hebrew finding.
 | `BeIR_scifact` | 5,183 | 283 | 4,516 (87%) | 1.4 GB |
 | `BeIR_scidocs` | 25,313 | 3,905 | 21,367 (84%) | 8.2 GB |
 | `BeIR_fiqa` | 57,600 | 1,705 | 40,273 (70%) | 15 GB |
+| `BeIR_arguana` | 8,674 | 1,401 | 7,261 (84%) | 2.4 GB |
 
-**Excluded, with reasons:**
-- `nfcorpus` — averages 38 positives per query, so 86% of the corpus is a positive for
-  something, leaving only 505 usable filler passages for 3,633 documents (~165× reuse).
-- `arguana` — its queries *are* corpus documents, so a query's own text can land inside another
-  document as filler and match it for free.
+**`nfcorpus` excluded**, with the numbers: it averages **38.2 positives per query**, leaving
+**0** safe filler passages under all-splits exclusion and 505 under test-only — the latter would
+mean ~307x reuse of each passage across 3,633 documents, making filler near-constant and
+learnable-to-ignore. The relaxation is also unsafe here specifically, because HMB and
+NeoDictaBERT were fine-tuned on nfcorpus *train* positives. Cost: the benchmark has no
+many-positive relevance regime.
+
+**`arguana` was excluded and has been restored.** The original reason — that its queries are
+corpus documents, so a query's text could appear as filler — did not survive checking. In the
+*translated* corpus only **3 of 8,674** documents share text with a query, because queries and
+their corpus twins were translated separately. The real overlap is at the **id** level (92.4%),
+which the eval's `exclude_self="auto"` already detects and handles. Filler additionally excludes
+any document whose raw `text` field equals a query.
 
 ---
 
@@ -159,7 +168,7 @@ Measured: scifact 77s, scidocs 7.6 min, fiqa 16.3 min. ~24 GB total.
 bash scripts/data/long_context/verify_all.sh     # non-zero exit on any failure
 ```
 
-48 checks per dataset × condition, **288 total, all passing**. Each corresponds to a measured
+48 checks per dataset × condition, **384 total across 4 datasets × 2 conditions, all passing**. Each corresponds to a measured
 defect in the previous builder, so a corpus reproducing one cannot be written:
 
 | check | what it prevents |
@@ -173,6 +182,7 @@ defect in the previous builder, so a corpus reproducing one cannot be written:
 | padded docs respect the budget | under-filled or empty documents |
 | separator present / raw whitespace | tokenizer round-trip artifacts |
 | `weld.py` imports no tokenizer | corpus becoming model-specific |
+| welding introduced no unanswerable queries | measured as a **delta vs source**, not an absolute: translated arguana ships 5 of 1,406 queries whose gold is missing from its own corpus, and failing the build for an inherited defect is the wrong question |
 
 Module self-tests, both of which have caught real defects:
 
@@ -239,7 +249,124 @@ sbatch scripts/model/eval/c0_sanity_gate.sh
 
 ---
 
-## Results (scifact, `random`, gold in middle)
+## Results
+
+All figures scifact, `random` condition, gold in the middle, NDCG@10. scifact is the dataset
+with real headroom at the long rungs (see *Dataset-dependent difficulty* below).
+
+| arm | c0 | c3.7k | c19k | c27k | retention |
+|---|---|---|---|---|---|
+| **mE5-large + para-chunking** | 0.581 | 0.446 | 0.400 | **0.403** | 69% |
+| mE5-base + para-chunking | 0.549 | 0.443 | 0.383 | 0.392 | 71% |
+| NeoDictaBERT + para-chunking | 0.501 | 0.363 | 0.239 | 0.236 | 47% |
+| **BM25, full document** | 0.554 | 0.428 | — | **0.218** | 39% |
+| HMB + para-chunking | 0.309 | 0.209 | 0.131 | 0.129 | 42% |
+| NeoDictaBERT native (4096) | 0.501 | 0.026 | 0.002 | **0.000** | 0% |
+| HMB native (8192) | 0.309 | 0.019 | 0.001 | **0.000** | 0% |
+| mE5-large truncate (512) | 0.581 | 0.086 | 0.000 | 0.000 | 0% |
+
+### 1. Native single-vector encoding collapses; chunk-and-pool does not
+
+Both HMB **and** NeoDictaBERT fall to 0.000 when asked to encode a padded document in one pass,
+while the same models chunked retain 42–47%. This is not an HMB defect — it reproduces across
+two independently fine-tuned models.
+
+Three checks that it is not a harness artifact:
+
+- **Window probe.** On *unpadded* documents, widening the window costs almost nothing
+  (NDB 0.5008@512 → 0.4973@4096; HMB 0.3090@512 → 0.3030@8192). A long window alone is harmless.
+- **Anchor.** mE5-base chunked reproduced 0.443 exactly from a prior validated run.
+- `R@100 = 0.0067` for NDB-native @c27k — the gold sits at a random rank, not a near miss.
+
+Partial mechanism: HMB's mean pairwise document-embedding cosine rises 0.222 → 0.415 as padding
+grows (homogenisation toward a filler centroid). NDB's is flatter, so dilution is not the whole
+story.
+
+### 2. A 512-token model is the best long-document retriever
+
+mE5-large has the *smallest* window in the comparison and wins at every long rung. It never
+encodes a long document: at c27k it splits into 28.9 paragraph-aligned windows, encodes each
+within 512 tokens, and takes the best match. The same model *truncated* scores 0.000.
+
+So the comparison was never "512-token model vs 8192-token model" — it was **chunk-and-pool vs
+single-vector encoding**, and chunking wins because it keeps the gold passage's embedding intact
+instead of averaging it into 26,000 characters of filler.
+
+**This is why a long context window does not help retrieval here.** A large window only matters
+if the document must become one vector. Retrieval does not require that.
+
+### 3. BM25 validates the task, and calibrates the models
+
+BM25 reads the whole document — no window, no truncation — so its trajectory is a property of
+the *task*, independent of any model. On scifact it degrades gracefully (0.554 → 0.218, 39%),
+consistent with term-frequency dilution rather than collapse. Had welding broken the query/gold
+relationship, BM25 would have gone to zero.
+
+It also supplies a line the benchmark previously lacked. At c27k:
+mE5-large chunked (0.403) beats full-document lexical matching by +0.185, while **HMB chunked
+(0.129) falls below it** — HMB is not merely behind mE5, it is behind BM25.
+
+### 4. Length adaptation does not rescue native encoding
+
+Raising `--max_length` alone does nothing: standard training documents are median ~264 tokens
+and never approach any limit. So a welded training set was built (125,562 examples,
+`src/data/long_context/build_training_set.py`) and HMB was continued-SFT'd on it.
+
+It made the model **worse**, including on the short anchor rung where nothing had changed:
+
+| arm | c3.7k | c19k | c27k |
+|---|---|---|---|
+| HMB chunked, before adaptation | **0.209** | 0.131 | 0.129 |
+| HMB chunked, after adaptation | 0.035 | 0.024 | 0.026 |
+| HMB native, after adaptation | 0.040 | 0.002 | 0.005 |
+
+A learning-rate sweep confirmed this is not a tuning problem. All three candidates regress the
+anchor, and *lower* rates do *less* damage — extrapolating to "no training at all":
+
+| LR | c3.7k anchor | vs pre-SFT 0.209 |
+|---|---|---|
+| 5e-6 | 0.121 | −0.088 |
+| 1e-5 | 0.113 | −0.096 |
+| 2e-5 | 0.108 | −0.101 |
+
+**Hypothesis (not established):** in a welded document, the InfoNCE target asks the model to
+compress one ~1,000-character passage plus ~26,000 characters of unrelated filler into a single
+vector matching the query. Most of that gradient teaches it to encode filler. Chunked inference
+works precisely because it never asks for that, so welded training may be optimising against the
+thing that makes retrieval work. Testing this needs a different objective — supervising the gold
+span rather than the whole-document embedding — which is a research change, not a hyperparameter.
+
+### Dataset-dependent difficulty (read before comparing datasets)
+
+BM25 retention tracks the dilution ratio, so the rungs are not equally hard across datasets:
+
+| dataset | median passage | BM25 c0 | BM25 c27k | retention |
+|---|---|---|---|---|
+| scifact | 1,122 ch | 0.554 | 0.218 | 39% |
+| fiqa | 414 ch | 0.151 | 0.038 | 25% |
+| scidocs | 852 ch | 0.120 | 0.020 | 17% |
+
+At c27k on fiqa and scidocs, BM25 is near the floor. Absolute scores there will be small and
+model differences may fall inside noise — use cluster-bootstrap CIs before reading any ranking
+into those cells. scifact is the dataset where the long-context comparison has real headroom.
+
+### What these results do not show
+
+- Only scifact has been run at the decisive rungs, `random` condition, gold in the middle.
+- The `bm25` (coherent-filler) condition is built and verified but not yet evaluated.
+- Position bins `start` and `end` are built but not yet evaluated, so lost-in-the-middle is
+  unmeasured.
+- Length adaptation was tested with one objective on one model. A different objective, or a
+  model pretrained on long documents, could behave differently.
+
+---
+
+## Superseded: earlier results section
+
+The table below is retained because earlier notes reference it. It is the same scifact data,
+before arguana was restored and before the BM25 control existed.
+
+
 
 NDCG@10:
 
@@ -286,6 +413,8 @@ since no training example approaches the limit.
 - HMB and NeoDictaBERT are fine-tuned on translated BeIR; mE5 is zero-shot. This favours the
   fine-tuned models.
 - Results above are scifact only, `random` condition, gold in the middle.
+
+---
 
 ---
 
